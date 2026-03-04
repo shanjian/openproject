@@ -127,7 +127,7 @@ readonly I18n:I18nService,
       );
 
     this.board$.subscribe((board) => {
-      this.available = this.Banner.allowsTo('board_view') || board.isFree;
+      this.available = this.Banner.allowsTo('board_view') || board.isFree || board.isStatusAction;
     });
 
     this.Boards.currentBoard$.next(id);
