@@ -52,10 +52,27 @@ RSpec.describe "Boards",
       it "renders an enterprise banner and disables all restricted board types", :aggregate_failures do
         expect(page).to have_enterprise_banner
         expect(page).to have_selector(:radio_button, "Basic")
+        expect(page).to have_selector(:radio_button, "Kanban", disabled: false)
 
-        %w[Kanban Assignee Version Subproject Parent-child].each do |restricted_board_type|
+        %w[Assignee Version Subproject Parent-child].each do |restricted_board_type|
           expect(page).to have_selector(:radio_button, restricted_board_type, disabled: true)
         end
+      end
+
+      it 'creates a "Status" board', :aggregate_failures do
+        wait_for_reload # Halt until the project autocompleter is ready
+
+        new_board_page.set_title "Gotham Renewal Board"
+        new_board_page.set_project project
+        new_board_page.set_board_type "Kanban"
+        new_board_page.click_on_submit
+
+        wait_for_reload
+
+        expect(page).to have_text(I18n.t(:notice_successful_create))
+        expect(page).to have_current_path("/projects/#{project.identifier}/boards/#{Boards::Grid.last.id}")
+        expect(page).to have_text "Gotham Renewal Board"
+        expect(page).to have_css("[data-query-name='#{status.name}']")
       end
     end
 

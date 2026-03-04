@@ -90,7 +90,9 @@ module ::Boards
     end
 
     def restricted_board_type?
-      !EnterpriseToken.allows_to?(:board_view) && board_grid_params[:attribute] != "basic"
+      return false if EnterpriseToken.allows_to?(:board_view)
+
+      %w[assignee version subproject subtasks].include?(board_grid_params[:attribute])
     end
 
     def service_call

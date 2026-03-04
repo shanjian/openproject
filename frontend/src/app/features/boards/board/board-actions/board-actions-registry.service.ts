@@ -30,7 +30,7 @@ export class BoardActionsRegistryService {
       icon: '',
       description: '',
       image: '',
-      disabled: !this.bannersService.allowsTo('board_view'),
+      disabled: !this.bannersService.allowsTo('board_view') && attribute !== 'status',
     }));
   }
 

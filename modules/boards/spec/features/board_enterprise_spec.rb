@@ -55,11 +55,12 @@ RSpec.describe "Boards enterprise spec", :js do
       board_index.visit!
     end
 
-    it "disabled all action boards" do
+    it "disables only restricted board types" do
       page.find('[data-test-selector="add-board-button"]', text: "Board").click
 
       expect(page).to have_css("#{test_selector('op-tile-block')}:not(.-disabled)", text: "Basic")
-      expect(page).to have_css("#{test_selector('op-tile-block')}.-disabled", count: 5)
+      expect(page).to have_css("#{test_selector('op-tile-block')}:not(.-disabled)", text: "Kanban")
+      expect(page).to have_css("#{test_selector('op-tile-block')}.-disabled", count: 4)
     end
 
     it "shows a banner on the action board" do

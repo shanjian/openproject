@@ -38,6 +38,14 @@ export class Board {
     return this.grid.options.type === 'action';
   }
 
+  public get isStatusAction() {
+    return this.actionAttribute === 'status';
+  }
+
+  public get isRestrictedAction() {
+    return this.isAction && !this.isStatusAction;
+  }
+
   public get actionAttribute():string | undefined {
     if (this.isFree) {
       return undefined;

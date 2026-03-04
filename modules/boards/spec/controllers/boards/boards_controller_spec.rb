@@ -78,4 +78,47 @@ RSpec.describe Boards::BoardsController do
       end
     end
   end
+
+  describe "#create" do
+    let(:permissions) { %i[show_board_views manage_board_views view_work_packages] }
+    let(:board) { build_stubbed(:board_grid, project:) }
+    let(:service_result) { instance_double("ServiceResult", success?: true, result: board) }
+    let(:service_instance) { instance_double(Boards::StatusBoardCreateService, call: service_result) }
+
+    before do
+      allow(EnterpriseToken).to receive(:allows_to?).with(:board_view).and_return(false)
+    end
+
+    context "when creating a status board in Community Edition" do
+      it "allows creating the board" do
+        expect(Boards::StatusBoardCreateService).to receive(:new).with(user: user).and_return(service_instance)
+
+        post :create,
+             params: {
+               project_id: project.id,
+               boards_grid: {
+                 name: "Status board",
+                 attribute: "status"
+               }
+             }
+
+        expect(response).to redirect_to(project_work_package_board_path(project, board))
+      end
+    end
+
+    context "when creating a restricted board type in Community Edition" do
+      it "returns 403 forbidden" do
+        post :create,
+             params: {
+               project_id: project.id,
+               boards_grid: {
+                 name: "Assignee board",
+                 attribute: "assignee"
+               }
+             }
+
+        expect(response).to have_http_status(:forbidden)
+      end
+    end
+  end
 end

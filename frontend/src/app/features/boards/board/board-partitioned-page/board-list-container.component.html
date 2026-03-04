@@ -1,5 +1,5 @@
 @if ((board$ | async); as board) {
-  @if (!board.isFree) {
+  @if (board.isRestrictedAction) {
     <op-enterprise-banner-frame class="boards-list--enterprise-banner"
       feature="board_view"
       [dismissable]="true"
