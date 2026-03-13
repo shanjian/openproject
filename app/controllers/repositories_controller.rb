@@ -446,11 +446,11 @@ class RepositoriesController < ApplicationController
   end
 
   def send_raw(content, path)
-    # Force the download
-    send_opt = { filename: filename_for_content_disposition(path.split("/").last) }
-    send_type = OpenProject::MimeType.of(path)
-    send_opt[:type] = send_type.to_s if send_type
-    send_data content, send_opt
+    # Force the download as binary to prevent CSP bypass
+    send_data content,
+              filename: filename_for_content_disposition(path.split("/").last),
+              type: "application/octet-stream",
+              disposition: :attachment
   end
 
   def render_text_entry
