@@ -32,6 +32,8 @@ class CustomField < ApplicationRecord
   include CustomField::OrderStatements
   include CustomField::CalculatedValue
 
+  normalizes :name, with: OpenProject::RemoveAsciiControlCharacters
+
   has_many :custom_values, dependent: :delete_all
   # WARNING: the inverse_of option is also required in order
   # for the 'touch: true' option on the custom_field association in CustomOption
