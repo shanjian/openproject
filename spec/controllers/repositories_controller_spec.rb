@@ -287,8 +287,8 @@ RSpec.describe RepositoriesController do
         end
       end
 
-      describe "#send_raw" do
-        let(:permissions) { [:browse_repository] }
+      describe "#entry" do
+        let(:role) { create(:project_role, permissions: [:browse_repository]) }
 
         it "serves raw files as application/octet-stream attachment" do
           get :entry, params: { project_id: project.identifier, repo_path: "subversion_test/textfile.txt", format: "raw" }
