@@ -125,6 +125,18 @@ RSpec.describe Repository::Git do
         end
       end
 
+      context "and project with traversal identifier" do
+        before do
+          instance.project = project
+          allow(instance).to receive(:repository_identifier).and_return("../../etc/evil")
+        end
+
+        it "raises ArgumentError for path traversal" do
+          expect { instance.managed_repository_path }
+            .to raise_error(ArgumentError, /escapes the configured managed root/)
+        end
+      end
+
       context "and associated project with parent" do
         let(:parent) { build(:project) }
         let(:project) { build(:project, parent:) }
