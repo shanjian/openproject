@@ -35,6 +35,7 @@ RSpec.describe WorkPackages::MovesController, with_settings: { journal_aggregati
   shared_let(:role) do
     create(:project_role,
            permissions: %i(move_work_packages
+                           copy_work_packages
                            view_work_packages
                            add_work_packages
                            edit_work_packages
@@ -128,6 +129,23 @@ RSpec.describe WorkPackages::MovesController, with_settings: { journal_aggregati
   end
 
   describe "#create" do
+    context "when the user has copy_work_packages but not move_work_packages" do
+      let(:copy_only_role) do
+        create(:project_role,
+               permissions: %i[copy_work_packages view_work_packages edit_work_packages])
+      end
+      let!(:source_member) { create(:member, user: current_user, project:, roles: [copy_only_role]) }
+
+      it "renders a 403 Forbidden page" do
+        post :create,
+             params: {
+               work_package_id: work_package.id
+             }
+
+        expect(response.response_code).to eq(403)
+      end
+    end
+
     let!(:source_member) { create(:member, user: current_user, project:, roles: [role]) }
     let!(:target_member) { create(:member, user: current_user, project: target_project, roles: [role]) }
     let(:target_project) { create(:project, public: false) }
