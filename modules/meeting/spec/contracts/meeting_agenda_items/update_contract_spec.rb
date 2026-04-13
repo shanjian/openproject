@@ -62,6 +62,43 @@ RSpec.describe MeetingAgendaItems::UpdateContract do
       it_behaves_like "contract is invalid", item_type: :error_readonly
     end
 
+    context "when moving to a different meeting_section" do
+      let(:new_section) { create(:meeting_section, meeting:) }
+
+      before { item.meeting_section = new_section }
+
+      context "when the section belongs to the same meeting" do
+        it_behaves_like "contract is valid"
+      end
+
+      context "when the section belongs to an unrelated meeting" do
+        let(:other_meeting) { create(:meeting, project:) }
+        let(:new_section) { create(:meeting_section, meeting: other_meeting) }
+
+        it_behaves_like "contract is invalid", meeting_section: :invalid
+      end
+
+      context "when the section belongs to a different meeting in the same series" do
+        let(:recurring_meeting) { create(:recurring_meeting, project:, author: user) }
+        let(:occurrence) do
+          create(:meeting, project:, recurring_meeting:, template: false)
+        end
+        let(:item) { create(:meeting_agenda_item, meeting: recurring_meeting.template) }
+        let(:new_section) { create(:meeting_section, meeting: occurrence) }
+
+        it_behaves_like "contract is valid"
+      end
+
+      context "when the section belongs to a meeting in a different series" do
+        let(:other_recurring_meeting) { create(:recurring_meeting, project:, author: user) }
+        let(:new_section) { create(:meeting_section, meeting: other_recurring_meeting.template) }
+        let(:recurring_meeting) { create(:recurring_meeting, project:, author: user) }
+        let(:item) { create(:meeting_agenda_item, meeting: recurring_meeting.template) }
+
+        it_behaves_like "contract is invalid", meeting_section: :invalid
+      end
+    end
+
     context "with presenter" do
       before do
         item.presenter = presenter
