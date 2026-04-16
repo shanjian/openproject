@@ -416,6 +416,7 @@ RSpec.describe "API v3 Work package resource",
         let(:target_project) do
           create(:project, public: false)
         end
+        let(:permissions) { super() + [:move_work_packages] }
         let(:project_link) { api_v3_paths.project target_project.id }
         let(:project_parameter) { { _links: { project: { href: project_link } } } }
         let(:params) { valid_params.merge(project_parameter) }

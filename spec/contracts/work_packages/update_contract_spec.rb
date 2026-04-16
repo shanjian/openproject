@@ -98,23 +98,59 @@ RSpec.describe WorkPackages::UpdateContract do
 
     describe "project_id" do
       let(:target_project) { persisted_other_project }
+      let(:source_permissions) { %i[view_work_packages edit_work_packages move_work_packages] }
       let(:target_permissions) { [:move_work_packages] }
 
       before do
         mock_permissions_for(user) do |mock|
-          mock.allow_in_project *permissions, project: persisted_project
+          mock.allow_in_project *source_permissions, project: persisted_project
           mock.allow_in_project *target_permissions, project: target_project
         end
 
         work_package.project = target_project
       end
 
-      it_behaves_like "contract is valid"
+      context "with move_work_packages in both source and target" do
+        it_behaves_like "contract is valid"
+      end
 
-      context "if the user lacks the permissions" do
+      context "if the user lacks move_work_packages in the target project" do
         let(:target_permissions) { [] }
 
         it_behaves_like "contract is invalid", project_id: :error_readonly
+      end
+
+      context "if the user lacks move_work_packages in the source project" do
+        let(:source_permissions) { %i[view_work_packages edit_work_packages] }
+
+        it_behaves_like "contract is invalid", project_id: :error_readonly
+      end
+
+      context "when modifying attributes while moving (authorization bypass prevention)" do
+        before do
+          work_package.subject = "modified-subject"
+        end
+
+        context "with edit_work_packages in target project" do
+          let(:target_permissions) { %i[move_work_packages edit_work_packages] }
+
+          it_behaves_like "contract is valid"
+        end
+
+        context "without edit_work_packages in target project" do
+          let(:target_permissions) { [:move_work_packages] }
+
+          it_behaves_like "contract is invalid", subject: :error_readonly
+        end
+
+        context "without move_work_packages in source project" do
+          let(:source_permissions) { %i[view_work_packages change_work_package_status] }
+          let(:target_permissions) { %i[move_work_packages edit_work_packages] }
+
+          it "blocks the move even when the target project grants all permissions" do
+            expect(validated_contract.errors.symbols_for(:project_id)).to include(:error_readonly)
+          end
+        end
       end
     end
 
