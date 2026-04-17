@@ -68,7 +68,7 @@ class UsersController < ApplicationController
   include PaginationHelper
 
   def index
-    @groups = Group.all.sort
+    @groups = Group.visible.sort
     @status = Users::UserFilterComponent.status_param params
     @users = Users::UserFilterComponent.filter params
   end
