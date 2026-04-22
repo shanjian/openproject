@@ -120,6 +120,33 @@ RSpec.describe MeetingAgendaItems::UpdateContract do
         end
       end
     end
+
+    context "when changing work_package_id" do
+      let(:user) do
+        create(:user, member_with_permissions: { project => %i[manage_agendas view_work_packages] })
+      end
+      let(:other_project) { create(:project) }
+      let(:visible_work_package) { create(:work_package, project:) }
+      let(:other_visible_work_package) { create(:work_package, project:) }
+      let(:other_work_package) { create(:work_package, project: other_project) }
+      let(:item) { create(:wp_meeting_agenda_item, meeting:, work_package: visible_work_package) }
+
+      context "when the new work package is visible" do
+        before do
+          item.work_package = other_visible_work_package
+        end
+
+        it_behaves_like "contract is valid"
+      end
+
+      context "when the new work package is not visible" do
+        before do
+          item.work_package = other_work_package
+        end
+
+        it_behaves_like "contract is invalid", work_package: :error_not_found
+      end
+    end
   end
 
   context "without permission" do
