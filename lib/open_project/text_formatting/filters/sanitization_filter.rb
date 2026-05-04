@@ -71,8 +71,21 @@ module OpenProject::TextFormatting
           # Add custom transformer logic for more complex modifications
           transformers: base[:transformers] + transformers,
 
-          # Allow relaxed CSS styles for the given attributes
-          css: ::Sanitize::Config::RELAXED[:css],
+          # Restrict CSS to still allow some basic color and text styles
+          # used within the CKEditor table layout plugins
+          css: {
+            properties: %w[
+              text-align vertical-align font-weight font-style font-size
+              text-decoration color background-color
+              border border-collapse border-spacing border-color border-style border-width
+              width height max-width max-height min-width min-height
+              padding padding-top padding-right padding-bottom padding-left
+              margin margin-top margin-right margin-bottom margin-left
+              white-space word-wrap overflow-wrap
+              list-style-type
+              float clear
+            ]
+          },
 
           # Allow our protocols, and relative links always
           protocols: {
