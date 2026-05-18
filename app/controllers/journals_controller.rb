@@ -88,15 +88,7 @@ class JournalsController < ApplicationController
   end
 
   def ensure_permitted
-    permission = case @journal.journable_type
-                 when "WorkPackage" then :view_work_packages
-                 when "Project" then :view_project
-                 when "Meeting" then :view_meetings
-                 end
-
-    do_authorize(permission)
-  rescue Authorization::UnknownPermissionError
-    deny_access
+    deny_access unless @journal.visible?(User.current)
   end
 
   def diff_values
@@ -157,6 +149,10 @@ class JournalsController < ApplicationController
 
   def allowed_to_view_custom_field_changes?(custom_field)
     return true if User.current.admin?
+
+    if @journable.is_a?(Project) && !User.current.allowed_in_project?(:view_project_attributes, @journable)
+      return false
+    end
 
     if @journable.admin_only_custom_fields_allowed?
       # don't reveal changes of deleted custom fields if those could have admin_only mark
