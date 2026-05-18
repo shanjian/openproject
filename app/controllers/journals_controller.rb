@@ -131,10 +131,14 @@ class JournalsController < ApplicationController
 
   def ensure_custom_value_valid_for_diffing(cf_id)
     custom_field = CustomField.find_by(id: cf_id)
+    # Even if the custom field is deleted
+    # we will need to return 403 if the custom field class allows admin-only fields
     return render_403 if deleted_cf_forbidden?(custom_field)
-    return if custom_field.nil?
 
+    # If no admin-only field, we can allow deleted custom fields to be rendered now
+    return if custom_field.nil?
     return render_403 unless custom_field.visible?(User.current, project: @journable.project)
+
     render_404 if custom_field.field_format != "text"
   end
 
