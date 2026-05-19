@@ -140,13 +140,10 @@ class Activities::ItemComponent < ViewComponent::Base
 
   def remove_invisible_custom_field_details(details) # rubocop:disable Metrics/AbcSize
     journable = @event.journal.journable
-    return unless journable
-
-    cf_class = journable.class.custom_field_class
-    return unless cf_class
+    return unless journable&.customizable?
 
     project = journable.is_a?(::Project) ? journable : journable.try(:project)
-    visible_cf_ids = cf_class.visible(User.current, project:).pluck(:id).to_set
+    visible_cf_ids = journable.custom_field_class.visible(User.current, project:).pluck(:id).to_set
 
     details.reject! do |key, _|
       match = key.to_s.match(/\A(?:custom_fields|custom_comment)_(\d+)\z/)
