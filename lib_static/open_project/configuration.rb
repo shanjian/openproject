@@ -30,6 +30,7 @@
 
 require_relative "configuration/helpers"
 require_relative "configuration/asset_host"
+require "active_support/message_pack"
 
 module OpenProject
   module Configuration
