@@ -54,7 +54,7 @@ module Storages
             Authentication[strategy_data].call(storage:) { make_request(it) }
 
             cache_key = described_class::TOKEN_CACHE_KEY % storage.id
-            expect(Rails.cache.read(cache_key)).not_to be_nil
+            expect(OpenProject::ConfidentialCache.read(cache_key)).not_to be_nil
           end
         end
 
