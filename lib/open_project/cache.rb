@@ -29,18 +29,25 @@
 require_relative "cache/cache_key"
 
 module OpenProject
+  ##
+  # A cache accessor that ensures cache keys expire after OpenProject version bumps.
+  # Using OpenProject::Cache should be preferred over using Rails.cache directly.
   module Cache
     class << self
       def fetch(*, **, &)
         Rails.cache.fetch(CacheKey.key(*), **, &)
       end
 
-      def read(name, **, &)
-        Rails.cache.read(CacheKey.key(name), **, &)
+      def read(name, **)
+        Rails.cache.read(CacheKey.key(name), **)
       end
 
-      def write(name, value, **, &)
-        Rails.cache.write(CacheKey.key(name), value, **, &)
+      def write(name, value, **)
+        Rails.cache.write(CacheKey.key(name), value, **)
+      end
+
+      def delete(*)
+        Rails.cache.delete(CacheKey.key(*))
       end
 
       def clear
