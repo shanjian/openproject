@@ -31,9 +31,11 @@
 require "spec_helper"
 
 # Rails registers ActiveSupport::SafeBuffer as MessagePack ext type 18 with
-# unpacker: :new. MessagePack ext payloads are raw bytes (BINARY), so the default
-# unpacker reconstructs SafeBuffer with ASCII-8BIT encoding, even when the
-# original was UTF-8. This patch overrides the unpacker to force UTF-8.
+# packer: :to_s, unpacker: :new. Ext payloads are raw bytes (BINARY), so the
+# default unpacker reconstructs SafeBuffer with ASCII-8BIT encoding even when
+# the original was UTF-8. The patch (mirroring rails/rails#57429) switches to
+# recursive: true with nested packer.write / unpacker.read so the MessagePack
+# string codec preserves the original encoding across the round-trip.
 RSpec.describe OpenProject::Patches::MessagePackSafeBufferFix do
   # Use the same serializer the cache store uses to cover the real path.
   let(:serializer) { ActiveSupport::MessagePack::CacheSerializer }
@@ -43,28 +45,28 @@ RSpec.describe OpenProject::Patches::MessagePackSafeBufferFix do
     serializer.load(serializer.dump(value))
   end
 
-  shared_examples "a correctly round-tripped SafeBuffer", :aggregate_failures do
-    it "returns a utf-8 SafeBuffer, preserving the original content and html safety" do
-      expect(round_trip(subject)).to be_a(ActiveSupport::SafeBuffer)
-      expect(round_trip(subject).to_s).to eq(subject.to_s.dup.force_encoding(Encoding::UTF_8))
-      expect(round_trip(subject).encoding).to eq(Encoding::UTF_8)
-      expect(round_trip(subject)).to be_html_safe
-    end
-  end
-
   context "with a UTF-8 SafeBuffer (normal render output)" do
     subject { ActiveSupport::SafeBuffer.new(html) }
 
-    include_examples "a correctly round-tripped SafeBuffer"
+    it "roundtrips as a UTF-8 html_safe SafeBuffer and concatenates without error", :aggregate_failures do
+      result = round_trip(subject)
+      expect(result).to be_a(ActiveSupport::SafeBuffer)
+      expect(result).to be_html_safe
+      expect(result.encoding).to eq(Encoding::UTF_8)
+      expect(result.to_s).to eq(html)
+      expect("prefix " + result).to eq("prefix #{html}")
+    end
   end
 
-  context "with a BINARY-encoded SafeBuffer (e.g. content assembled from binary bytes)" do
+  context "with a BINARY-encoded SafeBuffer" do
     subject { ActiveSupport::SafeBuffer.new(html.b) }
 
-    it "has BINARY encoding before round-trip (confirms precondition)" do
-      expect(subject.encoding).to eq(Encoding::BINARY)
+    it "preserves BINARY encoding across the round-trip", :aggregate_failures do
+      result = round_trip(subject)
+      expect(result).to be_a(ActiveSupport::SafeBuffer)
+      expect(result).to be_html_safe
+      expect(result.encoding).to eq(Encoding::BINARY)
+      expect(result.to_str).to eq(html.b)
     end
-
-    include_examples "a correctly round-tripped SafeBuffer"
   end
 end

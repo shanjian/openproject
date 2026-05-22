@@ -30,25 +30,23 @@
 
 module OpenProject
   module Patches
-    # Rails registers ActiveSupport::SafeBuffer as MessagePack ext type 18 with
-    # unpacker: :new. ActionView::OutputBuffer (a SafeBuffer subclass) uses "".b
-    # internally, so the ext payload bytes are BINARY. The default unpacker calls
-    # SafeBuffer.new(binary_bytes) which reconstructs with ASCII-8BIT encoding,
-    # causing Encoding::CompatibilityError when the cached HTML is later
-    # concatenated into a UTF-8 output buffer (e.g. via ActionView concat).
+    # Upstream fix: https://github.com/rails/rails/pull/57429 (merged, not yet released)
     #
-    # We prepend to MessagePack::Factory so that when Extensions.install registers
-    # type 18, our override replaces the unpacker with one that force_encodes to
-    # UTF-8 before constructing the SafeBuffer.
+    # Rails registers ActiveSupport::SafeBuffer as MessagePack ext type 18 with
+    # packer: :to_s, unpacker: :new. Ext payload bytes are always BINARY, so
+    # SafeBuffer.new(payload) reconstructs with ASCII-8BIT encoding, causing
+    # Encoding::CompatibilityError when cached HTML is later concatenated into a
+    # UTF-8 output buffer.
+    #
+    # The upstream fix switches to recursive: true with nested packer.write /
+    # unpacker.read so the MessagePack string codec preserves the original
+    # encoding across the round-trip.
     module MessagePackSafeBufferFix
       def register_type(type_id, klass = nil, **options, &)
-        if klass == ActiveSupport::SafeBuffer && options[:unpacker] == :new
-          options[:unpacker] = ->(bytes) {
-            retagged = bytes.force_encoding(Encoding::UTF_8)
-            raise EncodingError, "Cached SafeBuffer payload is not valid UTF-8" unless retagged.valid_encoding?
-
-            ActiveSupport::SafeBuffer.new(retagged)
-          }
+        if klass == ActiveSupport::SafeBuffer
+          options[:packer] = ->(buffer, packer) { packer.write(buffer.to_str) }
+          options[:unpacker] = ->(unpacker) { ActiveSupport::SafeBuffer.new(unpacker.read) }
+          options[:recursive] = true
         end
 
         super
