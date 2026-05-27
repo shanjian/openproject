@@ -57,6 +57,20 @@ class Story < WorkPackage
     Story.backlogs(project.id, [sprint.id], options)[sprint.id]
   end
 
+  # Work packages in this project with no fixed_version assigned.
+  # Unlike `backlogs`, this is not filtered by `Story.types` — the inbox
+  # shows every unassigned work package regardless of type configuration.
+  def self.inbox_for(project_id)
+    candidates = Story.where(project_id:, version_id: nil)
+                      .order(Arel.sql(Story::ORDER))
+
+    candidates.each_with_index do |story, index|
+      story.rank = index + 1
+    end
+
+    candidates.to_a
+  end
+
   def self.at_rank(project_id, sprint_id, rank)
     Story.where(Story.condition(project_id, sprint_id))
          .joins(:status)

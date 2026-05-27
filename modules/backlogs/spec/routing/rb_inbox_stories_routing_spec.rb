@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 #-- copyright
 # OpenProject is an open source project management software.
 # Copyright (C) the OpenProject GmbH
@@ -26,14 +28,20 @@
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-class RbMasterBacklogsController < RbApplicationController
-  menu_item :backlogs
+require "spec_helper"
 
-  def index
-    @owner_backlogs = Backlog.owner_backlogs(@project)
-    @sprint_backlogs = Backlog.sprint_backlogs(@project)
-    @inbox_backlog = Backlog.inbox_backlog(@project)
+RSpec.describe RbStoriesController, "inbox routing" do
+  it "routes PUT /projects/:project_id/stories/:id to update" do
+    expect(put("/projects/project_42/stories/85")).to route_to(
+      controller: "rb_stories",
+      action: "update",
+      project_id: "project_42",
+      id: "85"
+    )
+  end
 
-    @last_update = (@sprint_backlogs + @owner_backlogs + [@inbox_backlog]).filter_map(&:updated_at).max
+  it "exposes the backlogs_project_inbox_story_path helper" do
+    expect(Rails.application.routes.url_helpers)
+      .to respond_to(:backlogs_project_inbox_story_path)
   end
 end

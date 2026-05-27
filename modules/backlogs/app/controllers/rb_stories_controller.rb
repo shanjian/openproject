@@ -71,6 +71,9 @@ class RbStoriesController < RbApplicationController
   end
 
   def story_params
-    params.permit(PERMITTED_PARAMS).merge(project: @project).to_h
+    permitted = params.permit(PERMITTED_PARAMS).to_h
+    # Inbox drag-drop sends version_id="" to clear the version.
+    permitted["version_id"] = nil if permitted.key?("version_id") && permitted["version_id"].blank?
+    permitted.merge(project: @project)
   end
 end

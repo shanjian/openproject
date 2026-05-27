@@ -104,9 +104,9 @@ RB.Story = (function ($) {
       let method;
 
       prev = this.$.prev();
-      sprintId = this.$.parents('.backlog').data('this').isSprintBacklog()
-                   ? this.$.parents('.backlog').data('this').getSprint().data('this')
-.getID()
+      const parentBacklog = this.$.parents('.backlog').data('this');
+      sprintId = parentBacklog.isSprintBacklog()
+                   ? parentBacklog.getSprint().data('this').getID()
                    : '';
 
       data = `prev=${
@@ -117,14 +117,17 @@ RB.Story = (function ($) {
         data += `&${this.$.find('.editor').serialize()}`;
       }
 
-      //TODO: this might be unsave in case the parent of this story is not the
-      //      sprint backlog, then we dont have a sprintId an cannot generate a
-      //      valid url - one option might be to take RB.constants.sprint_id
-      //      hoping it exists
       if (this.isNew()) {
+        // New-story creation only happens inside a real sprint column; the
+        // inbox has no "+ new story" affordance.
         // @ts-expect-error TS(2304): Cannot find name 'RB'.
         url = RB.urlFor('create_story', { sprint_id: sprintId });
         method = 'post';
+      } else if (sprintId === '') {
+        // Source column has no sprint (inbox). Use the non-nested route.
+        // @ts-expect-error TS(2304): Cannot find name 'RB'.
+        url = RB.urlFor('update_story_inbox', { id: this.getID() });
+        method = 'put';
       } else {
         // @ts-expect-error TS(2304): Cannot find name 'RB'.
         url = RB.urlFor('update_story', { id: this.getID(), sprint_id: sprintId });

@@ -1,0 +1,56 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<%
+  folded = current_user.backlogs_preference(:versions_default_fold_state) == "closed"
+  editable = User.current.allowed_in_project?(:edit_work_packages, @project)
+  stories = inbox.stories
+%>
+<div class="backlog inbox" id="backlog_inbox">
+  <div class="header">
+    <% icon = folded ? "icon-arrow-down1" : "icon-arrow-up1" %>
+    <div class="toggler <%= icon %> icon-small<%= " closed" if folded %>"> </div>
+    <div class="inbox-title">
+      <span class="name"><%= t("backlogs.inbox.title") %></span>
+      <span class="count">(<%= stories.size %>)</span>
+    </div>
+  </div>
+  <ul class="stories<%= " closed" if folded %><%= " prevent_drag" unless editable %>">
+    <% reset_cycle "stories" %>
+    <% stories.each_with_index do |story, index| %>
+      <% higher_item = index == 0 ? nil : stories[index - 1] %>
+
+      <%= render partial: "rb_stories/story",
+                 locals: { story:, higher_item: } %>
+    <% end %>
+  </ul>
+  <% if stories.empty? %>
+    <div class="empty-state"><%= t("backlogs.inbox.empty") %></div>
+  <% end %>
+</div>

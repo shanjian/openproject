@@ -47,11 +47,16 @@ class Backlog
     sprints.map { |sprint| new(stories: stories_by_sprints[sprint.id], sprint:) }
   end
 
+  def self.inbox_backlog(project)
+    new(stories: Story.inbox_for(project.id), inbox: true)
+  end
+
   def initialize(options = {})
     options = options.with_indifferent_access
     @sprint = options["sprint"]
     @stories = options["stories"]
     @owner_backlog = options["owner_backlog"]
+    @inbox = options["inbox"]
   end
 
   def updated_at
@@ -63,6 +68,10 @@ class Backlog
   end
 
   def sprint_backlog?
-    !owner_backlog?
+    !owner_backlog? && !inbox?
+  end
+
+  def inbox?
+    !!@inbox
   end
 end

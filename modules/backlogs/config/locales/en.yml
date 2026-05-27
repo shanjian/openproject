@@ -68,6 +68,9 @@ en:
     generating_chart: "Generating Graph..."
     hours: "Hours"
     impediment: "Impediment"
+    inbox:
+      title: "Inbox"
+      empty: "No unassigned work packages"
     label_versions_default_fold_state: "Show versions folded"
     caption_versions_default_fold_state: "Versions will not be expanded by default when viewing backlogs. Each one has to be manually expanded."
     work_package_is_closed: "Work package is done, when"

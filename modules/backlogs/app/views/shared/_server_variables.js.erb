@@ -47,6 +47,7 @@ RB.urlFor = (function () {
 
     create_story: '<%= backlogs_project_sprint_stories_path(project_id: @project.identifier, sprint_id: ":sprint_id") %>',
     update_story: '<%= backlogs_project_sprint_story_path(project_id: @project.identifier, sprint_id: ":sprint_id", id: ":id") %>',
+    update_story_inbox: '<%= backlogs_project_inbox_story_path(project_id: @project.identifier, id: ":id") %>',
 
     create_task: '<%= backlogs_project_sprint_tasks_path(project_id: @project.identifier, sprint_id: ":sprint_id") %>',
     update_task: '<%= backlogs_project_sprint_task_path(project_id: @project.identifier, sprint_id: ":sprint_id", id: ":id") %>',

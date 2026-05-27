@@ -31,6 +31,11 @@ Rails.application.routes.draw do
     scope "projects/:project_id", as: "project" do
       resources :backlogs,         controller: :rb_master_backlogs,  only: :index
 
+      # Non-nested stories endpoint used when the source/target column is the
+      # inbox (no sprint context). Drag-drop into a sprint column continues to
+      # use the nested route below.
+      resources :stories,          controller: :rb_stories,          only: %i[update], as: :inbox_story
+
       resources :sprints,          controller: :rb_sprints,          only: %i[show update] do
         resource :query,            controller: :rb_queries,          only: :show
 

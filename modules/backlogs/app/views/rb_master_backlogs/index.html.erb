@@ -61,6 +61,9 @@ See COPYRIGHT and LICENSE files for more details.
 
 <div id="rb">
   <div id="backlogs_container" class="clearfix">
+    <div id="inbox_container">
+      <%= render partial: "inbox", object: @inbox_backlog %>
+    </div>
     <div id="owner_backlogs_container">
       <%= render partial: "backlog", collection: @owner_backlogs %>
     </div>
