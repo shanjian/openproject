@@ -64,6 +64,17 @@ module API
                select: ["types.name type_name"]
              }
 
+        link :priority,
+             path: { api: :priority, params: %w(id) },
+             column: -> { :priority_id },
+             title: -> { "priority_name" },
+             join: {
+               # The enumerations table is aliased to the pluralized link name ("priorities")
+               table: :enumerations,
+               condition: "priorities.id = work_packages.priority_id",
+               select: ["priorities.name priority_name"]
+             }
+
         associated_user_link :author
 
         associated_user_link :assignee,

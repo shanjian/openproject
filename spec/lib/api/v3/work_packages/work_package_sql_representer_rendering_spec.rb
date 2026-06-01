@@ -101,6 +101,10 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
             type: {
               href: api_v3_paths.type(type.id),
               title: type.name
+            },
+            priority: {
+              href: api_v3_paths.priority(rendered_work_package.priority.id),
+              title: rendered_work_package.priority.name
             }
           }
         }
@@ -146,6 +150,10 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
             type: {
               href: api_v3_paths.type(type.id),
               title: type.name
+            },
+            priority: {
+              href: api_v3_paths.priority(rendered_work_package.priority.id),
+              title: rendered_work_package.priority.name
             }
           }
         }

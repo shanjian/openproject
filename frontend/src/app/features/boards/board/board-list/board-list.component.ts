@@ -137,14 +137,14 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
    * the assignee avatar is intentionally dropped for speed.
    */
   private static readonly cardSelect = [
-    'id',
-    'subject',
-    'status',
-    'type',
-    'priority',
-    'project',
-    'startDate',
-    'dueDate',
+    'elements/id',
+    'elements/subject',
+    'elements/status',
+    'elements/type',
+    'elements/priority',
+    'elements/project',
+    'elements/startDate',
+    'elements/dueDate',
   ].join(',');
 
   /** Accumulated story points across the column's work packages, or null when not summable */
