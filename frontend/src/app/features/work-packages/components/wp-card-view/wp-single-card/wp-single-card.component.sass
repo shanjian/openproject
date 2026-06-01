@@ -34,6 +34,28 @@
   &_placeholder
     min-height: 92px
 
+  // Placeholder content: id + subject only. Kept as a self-contained flex
+  // column with min-width: 0 and a truncating subject so it can NEVER grow the
+  // card past the column (a bare subject in the real --content grid would,
+  // because grid/flex items default to min-width: auto = min-content width).
+  &--placeholder
+    flex: 1
+    min-width: 0
+    display: flex
+    flex-direction: column
+    gap: 4px
+    overflow: hidden
+
+    &-id
+      color: var(--fgColor-muted)
+      font-size: 12px
+
+    &-subject
+      min-width: 0
+      overflow: hidden
+      text-overflow: ellipsis
+      white-space: nowrap
+
   &_selected
     background-color: var(--selection-bgColor)
     .op-icon--wrapper

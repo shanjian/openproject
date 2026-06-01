@@ -18,10 +18,10 @@
   >
 
 @if (!hydrated) {
-  <div class="op-wp-single-card--content op-wp-single-card--content_placeholder">
-    <span class="op-wp-single-card--content-id">#{{workPackage.id}}</span>
+  <div class="op-wp-single-card--placeholder">
+    <span class="op-wp-single-card--placeholder-id">#{{workPackage.id}}</span>
     <span
-      class="op-wp-single-card--content-subject"
+      class="op-wp-single-card--placeholder-subject"
       data-test-selector="op-wp-single-card--placeholder-subject"
       [textContent]="wpSubject(workPackage)"
     ></span>
