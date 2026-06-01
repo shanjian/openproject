@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BoardActionService } from 'core-app/features/boards/board/board-actions/board-action.service';
 import { WorkPackageResource } from 'core-app/features/hal/resources/work-package-resource';
+import { isPartialWorkPackage } from 'core-app/features/hal/helpers/partial-work-package';
 import {
   firstValueFrom,
   Observable,
@@ -36,6 +37,11 @@ export class BoardSubtasksActionService extends BoardActionService {
   }
 
   public canMove(workPackage:WorkPackageResource):boolean {
+    // Lightweight (board select) payloads omit the `changeParent` link, so allow
+    // the move and let the save validate; full work packages require the link.
+    if (isPartialWorkPackage(workPackage)) {
+      return true;
+    }
     return !!workPackage.changeParent;
   }
 
