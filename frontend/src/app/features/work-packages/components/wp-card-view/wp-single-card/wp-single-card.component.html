@@ -19,6 +19,14 @@
 
 @if (!hydrated) {
   <div class="op-wp-single-card--placeholder">
+    @if (showStatusButton && workPackage.status) {
+      <span
+        class="op-wp-single-card--placeholder-status"
+        data-test-selector="op-wp-single-card--placeholder-status"
+        [ngClass]="statusHighlightClass(workPackage)"
+        [textContent]="workPackage.status.name"
+      ></span>
+    }
     <span class="op-wp-single-card--placeholder-id">#{{workPackage.id}}</span>
     <span
       class="op-wp-single-card--placeholder-subject"

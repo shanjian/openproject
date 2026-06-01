@@ -125,6 +125,16 @@ describe('WorkPackageSingleCardComponent', () => {
       expect(placeholderSubject.nativeElement.textContent).toContain('A subject');
     });
 
+    it('shows the status (name + color) in the placeholder, without hydration', () => {
+      const badge = fixture.debugElement.query(
+        By.css('[data-test-selector="op-wp-single-card--placeholder-status"]'),
+      );
+
+      expect(badge).not.toBeNull();
+      expect(badge.nativeElement.textContent).toContain('New');
+      expect(badge.nativeElement.classList).toContain('__hl_background_status_1');
+    });
+
     it('requests hydration when focused', () => {
       const emit = spyOn(fixture.componentInstance.hydrateRequested, 'emit');
 

@@ -264,6 +264,12 @@ export class WorkPackageSingleCardComponent extends UntilDestroyedMixin implemen
     return this.attributeHighlighting('type', wp);
   }
 
+  // Status color for the lightweight placeholder badge. Derived from the status
+  // id via the global highlighting CSS, so it needs no schema and no full card.
+  public statusHighlightClass(wp:WorkPackageResource):string {
+    return Highlighting.backgroundClass('status', (wp.status as StatusResource).id!);
+  }
+
   public onRemoved(wp:WorkPackageResource):void {
     this.onRemove.emit(wp);
   }

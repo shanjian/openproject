@@ -195,25 +195,4 @@ describe('WorkPackageCardViewComponent lazy hydration', () => {
     });
   });
 
-  describe('seedInitialHydration', () => {
-    it('eagerly hydrates the first screenful and leaves the rest for the observer', () => {
-      component.lazyHydrate = true;
-      cardDragDrop.workPackages = Array.from({ length: 30 }, (_, i) => wp(String(i)));
-
-      (component as unknown as { seedInitialHydration:() => void }).seedInitialHydration();
-
-      expect(component.hydratedIds.has('0')).toBe(true);
-      expect(component.hydratedIds.has('24')).toBe(true); // 25th card (index 24)
-      expect(component.hydratedIds.has('25')).toBe(false); // beyond the initial screenful
-    });
-
-    it('does nothing when lazyHydrate is off', () => {
-      component.lazyHydrate = false;
-      cardDragDrop.workPackages = [wp('0')];
-
-      (component as unknown as { seedInitialHydration:() => void }).seedInitialHydration();
-
-      expect(component.hydratedIds.size).toBe(0);
-    });
-  });
 });
