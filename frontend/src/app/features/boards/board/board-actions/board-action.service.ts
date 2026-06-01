@@ -213,6 +213,14 @@ export abstract class BoardActionService {
    * Determine whether the given work package can be moved
    */
   canMove(workPackage:WorkPackageResource):boolean {
+    // Boards load a lightweight (select) payload that has no schema link. Without
+    // the schema we cannot check writability up front, so allow the move — it is
+    // validated when the re-assignment is saved (onAdded loads the full resource).
+    const schemaHref = this.schemaCache.getSchemaHref(workPackage);
+    if (!schemaHref || !this.schemaCache.state(schemaHref).hasValue()) {
+      return true;
+    }
+
     const schema = this.schemaCache.of(workPackage);
     const fieldSchema = schema[this.filterName] as IFieldSchema;
     return fieldSchema?.writable;
