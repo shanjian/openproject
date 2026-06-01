@@ -37,17 +37,9 @@ module API
           end
 
           def href_callback
-            # The work package "Version" filter targets version_id, the Sprint selection
-            # set, so only offer sprint versions (releases are selected via the Release
-            # custom field). Validation still accepts any version, so existing filters do
-            # not break.
-            query_params = "filters=#{sprint_filter}&sortBy=#{to_query [%i(name asc)]}&pageSize=-1"
+            base = filter.project.nil? ? api_v3_paths.versions : api_v3_paths.versions_by_workspace(filter.project.id)
 
-            if filter.project.nil?
-              "#{api_v3_paths.versions}?#{query_params}"
-            else
-              "#{api_v3_paths.versions_by_workspace(filter.project.id)}?#{query_params}"
-            end
+            "#{base}?#{query_params}"
           end
 
           def type
@@ -56,8 +48,27 @@ module API
 
           private
 
-          def sprint_filter
-            to_query([{ kind: { operator: "=", values: ["sprint"] } }])
+          def query_params
+            [kind_filter_param, "sortBy=#{to_query [%i(name asc)]}", "pageSize=-1"].compact.join("&")
+          end
+
+          # Offer only the versions of the kind this filter targets:
+          # - the native version_id filter is the Sprint selection set => "sprint";
+          # - a version custom field filter (e.g. Release) uses its configured version_kind;
+          # - a version custom field with no kind offers all versions (no kind filter).
+          def kind_filter_param
+            kind = filtered_version_kind
+            return if kind.blank?
+
+            "filters=#{to_query([{ kind: { operator: '=', values: [kind] } }])}"
+          end
+
+          def filtered_version_kind
+            if filter.is_a?(::Queries::Filters::Shared::CustomFields::Base)
+              filter.custom_field.version_kind
+            else
+              "sprint"
+            end
           end
 
           def to_query(param)
