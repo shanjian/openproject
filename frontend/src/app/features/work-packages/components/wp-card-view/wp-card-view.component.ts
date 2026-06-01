@@ -102,6 +102,14 @@ export class WorkPackageCardViewComponent extends UntilDestroyedMixin implements
   /** Ids of work packages whose cards have been hydrated (lazy mode only) */
   public hydratedIds = new Set<string>();
 
+  /**
+   * Number of cards hydrated eagerly on initial render, covering the visible
+   * viewport. The IntersectionObserver hydrates the rest as they scroll into
+   * view, but its first pass can under-report before layout settles (only the
+   * top card hydrated until a scroll), so we fill the first screenful directly.
+   */
+  private static readonly initialHydrationCount = 25;
+
   private intersectionObserver?:IntersectionObserver;
 
   @Output() public onMoved = new EventEmitter<void>();
@@ -188,6 +196,7 @@ export class WorkPackageCardViewComponent extends UntilDestroyedMixin implements
       ).subscribe(([results, query]) => {
         this.query = query;
         this.workPackages = this.wpViewOrder.orderedWorkPackages();
+        this.seedInitialHydration();
         this.cardView.updateRenderedCardsValues(this.workPackages);
         this.isResultEmpty = this.workPackages.length === 0;
         this.cdRef.detectChanges();
@@ -226,6 +235,25 @@ export class WorkPackageCardViewComponent extends UntilDestroyedMixin implements
   /** Whether the card for the given work package should render its full content */
   public isHydrated(wp:WorkPackageResource):boolean {
     return !this.lazyHydrate || isNewResource(wp) || this.hydratedIds.has(wp.id!);
+  }
+
+  /**
+   * Eagerly mark the first screenful of cards as hydrated so the visible cards
+   * are rendered in full on load (rather than waiting for the IntersectionObserver,
+   * whose initial pass can miss them until the user scrolls).
+   */
+  private seedInitialHydration():void {
+    if (!this.lazyHydrate) {
+      return;
+    }
+
+    this.workPackages
+      .slice(0, WorkPackageCardViewComponent.initialHydrationCount)
+      .forEach((wp) => {
+        if (wp.id) {
+          this.hydratedIds.add(wp.id);
+        }
+      });
   }
 
   /** Hydrate a single card on demand (e.g. when it receives keyboard focus) */
