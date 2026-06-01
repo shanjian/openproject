@@ -38,6 +38,7 @@ import {
   WorkPackageViewFocusService,
 } from 'core-app/features/work-packages/routing/wp-view-base/view-services/wp-view-focus.service';
 import { WorkPackageResource } from 'core-app/features/hal/resources/work-package-resource';
+import { isPartialWorkPackage } from 'core-app/features/hal/helpers/partial-work-package';
 import { OpTitleService } from 'core-app/core/html/op-title.service';
 import { AuthorisationService } from 'core-app/core/model-auth/model-auth.service';
 import { States } from 'core-app/core/states/states.service';
@@ -143,11 +144,16 @@ export abstract class WorkPackageSingleViewBase extends UntilDestroyedMixin {
    * Needs to be run explicitly by descendants.
    */
   protected observeWorkPackage():void {
+    // If only a partial work package is cached (e.g. a board's lightweight `select`
+    // payload), force a full reload — the detail view needs the complete resource.
+    const cached = this.states.workPackages.get(this.workPackageId).getValueOr(undefined);
+    const forceFullReload = isPartialWorkPackage(cached);
+
     this
       .apiV3Service
       .work_packages
       .id(this.workPackageId)
-      .requireAndStream()
+      .requireAndStream(forceFullReload)
       .pipe(this.untilDestroyed())
       .subscribe((wp:WorkPackageResource) => {
         if (!this.workPackage) {

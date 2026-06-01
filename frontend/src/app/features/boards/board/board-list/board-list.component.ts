@@ -62,6 +62,7 @@ import {
   HalEventsService,
 } from 'core-app/features/hal/services/hal-events.service';
 import { WorkPackageResource } from 'core-app/features/hal/resources/work-package-resource';
+import { markPartialWorkPackage } from 'core-app/features/hal/helpers/partial-work-package';
 import { firstValueFrom } from 'rxjs';
 import { WorkPackageIsolatedQuerySpaceDirective } from 'core-app/features/work-packages/directives/query-space/wp-isolated-query-space.directive';
 import { CurrentProjectService } from 'core-app/core/current-project/current-project.service';
@@ -471,6 +472,10 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
     observable
       .subscribe(
         (query) => {
+          // The board fetches a projected `select` payload, so these work packages are
+          // partial. Mark them before they enter the shared cache so the detail/full
+          // view reloads the complete resource instead of rendering the card subset.
+          query.results.elements.forEach((wp) => markPartialWorkPackage(wp));
           this.wpStatesInitialization.updateQuerySpace(query, query.results);
           this.cdRef.markForCheck();
         },
