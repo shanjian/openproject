@@ -4163,6 +4163,7 @@ en:
   label_seeded_from_env_warning: This record has been created through a setting environment variable. It is not editable through UI.
   macro_execution_error: "Error executing the macro %{macro_name}"
   macro_unavailable: "Macro %{macro_name} cannot be displayed."
+  macro_unknown: "Unknown or unsupported macro."
   macros:
     placeholder: "[Placeholder] Macro %{macro_name}"
     errors:
