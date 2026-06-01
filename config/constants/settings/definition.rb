@@ -327,6 +327,10 @@ module Settings
       cross_project_work_package_relations: {
         default: true
       },
+      csv_escape_formulas: {
+        default: true,
+        description: "Escapes cells with single quote in CSV exports that begin with a spreadsheet formula character (e.g., =,@)"
+      },
       database_cipher_key: {
         description: "Encryption key for repository credentials",
         format: :string,

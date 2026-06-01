@@ -682,6 +682,7 @@ Rails.application.routes.draw do
       resource :general, controller: "/admin/settings/general_settings", only: %i[show update]
       resource :languages, controller: "/admin/settings/languages_settings", only: %i[show update]
       resource :external_links, controller: "/admin/settings/external_links_settings", only: %i[show update]
+      resource :exports, controller: "/admin/settings/exports_settings", only: %i[show update]
       resource :repositories, controller: "/admin/settings/repositories_settings", only: %i[show update]
       resource :experimental, controller: "/admin/settings/experimental_settings", only: %i[show update]
 
