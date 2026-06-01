@@ -80,9 +80,10 @@ export class WorkPackageStatusButtonComponent extends UntilDestroyedMixin implem
   }
 
   public get buttonTitle() {
-    if (this.schema.isReadonly) {
+    const { schema } = this;
+    if (schema?.isReadonly) {
       return this.text.workPackageReadOnly;
-    } if (this.schema.isEditable && !this.allowed) {
+    } if (schema?.isEditable && !this.allowed) {
       return this.text.workPackageStatusBlocked;
     }
     return '';
@@ -101,17 +102,31 @@ export class WorkPackageStatusButtonComponent extends UntilDestroyedMixin implem
   }
 
   public get isReadonly() {
-    return this.schema.isReadonly;
+    return !!this.schema?.isReadonly;
   }
 
   public get allowed() {
-    return this.schema.isAttributeEditable('status');
+    const { schema } = this;
+    // When the schema is not loaded (e.g. a board's lightweight `select` payload),
+    // assume the status is editable; the dropdown loads what it needs on demand.
+    return schema ? schema.isAttributeEditable('status') : true;
   }
 
+  // Returns the schema ONLY when it is actually loaded for this work package. A
+  // lightweight (board select) payload has no schema link / cached schema, and
+  // schemaCache.of() would otherwise proxy `undefined` and throw in the getters
+  // above — which dropped the status display from cards without a cached schema.
   private get schema() {
-    if (this.halEditing.typedState(this.workPackage).hasValue()) {
-      return this.halEditing.typedState(this.workPackage).value!.schema;
+    const edited = this.halEditing.typedState(this.workPackage);
+    if (edited.hasValue()) {
+      return edited.value!.schema;
     }
-    return this.schemaCache.of(this.workPackage);
+
+    const href = this.schemaCache.getSchemaHref(this.workPackage);
+    if (href && this.schemaCache.state(href).hasValue()) {
+      return this.schemaCache.of(this.workPackage);
+    }
+
+    return undefined;
   }
 }
