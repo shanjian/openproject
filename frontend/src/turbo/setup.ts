@@ -51,8 +51,12 @@ StreamActions.reloadPage = function reloadPage() {
 // https://github.com/hotwired/turbo/issues/1300
 applyTurboNavigationPatch();
 
-// Register turbo power actions
-TurboPower.initialize(Turbo.StreamActions);
+// Register only the turbo-power stream actions we actually use
+TurboPower.register('push_state', TurboPower.Actions.push_state, StreamActions);
+TurboPower.register('turbo_frame_set_src', TurboPower.Actions.turbo_frame_set_src, StreamActions);
+TurboPower.register('redirect_to', TurboPower.Actions.redirect_to, StreamActions);
+TurboPower.register('set_dataset_attribute', TurboPower.Actions.set_dataset_attribute, StreamActions);
+TurboPower.register('set_title', TurboPower.Actions.set_title, StreamActions);
 
 // Error handling when "Content missing" returned
 document.addEventListener('turbo:frame-missing', (event) => {
