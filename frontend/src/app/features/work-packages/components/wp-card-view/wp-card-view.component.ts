@@ -81,6 +81,9 @@ export class WorkPackageCardViewComponent extends UntilDestroyedMixin implements
   /** Whether on special mobile version of the cards shall be shown */
   @Input() public shrinkOnMobile = false;
 
+  /** Show the assignee as a name (text) instead of an avatar. Used by boards. */
+  @Input() public showAssigneeName = false;
+
   /**
    * When enabled, cards are rendered as lightweight placeholders and only
    * hydrated into full cards once they scroll near the viewport. Used by boards,

@@ -73,6 +73,9 @@ export class WorkPackageSingleCardComponent extends UntilDestroyedMixin implemen
 
   @Input() public showStatusButton = true;
 
+  /** Render the assignee as a name (text) instead of an avatar. Used by boards. */
+  @Input() public showAssigneeName = false;
+
   @Input() public showRemoveButton = false;
 
   @Input() public highlightingMode:CardHighlightingMode = 'inline';
