@@ -64,6 +64,28 @@ module API
                select: ["types.name type_name"]
              }
 
+        # priority_id is nullable, so render a null href when there is no priority
+        # (mirrors how the optional assignee/responsible links behave). A plain
+        # `path:`/`column:` link would emit "/api/v3/priorities/" for a null id.
+        link :priority,
+             href: ->(*) {
+               <<~SQL.squish
+                 CASE WHEN priority_id IS NULL THEN NULL
+                 ELSE format('#{api_v3_paths.priority('%s')}', priority_id)
+                 END
+               SQL
+             },
+             title: -> { "priority_name" },
+             join: {
+               # The enumerations table is aliased to the pluralized link name ("priorities").
+               # Filter by STI type as well: enumerations holds several kinds (priorities,
+               # activities, ...). priority_id only ever points at an IssuePriority, so this
+               # is defensive, but it keeps the join honest if a row is ever mis-referenced.
+               table: :enumerations,
+               condition: "priorities.id = work_packages.priority_id AND priorities.type = 'IssuePriority'",
+               select: ["priorities.name priority_name"]
+             }
+
         associated_user_link :author
 
         associated_user_link :assignee,

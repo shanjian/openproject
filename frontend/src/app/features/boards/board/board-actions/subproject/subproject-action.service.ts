@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { UserResource } from 'core-app/features/hal/resources/user-resource';
 import { WorkPackageChangeset } from 'core-app/features/work-packages/components/wp-edit/work-package-changeset';
 import { WorkPackageResource } from 'core-app/features/hal/resources/work-package-resource';
+import { isPartialWorkPackage } from 'core-app/features/hal/helpers/partial-work-package';
 import { SubprojectBoardHeaderComponent } from 'core-app/features/boards/board/board-actions/subproject/subproject-board-header.component';
 import { CachedBoardActionService } from 'core-app/features/boards/board/board-actions/cached-board-action.service';
 import { imagePath } from 'core-app/shared/helpers/images/path-helper';
@@ -35,8 +36,12 @@ export class BoardSubprojectActionService extends CachedBoardActionService {
   }
 
   canMove(workPackage:WorkPackageResource):boolean {
-    // We can only move the work package
-    // if the `move` (move between projects) is allowed.
+    // Lightweight (board select) payloads omit the `move` link, so allow the move
+    // and let the save validate the permission. For full work packages, we can
+    // only move if the `move` (move between projects) link is present.
+    if (isPartialWorkPackage(workPackage)) {
+      return true;
+    }
     return !!workPackage.move;
   }
 

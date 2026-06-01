@@ -12,6 +12,7 @@ import { ApiV3Service } from 'core-app/core/apiv3/api-v3.service';
 import { CurrentProjectService } from 'core-app/core/current-project/current-project.service';
 import { WorkPackageNotificationService } from 'core-app/features/work-packages/services/notifications/work-package-notification.service';
 import isNewResource from 'core-app/features/hal/helpers/is-new-resource';
+import { isPartialWorkPackage } from 'core-app/features/hal/helpers/partial-work-package';
 import { firstValueFrom } from 'rxjs';
 
 @Injectable()
@@ -82,7 +83,13 @@ export class WorkPackageCardDragAndDropService {
         const wpId:string = card.dataset.workPackageId!;
         const toIndex = findIndex(card);
 
-        const workPackage = await firstValueFrom(this.apiV3Service.work_packages.id(wpId).get());
+        // The board caches a lightweight (select) work package that lacks the
+        // update link and schema needed to save the re-assignment, so force a
+        // full load of the dropped work package before adding it to the query.
+        const cached = this.states.workPackages.get(wpId).getValueOr(undefined);
+        const workPackage = await firstValueFrom(
+          this.apiV3Service.work_packages.id(wpId).requireAndStream(isPartialWorkPackage(cached)),
+        );
         const result = await this.addWorkPackageToQuery(workPackage, toIndex);
 
         if (card.parentElement) {

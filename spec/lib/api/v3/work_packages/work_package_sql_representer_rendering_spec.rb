@@ -101,6 +101,10 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
             type: {
               href: api_v3_paths.type(type.id),
               title: type.name
+            },
+            priority: {
+              href: api_v3_paths.priority(rendered_work_package.priority.id),
+              title: rendered_work_package.priority.name
             }
           }
         }
@@ -146,6 +150,10 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
             type: {
               href: api_v3_paths.type(type.id),
               title: type.name
+            },
+            priority: {
+              href: api_v3_paths.priority(rendered_work_package.priority.id),
+              title: rendered_work_package.priority.name
             }
           }
         }
@@ -238,6 +246,47 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
   describe "author link" do
     it_behaves_like "principal link", "author", only_user: true do
       let(:author) { principal_object }
+    end
+  end
+
+  describe "priority link" do
+    let(:select) { { "priority" => {} } }
+
+    context "with a priority" do
+      let(:expected) do
+        {
+          _links: {
+            priority: {
+              href: api_v3_paths.priority(rendered_work_package.priority.id),
+              title: rendered_work_package.priority.name
+            }
+          }
+        }
+      end
+
+      it "renders the priority link" do
+        expect(json).to be_json_eql(expected.to_json)
+      end
+    end
+
+    context "without a priority" do
+      before do
+        rendered_work_package.update_column(:priority_id, nil)
+      end
+
+      let(:expected) do
+        {
+          _links: {
+            priority: {
+              href: nil
+            }
+          }
+        }
+      end
+
+      it "renders a null priority link" do
+        expect(json).to be_json_eql(expected.to_json)
+      end
     end
   end
 end

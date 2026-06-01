@@ -77,6 +77,34 @@ describe('WorkPackageSingleCardComponent', () => {
     });
   });
 
+  describe('assignee display', () => {
+    const assigned = {
+      ...workPackage,
+      assignee: { name: 'Jane Doe' },
+    } as unknown as WorkPackageResource;
+
+    const assigneeEl = () => fixture.debugElement.query(
+      By.css('[data-test-selector="op-wp-single-card--content-assignee"]'),
+    );
+
+    it('shows the assignee name as text when showAssigneeName is true', () => {
+      fixture.componentInstance.workPackage = assigned;
+      fixture.componentRef.setInput('showAssigneeName', true);
+      fixture.detectChanges();
+
+      expect(assigneeEl().nativeElement.tagName.toLowerCase()).toBe('span');
+      expect(assigneeEl().nativeElement.textContent).toContain('Jane Doe');
+      expect(fixture.debugElement.query(By.css('op-principal'))).toBeNull();
+    });
+
+    it('renders the avatar (op-principal) by default', () => {
+      fixture.componentInstance.workPackage = assigned;
+      fixture.detectChanges();
+
+      expect(fixture.debugElement.query(By.css('op-principal'))).not.toBeNull();
+    });
+  });
+
   describe('when not hydrated', () => {
     beforeEach(() => {
       fixture.componentRef.setInput('hydrated', false);
@@ -95,6 +123,16 @@ describe('WorkPackageSingleCardComponent', () => {
 
       expect(placeholderSubject).not.toBeNull();
       expect(placeholderSubject.nativeElement.textContent).toContain('A subject');
+    });
+
+    it('shows the status (name + color) in the placeholder, without hydration', () => {
+      const badge = fixture.debugElement.query(
+        By.css('[data-test-selector="op-wp-single-card--placeholder-status"]'),
+      );
+
+      expect(badge).not.toBeNull();
+      expect(badge.nativeElement.textContent).toContain('New');
+      expect(badge.nativeElement.classList).toContain('__hl_background_status_1');
     });
 
     it('requests hydration when focused', () => {

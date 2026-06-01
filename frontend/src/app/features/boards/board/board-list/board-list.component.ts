@@ -62,6 +62,7 @@ import {
   HalEventsService,
 } from 'core-app/features/hal/services/hal-events.service';
 import { WorkPackageResource } from 'core-app/features/hal/resources/work-package-resource';
+import { markPartialWorkPackage } from 'core-app/features/hal/helpers/partial-work-package';
 import { firstValueFrom } from 'rxjs';
 import { WorkPackageIsolatedQuerySpaceDirective } from 'core-app/features/work-packages/directives/query-space/wp-isolated-query-space.directive';
 import { CurrentProjectService } from 'core-app/core/current-project/current-project.service';
@@ -124,6 +125,28 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
   private canAdd = firstValueFrom(this.wpInlineCreate.canAdd);
 
   public columnsQueryProps:any;
+
+  /** Query props for the lightweight, non-blocking column totals request (assignee boards) */
+  private sumsQueryProps:any;
+
+  /**
+   * The minimal set of fields a board card needs. Requesting these via `select`
+   * routes the API through the SQL-projected representer (links + a few columns)
+   * instead of serialising the full work package + embedded schemas for every
+   * card, which is what kept the per-column loading spinner up. Status/type/
+   * priority colors still render from their ids via the global highlighting CSS;
+   * the assignee avatar is intentionally dropped for speed.
+   */
+  private static readonly cardSelectFields = [
+    'elements/id',
+    'elements/subject',
+    'elements/status',
+    'elements/type',
+    'elements/priority',
+    'elements/project',
+    'elements/startDate',
+    'elements/dueDate',
+  ];
 
   /** Accumulated story points across the column's work packages, or null when not summable */
   public storyPointsSum:number|null = null;
@@ -347,6 +370,21 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
   public updateQuery(visibly = true) {
     this.setQueryProps(this.boardFilters.current);
     this.loadQuery(visibly);
+    this.loadColumnTotals();
+  }
+
+  /** Whether this column shows accumulated story point / estimated time totals */
+  private get showsTotals():boolean {
+    return this.board.actionAttribute === 'assignee';
+  }
+
+  /**
+   * Whether cards should show the assignee name. Suppressed on assignee boards,
+   * where every card in a column has the same assignee (the column is the
+   * assignee), so it would be redundant. Shown on all other board types.
+   */
+  public get showAssigneeName():boolean {
+    return this.board.actionAttribute !== 'assignee';
   }
 
   private async loadActionAttribute(query:QueryResource):Promise<void> {
@@ -434,8 +472,11 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
     observable
       .subscribe(
         (query) => {
+          // The board fetches a projected `select` payload, so these work packages are
+          // partial. Mark them before they enter the shared cache so the detail/full
+          // view reloads the complete resource instead of rendering the card subset.
+          query.results.elements.forEach((wp) => markPartialWorkPackage(wp));
           this.wpStatesInitialization.updateQuerySpace(query, query.results);
-          this.updateTotals(query.results.totalSums);
           this.cdRef.markForCheck();
         },
         (error) => {
@@ -454,19 +495,60 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
     return this.loadingIndicator.indicator(this.indicator.nativeElement);
   }
 
+  /**
+   * Load the column totals (story points / estimated time) for assignee boards.
+   *
+   * The card payload uses the `select` path, which does not return `totalSums`,
+   * so the totals are fetched in a separate, cheap request that asks for the
+   * sums only (`pageSize: 0` skips hydrating any work packages). It is NOT
+   * wrapped in the loading indicator, so it fills in asynchronously without
+   * prolonging the column spinner.
+   */
+  private loadColumnTotals() {
+    if (!this.showsTotals) {
+      this.updateTotals(undefined);
+      return;
+    }
+
+    this
+      .apiv3Service
+      .queries
+      .find(this.sumsQueryProps, this.queryId)
+      .subscribe(
+        (query) => {
+          this.updateTotals(query.results.totalSums);
+          this.cdRef.markForCheck();
+        },
+        // Totals are non-critical; ignore errors (the cards themselves report load failures)
+        () => undefined,
+      );
+  }
+
   private setQueryProps(filters:ApiV3Filter[]) {
     const existingFilters = (this.resource.options.filters || []) as ApiV3Filter[];
 
     const newFilters = existingFilters.concat(filters);
-    const newColumnsQueryProps:any = {
-      'columns[]': ['id', 'subject'],
+    const serializedFilters = JSON.stringify(newFilters);
+
+    const selectFields = [...BoardListComponent.cardSelectFields];
+    if (this.showAssigneeName) {
+      selectFields.push('elements/assignee');
+    }
+
+    this.columnsQueryProps = {
+      select: selectFields.join(','),
       showHierarchies: false,
-      showSums: this.board.actionAttribute === 'assignee',
       pageSize: 500,
-      filters: JSON.stringify(newFilters),
+      filters: serializedFilters,
     };
 
-    this.columnsQueryProps = newColumnsQueryProps;
+    // Sums-only request used by loadColumnTotals (no select -> full path returns totalSums;
+    // pageSize 0 -> aggregate only, no work packages hydrated).
+    this.sumsQueryProps = {
+      showSums: true,
+      pageSize: 0,
+      filters: serializedFilters,
+    };
   }
 
   private updateTotals(totalSums:Record<string, unknown>|undefined):void {

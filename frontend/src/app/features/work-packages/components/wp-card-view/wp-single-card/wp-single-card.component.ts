@@ -73,6 +73,9 @@ export class WorkPackageSingleCardComponent extends UntilDestroyedMixin implemen
 
   @Input() public showStatusButton = true;
 
+  /** Render the assignee as a name (text) instead of an avatar. Used by boards. */
+  @Input() public showAssigneeName = false;
+
   @Input() public showRemoveButton = false;
 
   @Input() public highlightingMode:CardHighlightingMode = 'inline';
@@ -259,6 +262,12 @@ export class WorkPackageSingleCardComponent extends UntilDestroyedMixin implemen
 
   public typeHighlightingClass(wp:WorkPackageResource):string {
     return this.attributeHighlighting('type', wp);
+  }
+
+  // Status color for the lightweight placeholder badge. Derived from the status
+  // id via the global highlighting CSS, so it needs no schema and no full card.
+  public statusHighlightClass(wp:WorkPackageResource):string {
+    return Highlighting.backgroundClass('status', (wp.status as StatusResource).id!);
   }
 
   public onRemoved(wp:WorkPackageResource):void {

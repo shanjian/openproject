@@ -194,4 +194,5 @@ describe('WorkPackageCardViewComponent lazy hydration', () => {
       expect(component.hydratedIds.has('8')).toBe(false);
     });
   });
+
 });
