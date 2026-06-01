@@ -136,7 +136,7 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
    * priority colors still render from their ids via the global highlighting CSS;
    * the assignee avatar is intentionally dropped for speed.
    */
-  private static readonly cardSelect = [
+  private static readonly cardSelectFields = [
     'elements/id',
     'elements/subject',
     'elements/status',
@@ -145,7 +145,7 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
     'elements/project',
     'elements/startDate',
     'elements/dueDate',
-  ].join(',');
+  ];
 
   /** Accumulated story points across the column's work packages, or null when not summable */
   public storyPointsSum:number|null = null;
@@ -377,6 +377,15 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
     return this.board.actionAttribute === 'assignee';
   }
 
+  /**
+   * Whether cards should show the assignee name. Suppressed on assignee boards,
+   * where every card in a column has the same assignee (the column is the
+   * assignee), so it would be redundant. Shown on all other board types.
+   */
+  public get showAssigneeName():boolean {
+    return this.board.actionAttribute !== 'assignee';
+  }
+
   private async loadActionAttribute(query:QueryResource):Promise<void> {
     if (!this.board.isAction) {
       this.actionResource = undefined;
@@ -516,8 +525,13 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
     const newFilters = existingFilters.concat(filters);
     const serializedFilters = JSON.stringify(newFilters);
 
+    const selectFields = [...BoardListComponent.cardSelectFields];
+    if (this.showAssigneeName) {
+      selectFields.push('elements/assignee');
+    }
+
     this.columnsQueryProps = {
-      select: BoardListComponent.cardSelect,
+      select: selectFields.join(','),
       showHierarchies: false,
       pageSize: 500,
       filters: serializedFilters,

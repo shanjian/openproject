@@ -108,6 +108,10 @@
       max-width: 140px
       color: var(--fgColor-muted)
       font-size: 12px
+      // Truncate long assignee names (text mode on boards)
+      overflow: hidden
+      text-overflow: ellipsis
+      white-space: nowrap
     &-id
       grid-area: id
       color: var(--fgColor-muted)

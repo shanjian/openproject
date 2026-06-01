@@ -169,14 +169,22 @@
         }
       </div>
       @if (workPackage.assignee) {
-        <op-principal [principal]="workPackage.assignee"
-          [hideName]="true"
-          [link]="false"
-          avatarImageAltText="{{ text.assigneeAlt(workPackage.assignee.name) }}"
-          size="mini"
-          class="op-wp-single-card--content-assignee"
-          data-test-selector="op-wp-single-card--content-assignee"
-         />
+        @if (showAssigneeName) {
+          <span
+            class="op-wp-single-card--content-assignee"
+            data-test-selector="op-wp-single-card--content-assignee"
+            [textContent]="workPackage.assignee.name"
+          ></span>
+        } @else {
+          <op-principal [principal]="workPackage.assignee"
+            [hideName]="true"
+            [link]="false"
+            avatarImageAltText="{{ text.assigneeAlt(workPackage.assignee.name) }}"
+            size="mini"
+            class="op-wp-single-card--content-assignee"
+            data-test-selector="op-wp-single-card--content-assignee"
+           />
+        }
       }
       @if (!showAsInlineCard && (workPackage.startDate || workPackage.dueDate)) {
         <display-field [resource]="workPackage"
