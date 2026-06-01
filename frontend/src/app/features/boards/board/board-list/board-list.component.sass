@@ -84,7 +84,18 @@ $board-list-max-width: 300px
       display: grid
       // In order to enable automatic scrolling within the card view,
       // it is important that second container is limited in the height, so that it is scrollable.
-      grid-template: 34px minmax(0, 1fr) / 1fr
+      //
+      // The column track is minmax(0, 1fr) rather than the default 1fr
+      // (= minmax(auto, 1fr)). With `auto`, the track's minimum is the
+      // min-content of a card (e.g. a long subject), which can exceed the 1fr
+      // space and then WINS, stretching the card list wider than the column.
+      // minmax(0, ...) caps the minimum at 0 so the list always fits the column.
+      grid-template: 34px minmax(0, 1fr) / minmax(0, 1fr)
+
+      // Let the grid items (button + card view) shrink to the track instead of
+      // being forced to their content's min-content width.
+      > *
+        min-width: 0
 
   // Make the button sticky so that it does not scroll,
   // Unfortunately we cannot let the card container scroll because there seem to be a Chrome bug,
