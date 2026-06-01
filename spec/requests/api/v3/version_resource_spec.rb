@@ -635,6 +635,27 @@ RSpec.describe "API v3 Version resource", content_type: :json do
           .at_path("_embedded/elements/0/_links/self/href")
       end
     end
+
+    context "filtering by kind (used by the version filter's sprint-only dropdown)" do
+      let(:release_in_project) { build(:version, project:, kind: "release") }
+      let(:versions) { [version_in_project, release_in_project] }
+
+      let(:filter_query) do
+        [{ kind: { operator: "=", values: ["sprint"] } }]
+      end
+
+      let(:get_path) do
+        "#{api_v3_paths.versions}?filters=#{CGI.escape(JSON.dump(filter_query))}"
+      end
+
+      it_behaves_like "API V3 collection response", 1, 1, "Version"
+
+      it "returns only the sprint version, not the release" do
+        expect(response.body)
+          .to be_json_eql(api_v3_paths.version(version_in_project.id).to_json)
+          .at_path("_embedded/elements/0/_links/self/href")
+      end
+    end
   end
 
   describe "DELETE /api/v3/versions/:id" do

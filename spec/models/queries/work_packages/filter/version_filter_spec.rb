@@ -42,10 +42,10 @@ RSpec.describe Queries::WorkPackages::Filter::VersionFilter do
     before do
       if project
         allow(project)
-          .to receive_message_chain(:shared_versions, :sprints, :pluck)
+          .to receive_message_chain(:shared_versions, :pluck)
           .and_return [version.id]
       else
-        allow(Version).to receive_message_chain(:visible, :sprints).and_return(scope)
+        allow(Version).to receive(:visible).and_return(scope)
         allow(scope).to receive(:pluck).with(:id).and_return([version.id])
       end
     end
@@ -58,7 +58,7 @@ RSpec.describe Queries::WorkPackages::Filter::VersionFilter do
 
         it "is false if the value does not exist as a version" do
           allow(project)
-            .to receive_message_chain(:shared_versions, :sprints, :pluck)
+            .to receive_message_chain(:shared_versions, :pluck)
             .and_return []
 
           expect(instance).not_to be_valid
@@ -111,7 +111,7 @@ RSpec.describe Queries::WorkPackages::Filter::VersionFilter do
 
       before do
         allow(project)
-          .to receive_message_chain(:shared_versions, :sprints)
+          .to receive(:shared_versions)
           .and_return([version1, version2])
 
         instance.values = [version1.id.to_s]
@@ -179,6 +179,22 @@ RSpec.describe Queries::WorkPackages::Filter::VersionFilter do
           expect(instance.joins).to be_nil
         end
       end
+    end
+  end
+
+  # Regression: the Version filter must accept any version shared with the project as a
+  # valid value, including release versions. Scoping it to sprints rejected such filters
+  # ("Version filter has invalid values").
+  describe "with a release version" do
+    let(:project) { create(:project) }
+    let!(:release) { create(:version, project:, kind: "release") }
+    let(:query) { build_stubbed(:query, project:) }
+    let(:instance) do
+      described_class.create!(name: :version_id, context: query, operator: "=", values: [release.id.to_s])
+    end
+
+    it "accepts the release version id as a valid filter value" do
+      expect(instance).to be_valid
     end
   end
 end

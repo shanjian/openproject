@@ -93,12 +93,15 @@ class Queries::WorkPackages::Filter::VersionFilter <
   private
 
   def versions
-    # The work package "Version" filter targets the native version_id, which is the
-    # Sprint selection set. Releases are filtered via their version custom field.
+    # Accept any version shared with / visible to the user as a valid filter value.
+    # This set is used to validate the filter values (#allowed_values) and to resolve
+    # #value_objects; it is NOT the field's autocomplete options. Restricting it to
+    # sprints rejected legitimate filters that reference release versions (and broke
+    # saved queries), without isolating anything, so all kinds are accepted here.
     if project
-      project.shared_versions.sprints
+      project.shared_versions
     else
-      Version.visible.sprints
+      Version.visible
     end
   end
 end

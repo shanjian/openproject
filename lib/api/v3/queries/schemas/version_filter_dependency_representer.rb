@@ -37,7 +37,11 @@ module API
           end
 
           def href_callback
-            query_params = "sortBy=#{to_query [%i(name asc)]}&pageSize=-1"
+            # The work package "Version" filter targets version_id, the Sprint selection
+            # set, so only offer sprint versions (releases are selected via the Release
+            # custom field). Validation still accepts any version, so existing filters do
+            # not break.
+            query_params = "filters=#{sprint_filter}&sortBy=#{to_query [%i(name asc)]}&pageSize=-1"
 
             if filter.project.nil?
               "#{api_v3_paths.versions}?#{query_params}"
@@ -51,6 +55,10 @@ module API
           end
 
           private
+
+          def sprint_filter
+            to_query([{ kind: { operator: "=", values: ["sprint"] } }])
+          end
 
           def to_query(param)
             CGI.escape(::JSON.dump(param))
