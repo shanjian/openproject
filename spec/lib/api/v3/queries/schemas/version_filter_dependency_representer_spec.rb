@@ -159,4 +159,44 @@ RSpec.describe API::V3::Queries::Schemas::VersionFilterDependencyRepresenter do
       end
     end
   end
+
+  describe "#href_callback version kind scoping" do
+    let(:operator) { Queries::Operators::Equals }
+
+    def kind_filter(kind)
+      CGI.escape(JSON.dump([{ kind: { operator: "=", values: [kind] } }]))
+    end
+
+    it "scopes the native Version (Sprint) filter to sprint versions" do
+      expect(instance.href_callback).to include("filters=#{kind_filter('sprint')}")
+    end
+
+    context "for a Release custom field filter" do
+      let(:project) { create(:project) }
+      let(:custom_field) { create(:version_wp_custom_field, version_kind: "release", is_for_all: true) }
+      let(:filter) do
+        Queries::WorkPackages::Filter::CustomFieldFilter.create!(name: custom_field.column_name,
+                                                                 operator: "=",
+                                                                 context: query)
+      end
+
+      it "scopes to release versions" do
+        expect(instance.href_callback).to include("filters=#{kind_filter('release')}")
+      end
+    end
+
+    context "for a version custom field without a kind" do
+      let(:project) { create(:project) }
+      let(:custom_field) { create(:version_wp_custom_field, is_for_all: true) }
+      let(:filter) do
+        Queries::WorkPackages::Filter::CustomFieldFilter.create!(name: custom_field.column_name,
+                                                                 operator: "=",
+                                                                 context: query)
+      end
+
+      it "does not restrict the versions by kind" do
+        expect(instance.href_callback).not_to include("kind")
+      end
+    end
+  end
 end
