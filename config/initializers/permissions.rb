@@ -234,6 +234,11 @@ Rails.application.reloader.to_prepare do
                      permissible_on: :project,
                      require: :member
 
+      map.permission :share_versions_system_wide,
+                     {},
+                     permissible_on: :project,
+                     require: :member
+
       map.permission :manage_types,
                      {
                        "projects/settings/work_packages/types": %i[show update]
