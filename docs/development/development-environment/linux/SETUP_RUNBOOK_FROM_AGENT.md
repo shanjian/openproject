@@ -182,6 +182,38 @@ cd frontend
 npx eslint src/
 ```
 
+## 13) After code changes: recompile or just restart?
+
+Purpose: clarify when you can rely on dev watchers vs. when extra steps are required.
+
+In this setup, `bin/dev` runs Rails + frontend watchers, so most source changes do **not** require a manual recompile.
+
+Start/restart command:
+
+```bash
+OPENPROJECT_COLLABORATIVE__EDITING__HOCUSPOCUS__SECRET=dev-secret bin/dev
+```
+
+Use additional steps only when relevant:
+
+1. `Gemfile` / `Gemfile.lock` changed
+- Run: `bundle install`
+- Then restart `bin/dev`
+
+2. `package.json` / lockfile / frontend dependency changed
+- Run: `npm ci` (and plugin package install if needed)
+- Then restart `bin/dev`
+
+3. Database migration added/changed
+- Run: `bundle exec rake db:migrate`
+
+4. Environment variables or Rails initializers changed
+- Restart `bin/dev`
+
+5. Linked plugin frontend wiring changed
+- Run: `bundle exec rails openproject:plugins:register_frontend`
+- Then restart `bin/dev`
+
 ---
 
 ## Traps We Encountered (and Fixes)
@@ -213,3 +245,32 @@ npx eslint src/
 - Symptom: login fails even though app boots.
 - Why: `db:migrate` does not create the admin user.
 - Fix: run `bundle exec rake db:seed` to create `admin/admin` (default dev seed).
+
+7. `bundler: failed to load command: rails ... Bundler::GemNotFound`
+- Symptom: `bin/dev` fails right after restart with many “Could not find <gem-version>” messages.
+- Why: active branch/revision changed and local gems for that lockfile are not installed yet.
+- Fix:
+  - `bundle install`
+  - verify with `bundle exec rails -v`
+  - then restart `bin/dev`
+
+8. Two-factor authentication (2FA) interrupts local login/testing
+- Symptom: 2FA prompts/menus appear and get in the way of fast local testing.
+- Why: the `two_factor_authentication` module is bundled and **always loaded**. When no
+  strategies are explicitly configured, `TokenStrategyManager` auto-adds `totp` + `webauthn`
+  (see `modules/two_factor_authentication/.../token_strategy_manager.rb`), so 2FA shows as
+  "enabled" by default even though it is **not enforced** (`enforced: false`).
+- Fix (disable for local dev — pick one):
+  - Persistent (set once, survives `bin/dev` restarts): in `bundle exec rails console` run
+    ```ruby
+    Setting.plugin_openproject_two_factor_authentication = { "disabled" => true }
+    ```
+    The `disabled` flag stops the default strategies from registering, so `enabled?` becomes
+    `false`. Restart `bin/dev` so the running process picks up the changed setting.
+  - Per-run (no DB change), set the env alias when launching:
+    ```bash
+    OPENPROJECT_2FA='{"disabled": true}' \
+    OPENPROJECT_COLLABORATIVE__EDITING__HOCUSPOCUS__SECRET=dev-secret bin/dev
+    ```
+- Re-enable: `Setting.plugin_openproject_two_factor_authentication = { "disabled" => false }`
+  (or `{}`), then restart.
