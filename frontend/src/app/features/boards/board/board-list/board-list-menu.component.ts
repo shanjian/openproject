@@ -47,7 +47,13 @@ import { BoardActionService } from 'core-app/features/boards/board/board-actions
 export class BoardListMenuComponent {
   @Input() board:Board;
 
+  /** Current per-column "include closed items" state (boards default to on). */
+  @Input() includeClosed = true;
+
   @Output() onRemove = new EventEmitter<void>();
+
+  /** Emits the desired new include-closed state when the toggle is activated. */
+  @Output() onToggleIncludeClosed = new EventEmitter<boolean>();
 
   constructor(readonly opModalService:OpModalService,
     readonly authorisationService:AuthorisationService,
@@ -61,7 +67,7 @@ export class BoardListMenuComponent {
     return async () => {
       const items:OpContextMenuItem[] = [
         {
-          disabled: !this.canDelete,
+          disabled: !this.canDelete(),
           linkText: this.I18n.t('js.boards.lists.delete'),
           onClick: () => {
             this.onRemove.emit();
@@ -69,6 +75,17 @@ export class BoardListMenuComponent {
           },
         },
       ];
+
+      if (this.canToggleIncludeClosed()) {
+        items.push({
+          icon: this.includeClosed ? 'checkmark' : undefined,
+          linkText: this.I18n.t('js.boards.lists.include_closed'),
+          onClick: () => {
+            this.onToggleIncludeClosed.emit(!this.includeClosed);
+            return true;
+          },
+        });
+      }
 
       // Add action specific menu entries
       if (this.board.isAction) {
@@ -90,6 +107,23 @@ export class BoardListMenuComponent {
 
   public canDelete() {
     return this.canManage && !!this.query.delete;
+  }
+
+  /**
+   * Each column on a status board *is* a status, so an open/closed sub-filter
+   * is contradictory there; the toggle is offered on every other board type.
+   */
+  public get isStatusBoard():boolean {
+    return this.board.isAction && this.board.actionAttribute === 'status';
+  }
+
+  public canToggleIncludeClosed():boolean {
+    return this.canManage && !this.isStatusBoard;
+  }
+
+  /** Show the menu when it has at least one usable item. */
+  public showMenu():boolean {
+    return this.canDelete() || this.canToggleIncludeClosed();
   }
 
   private get query() {

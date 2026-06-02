@@ -49,8 +49,8 @@ RSpec.describe Backlogs::SprintComponent, type: :component do
     allow(user).to receive(:backlogs_preference).with(:versions_default_fold_state).and_return("open")
   end
 
-  def render_component(inbox_include_closed: false)
-    render_inline(described_class.new(sprint:, current_user: user, inbox_include_closed:))
+  def render_component
+    render_inline(described_class.new(sprint:, current_user: user))
   end
 
   describe "rendering" do
@@ -119,20 +119,6 @@ RSpec.describe Backlogs::SprintComponent, type: :component do
         expect(story_row["data-drop-url"]).to include("move")
       end
 
-      it "carries inbox_include_closed=1 on the drop URL when configured" do
-        render_component(inbox_include_closed: true)
-
-        story_row = page.find(".Box-row[id='work_package_#{story1.id}']")
-        expect(story_row["data-drop-url"]).to include("inbox_include_closed=1")
-      end
-
-      it "omits the inbox_include_closed param by default" do
-        render_component
-
-        story_row = page.find(".Box-row[id='work_package_#{story1.id}']")
-        expect(story_row["data-drop-url"]).not_to include("inbox_include_closed")
-      end
-
       it "renders story rows with proper classes" do
         render_component
 
@@ -147,6 +133,44 @@ RSpec.describe Backlogs::SprintComponent, type: :component do
       let(:rendered_component) { render_component }
 
       it_behaves_like "rendering Blank Slate", heading: "Sprint 1 is empty"
+    end
+
+    describe "closed-status filtering" do
+      shared_let(:closed_status) { create(:status, is_closed: true) }
+      let!(:open_story) do
+        create(:work_package, project:, type: type_feature, status: default_status,
+                              priority: default_priority, position: 1, sprint:)
+      end
+      let!(:closed_story) do
+        create(:work_package, project:, type: type_feature, status: closed_status,
+                              priority: default_priority, position: 2, sprint:)
+      end
+
+      it "includes closed stories by default (active sprint shows progress)" do
+        render_component
+
+        expect(page).to have_text(open_story.subject)
+        expect(page).to have_text(closed_story.subject)
+      end
+
+      it "hides closed stories when the column preference excludes them" do
+        user.set_backlogs_include_closed(:sprint, sprint.id, false)
+        render_component
+
+        expect(page).to have_text(open_story.subject)
+        expect(page).to have_no_text(closed_story.subject)
+      end
+    end
+
+    describe "include-closed menu item" do
+      it "is checked and links to turn the filter off (sprint default is on)" do
+        render_component
+
+        expect(page).to have_text(I18n.t("backlogs.include_closed.menu_item"))
+        link = page.find(:link, I18n.t("backlogs.include_closed.menu_item"), visible: :all)
+        expect(link["href"]).to include("list_type=sprint", "column_id=#{sprint.id}", "include_closed=false")
+        expect(link["data-turbo-method"]).to eq("put")
+      end
     end
   end
 end

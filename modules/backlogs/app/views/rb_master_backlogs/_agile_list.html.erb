@@ -51,14 +51,13 @@ See COPYRIGHT and LICENSE files for more details.
             ) %>
       </div>
       <div id="sprint_backlogs_container" class="op-backlogs-lists">
-        <%= render(Backlogs::SprintComponent.with_collection(@sprints, inbox_include_closed: @inbox_include_closed)) %>
+        <%= render(Backlogs::SprintComponent.with_collection(@sprints)) %>
       </div>
       <div id="owner_backlogs_container" class="op-backlogs-lists">
         <%= render(
               Backlogs::BacklogComponent.with_collection(
                 @owner_backlogs,
-                project: @project,
-                inbox_include_closed: @inbox_include_closed
+                project: @project
               )
             ) %>
       </div>

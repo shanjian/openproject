@@ -32,18 +32,15 @@ module Backlogs
   class SprintMenuComponent < ApplicationComponent
     include RbCommonHelper
 
-    attr_reader :sprint, :project, :current_user
+    attr_reader :sprint, :project, :current_user, :include_closed
 
-    def initialize(sprint:, project:, current_user: User.current)
+    def initialize(sprint:, project:, current_user: User.current, include_closed: false)
       super()
 
       @sprint = sprint
       @project = project
       @current_user = current_user
-    end
-
-    def stories
-      @sprint.work_packages
+      @include_closed = include_closed
     end
 
     private

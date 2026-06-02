@@ -29,32 +29,12 @@ See COPYRIGHT and LICENSE files for more details.
 
 <%= component_wrapper(tag: :section) do %>
   <%= render(Primer::Beta::BorderBox.new(**@system_arguments)) do |border_box| %>
-    <% border_box.with_header do %>
-      <%= render(Primer::Beta::Heading.new(tag: :h3, classes: "f5")) do %>
+    <% border_box.with_header(display: :flex, align_items: :center) do %>
+      <%= render(Primer::Beta::Heading.new(tag: :h3, classes: "f5 flex-auto")) do %>
         <%= t(".title") %>
         <%= render(Primer::Beta::Counter.new(count: stories.size)) %>
       <% end %>
-      <%# turbo_action: advance pushes the resulting URL (with the
-          inbox_include_closed query param) into browser history so the
-          toggle survives reload, back/forward, and bookmarking. %>
-      <%= form_with url: backlogs_project_backlogs_path(project),
-                    method: :get,
-                    local: true,
-                    data: {
-                      turbo_frame: "backlogs_container",
-                      turbo_action: "advance",
-                      controller: "backlogs--inbox-filter"
-                    } do |form| %>
-        <%= form.label :inbox_include_closed, class: "FormControl-checkbox-wrap" do %>
-          <%= form.check_box :inbox_include_closed,
-                             checked: include_closed,
-                             class: "FormControl-checkbox",
-                             data: { action: "change->backlogs--inbox-filter#submit" } %>
-          <span class="FormControl-checkbox-labelWrap">
-            <span class="FormControl-label"><%= t(".include_closed") %></span>
-          </span>
-        <% end %>
-      <% end %>
+      <%= render(Backlogs::InboxMenuComponent.new(project:, include_closed:)) %>
     <% end %>
     <% if stories.empty? %>
       <% border_box.with_row(data: { empty_list_item: true }) do %>

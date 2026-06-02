@@ -34,17 +34,16 @@ module Backlogs
     include OpTurbo::Streamable
     include RbCommonHelper
 
-    attr_reader :backlog, :project, :current_user, :inbox_include_closed
+    attr_reader :backlog, :project, :current_user
 
     delegate :sprint, :stories, to: :backlog
 
-    def initialize(backlog:, project:, current_user: User.current, inbox_include_closed: false, **system_arguments)
+    def initialize(backlog:, project:, current_user: User.current, **system_arguments)
       super()
 
       @backlog = backlog
       @project = project
       @current_user = current_user
-      @inbox_include_closed = inbox_include_closed
 
       @system_arguments = system_arguments
       @system_arguments[:id] = dom_id(backlog)
@@ -52,7 +51,7 @@ module Backlogs
       @system_arguments[:padding] = :condensed
       @system_arguments[:data] = merge_data(
         @system_arguments,
-        { data: drop_target_config }
+        { data: drop_target_config.merge(controller: "backlogs--card-list-filter") }
       )
     end
 
@@ -80,16 +79,10 @@ module Backlogs
     end
 
     def draggable_item_config(story)
-      # Carry the inbox include-closed flag in the drop URL so the move
-      # action can correctly re-render the inbox column when a story is
-      # dropped there, instead of silently falling back to the default.
-      url_options = { project_id: project, sprint_id: sprint, id: story }
-      url_options[:inbox_include_closed] = "1" if inbox_include_closed
-
       {
         draggable_id: story.id,
         draggable_type: "story",
-        drop_url: move_backlogs_project_sprint_story_path(url_options)
+        drop_url: move_backlogs_project_sprint_story_path(project_id: project, sprint_id: sprint, id: story)
       }
     end
   end

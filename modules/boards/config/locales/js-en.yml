@@ -12,6 +12,7 @@ en:
       label_board_type: 'Board type'
       lists:
         delete: 'Delete list'
+        include_closed: 'Include closed items'
 
       version:
         is_locked: 'Version is locked. No items can be added to this version.'

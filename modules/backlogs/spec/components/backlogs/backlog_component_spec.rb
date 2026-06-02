@@ -51,9 +51,9 @@ RSpec.describe Backlogs::BacklogComponent, type: :component do
     allow(user).to receive(:backlogs_preference).with(:versions_default_fold_state).and_return("open")
   end
 
-  def render_component(inbox_include_closed: false)
+  def render_component
     render_inline(
-      described_class.new(backlog:, project:, current_user: user, inbox_include_closed:)
+      described_class.new(backlog:, project:, current_user: user)
     )
   end
 
@@ -124,20 +124,6 @@ RSpec.describe Backlogs::BacklogComponent, type: :component do
         expect(story_row["data-drop-url"]).to include("move")
       end
 
-      it "carries inbox_include_closed=1 on the drop URL when configured" do
-        render_component(inbox_include_closed: true)
-
-        story_row = page.find(".Box-row[id='story_#{story1.id}']")
-        expect(story_row["data-drop-url"]).to include("inbox_include_closed=1")
-      end
-
-      it "omits the inbox_include_closed param by default" do
-        render_component
-
-        story_row = page.find(".Box-row[id='story_#{story1.id}']")
-        expect(story_row["data-drop-url"]).not_to include("inbox_include_closed")
-      end
-
       it "renders story rows with proper classes" do
         render_component
 
@@ -145,6 +131,15 @@ RSpec.describe Backlogs::BacklogComponent, type: :component do
         expect(story_row[:class]).to include("Box-row--hover-blue")
         expect(story_row[:class]).to include("Box-row--focus-gray")
         expect(story_row[:class]).to include("Box-row--clickable")
+      end
+
+      it "offers an include-closed menu item keyed to this column" do
+        render_component
+
+        expect(page).to have_text(I18n.t("backlogs.include_closed.menu_item"))
+        link = page.find(:link, I18n.t("backlogs.include_closed.menu_item"), visible: :all)
+        expect(link["href"]).to include("list_type=sprint", "column_id=#{sprint.id}", "include_closed=true")
+        expect(link["data-turbo-method"]).to eq("put")
       end
     end
 

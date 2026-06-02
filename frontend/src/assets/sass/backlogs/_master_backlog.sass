@@ -86,6 +86,33 @@ $op-backlogs-header--points-min-width-narrow: 2rem
   flex: 1 1 100%
   overflow: hidden
 
+// Loading state while a column's "include closed" toggle re-fetches it via
+// turbo-stream. The contents dim and a spinner appears in the header corner;
+// the turbo-stream then replaces the whole column, clearing this state.
+.op-backlogs-list--loading
+  position: relative
+
+  > .Box
+    opacity: 0.6
+    pointer-events: none
+    transition: opacity 100ms ease-in
+
+  &::after
+    content: ""
+    position: absolute
+    top: 14px
+    right: 14px
+    width: 16px
+    height: 16px
+    border: 2px solid var(--borderColor-muted)
+    border-top-color: var(--fgColor-accent)
+    border-radius: 50%
+    animation: op-backlogs-list-spin 0.7s linear infinite
+
+@keyframes op-backlogs-list-spin
+  to
+    transform: rotate(360deg)
+
 //------------------ Header form responsive styling -----------------------
 // Note: Using hardcoded values because Sass doesn't interpolate variables in
 // @container query conditions.

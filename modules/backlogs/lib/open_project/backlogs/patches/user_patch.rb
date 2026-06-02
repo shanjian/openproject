@@ -34,6 +34,16 @@ module OpenProject::Backlogs::Patches::UserPatch
   end
 
   module InstanceMethods
+    # Per-list-type defaults for the backlogs "include closed items" toggle.
+    # The inbox and version/owner backlogs hide closed work packages by
+    # default (they track actionable/future work); the active sprint shows
+    # them so completed work stays visible as a measure of progress.
+    BACKLOGS_INCLUDE_CLOSED_DEFAULTS = {
+      "inbox" => false,
+      "sprint" => true,
+      "backlog" => false
+    }.freeze
+
     def backlogs_preference(attr, new_value = nil)
       setting = read_backlogs_preference(attr)
 
@@ -48,7 +58,47 @@ module OpenProject::Backlogs::Patches::UserPatch
       setting
     end
 
+    # Whether the given backlogs column should surface closed work packages.
+    # State is stored per column (keyed by "<list_type>:<column_id>", or just
+    # "<list_type>" for the inbox) in a single preference hash; a column with
+    # no stored value falls back to the per-type default above.
+    #
+    # NOTE: this deliberately does not go through `backlogs_preference`, whose
+    # `.present?`/`.presence` checks cannot distinguish a stored `false` from
+    # an unset value.
+    def backlogs_include_closed?(list_type, column_id = nil)
+      store = backlogs_include_closed_store
+      key = backlogs_include_closed_key(list_type, column_id)
+
+      if store.key?(key)
+        ActiveModel::Type::Boolean.new.cast(store[key])
+      else
+        BACKLOGS_INCLUDE_CLOSED_DEFAULTS.fetch(list_type.to_s)
+      end
+    end
+
+    # Persists the include-closed state for a single column. Returns the
+    # stored boolean.
+    def set_backlogs_include_closed(list_type, column_id, value)
+      casted = ActiveModel::Type::Boolean.new.cast(value)
+      store = backlogs_include_closed_store.merge(
+        backlogs_include_closed_key(list_type, column_id) => casted
+      )
+      pref[:backlogs_include_closed] = store
+      pref.save! unless new_record?
+
+      casted
+    end
+
     protected
+
+    def backlogs_include_closed_store
+      (pref[:backlogs_include_closed] || {}).stringify_keys
+    end
+
+    def backlogs_include_closed_key(list_type, column_id)
+      column_id.presence ? "#{list_type}:#{column_id}" : list_type.to_s
+    end
 
     def read_backlogs_preference(attr)
       setting = pref[:"backlogs_#{attr}"]

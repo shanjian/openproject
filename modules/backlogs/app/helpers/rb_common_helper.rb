@@ -27,6 +27,34 @@
 #++
 
 module RbCommonHelper
+  # Appends the per-column "include closed items" toggle to a Primer
+  # ActionMenu (`menu`). Activating it issues a turbo PUT that flips the
+  # stored preference and re-renders just this column; the in-column spinner
+  # is driven by the `backlogs--card-list-filter` Stimulus controller.
+  #
+  # `list_type` is one of "inbox" / "sprint" / "backlog"; `column_id` is the
+  # column's id (nil for the inbox).
+  def include_closed_action_menu_item(menu, project:, list_type:, column_id:, include_closed:)
+    menu.with_item(
+      label: I18n.t("backlogs.include_closed.menu_item"),
+      href: toggle_include_closed_backlogs_project_backlogs_path(
+        project,
+        list_type:,
+        column_id:,
+        include_closed: !include_closed
+      ),
+      content_arguments: {
+        data: {
+          turbo_method: :put,
+          turbo_stream: true,
+          action: "backlogs--card-list-filter#loading"
+        }
+      }
+    ) do |item|
+      item.with_leading_visual_icon(icon: include_closed ? :check : :dash)
+    end
+  end
+
   def format_date_range(dates)
     return nil if dates.all?(&:nil?)
 

@@ -110,5 +110,14 @@ See COPYRIGHT and LICENSE files for more details.
         item.with_leading_visual_icon(icon: :gear)
       end
     end
+
+    menu.with_divider
+    include_closed_action_menu_item(
+      menu,
+      project:,
+      list_type: backlog.list_type,
+      column_id: backlog.sprint_id,
+      include_closed: backlog.include_closed
+    )
   end
 %>

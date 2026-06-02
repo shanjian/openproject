@@ -53,6 +53,10 @@ Rails.application.routes.draw do
               as: :details,
               work_package_split_view: true,
               defaults: { tab: :overview }
+
+          # Toggles the per-column "include closed items" preference and
+          # re-renders just that column via turbo-stream.
+          put :toggle_include_closed
         end
       end
 

@@ -30,7 +30,7 @@ See COPYRIGHT and LICENSE files for more details.
 <%= component_wrapper(tag: :section) do %>
   <%= render(Primer::Beta::BorderBox.new(**@system_arguments)) do |border_box| %>
     <% border_box.with_header do %>
-      <%= render(Backlogs::SprintHeaderComponent.new(sprint:, folded: folded?)) %>
+      <%= render(Backlogs::SprintHeaderComponent.new(sprint:, folded: folded?, include_closed:)) %>
     <% end %>
     <% if stories.empty? %>
       <% border_box.with_row(data: { empty_list_item: true }) do %>

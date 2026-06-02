@@ -31,7 +31,9 @@
       <board-list-menu class="op-board-list--menu"
         data-test-selector="op-board-list--menu"
         [board]="board"
-        (onRemove)="deleteList()" />
+        [includeClosed]="includeClosed"
+        (onRemove)="deleteList()"
+        (onToggleIncludeClosed)="setIncludeClosed($event)" />
     </div>
     @if (storyPointsSum !== null || estimatedTimeSum !== null) {
       <dl class="op-board-list--totals"

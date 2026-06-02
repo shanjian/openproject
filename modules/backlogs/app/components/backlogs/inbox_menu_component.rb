@@ -29,52 +29,16 @@
 #++
 
 module Backlogs
-  class SprintHeaderComponent < ApplicationComponent
-    include OpPrimer::ComponentHelpers
-    include OpTurbo::Streamable
-    include Primer::FetchOrFallbackHelper
-    include Redmine::I18n
+  class InboxMenuComponent < ApplicationComponent
     include RbCommonHelper
 
-    attr_reader :sprint, :collapsed, :current_user, :include_closed
+    attr_reader :project, :include_closed
 
-    delegate :project, to: :sprint
-    delegate :name, to: :sprint, prefix: :sprint
-
-    def initialize(
-      sprint:,
-      folded: false,
-      include_closed: false,
-      current_user: User.current
-    )
+    def initialize(project:, include_closed: false)
       super()
 
-      @sprint = sprint
-      @collapsed = folded
+      @project = project
       @include_closed = include_closed
-      @current_user = current_user
-    end
-
-    def wrapper_uniq_by
-      sprint.id
-    end
-
-    def stories
-      @stories ||= sprint.board_work_packages(include_closed:).to_a
-    end
-
-    private
-
-    def story_points
-      @story_points ||= stories.sum { |story| story.story_points || 0 }
-    end
-
-    def story_count
-      @story_count ||= stories.size
-    end
-
-    def date_range
-      [sprint.start_date, sprint.finish_date]
     end
   end
 end

@@ -79,6 +79,16 @@ module Agile
     # TODO: validate sharing is set to an allowed value, e.g. only admins may share systemwide (#71374, #71253)
     # TODO: implement sharing logic once it has been defined (#71374)
 
+    # Work packages shown on the sprint's backlogs column. Closed-status
+    # items are excluded unless +include_closed+ is true. Status and type are
+    # preloaded so the cards can render their status without an N+1.
+    def board_work_packages(include_closed: false)
+      scope = work_packages.preload(:status, :type)
+      return scope if include_closed
+
+      scope.joins(:status).where(statuses: { is_closed: false })
+    end
+
     def date_range_set?
       start_date? && finish_date?
     end

@@ -54,8 +54,7 @@ See COPYRIGHT and LICENSE files for more details.
         <%= render(
               Backlogs::BacklogComponent.with_collection(
                 @sprint_backlogs,
-                project: @project,
-                inbox_include_closed: @inbox_include_closed
+                project: @project
               )
             ) %>
       </div>
@@ -63,8 +62,7 @@ See COPYRIGHT and LICENSE files for more details.
         <%= render(
               Backlogs::BacklogComponent.with_collection(
                 @owner_backlogs,
-                project: @project,
-                inbox_include_closed: @inbox_include_closed
+                project: @project
               )
             ) %>
       </div>
