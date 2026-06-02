@@ -71,8 +71,10 @@ module Versions
         else
           case s
           when "system"
-            # Only admin users can set a systemwide sharing
-            user.admin?
+            # Admins, or project members granted the dedicated permission, can
+            # set a systemwide sharing
+            user.admin? ||
+              (model.project && user.allowed_in_project?(:share_versions_system_wide, model.project))
           when "hierarchy", "tree"
             # Only users allowed to manage versions of the root project can
             # set sharing to hierarchy or tree

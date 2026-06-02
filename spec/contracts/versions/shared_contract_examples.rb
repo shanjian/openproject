@@ -180,6 +180,16 @@ RSpec.shared_examples_for "version contract" do
       end
     end
 
+    context "if sharing is system and the user has the share_versions_system_wide permission" do
+      let(:permissions) { %i[manage_versions share_versions_system_wide] }
+
+      before do
+        version.sharing = "system"
+      end
+
+      it_behaves_like "is valid"
+    end
+
     context "if sharing is descendants" do
       before do
         version.sharing = "descendants"
