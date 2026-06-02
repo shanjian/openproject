@@ -33,6 +33,8 @@ class Projects::Settings::ReleasesController < Projects::SettingsController
 
   def show
     # Releases are versions of kind "release", a separate selection set from sprints.
-    @versions = @project.shared_versions.releases
+    # Only show releases owned by this project, not those shared into it (e.g. system-wide),
+    # so the hub stays focused on the project's own releases.
+    @versions = @project.versions.releases
   end
 end

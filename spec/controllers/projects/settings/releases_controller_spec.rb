@@ -33,8 +33,12 @@ require "spec_helper"
 RSpec.describe Projects::Settings::ReleasesController do
   shared_let(:user) { create(:admin) }
   shared_let(:project) { create(:project) }
+  shared_let(:other_project) { create(:project) }
   shared_let(:sprint) { create(:version, project:, name: "Sprint A", kind: "sprint") }
   shared_let(:release) { create(:version, project:, name: "Release 1.0", kind: "release") }
+  shared_let(:shared_release) do
+    create(:version, project: other_project, name: "Shared Release", kind: "release", sharing: "system")
+  end
 
   before { login_as(user) }
 
@@ -46,7 +50,7 @@ RSpec.describe Projects::Settings::ReleasesController do
     it { expect(response).to have_http_status(:ok) }
     it { expect(response).to render_template("show") }
 
-    it "lists only release versions, not sprints" do
+    it "lists only this project's release versions, excluding sprints and releases shared from other projects" do
       expect(assigns(:versions)).to contain_exactly(release)
     end
 
