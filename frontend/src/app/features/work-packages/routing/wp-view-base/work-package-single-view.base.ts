@@ -121,6 +121,20 @@ export abstract class WorkPackageSingleViewBase extends UntilDestroyedMixin {
   // Work package resource to be loaded from the cache
   public workPackage:WorkPackageResource;
 
+  // Whether init() has already run for the loaded (complete) work package. Guards
+  // against re-initializing on cache re-emissions and against running init() against
+  // a partial resource that was seeded only for an immediate, non-blank render.
+  private initialized = false;
+
+  /**
+   * Whether to render a cached partial work package immediately while a forced full
+   * reload is in flight, so the panel is never blank. Off by default; subclasses whose
+   * template only binds header-level data to the partial (e.g. the split view, whose
+   * attribute body is loaded separately) opt in. Views that render schema-dependent
+   * attributes directly from the resource must keep waiting for the complete resource.
+   */
+  protected readonly renderPartialWhileReloading:boolean = false;
+
   public projectIdentifier:string;
 
   public focusAnchorLabel:string;
@@ -149,6 +163,24 @@ export abstract class WorkPackageSingleViewBase extends UntilDestroyedMixin {
     const cached = this.states.workPackages.get(this.workPackageId).getValueOr(undefined);
     const forceFullReload = isPartialWorkPackage(cached);
 
+    // Render the cached partial straight away so the panel is never blank while the
+    // full resource reloads. Forcing a reload clears the cache entry and fires an
+    // async request; without this seed the view would show nothing until it returns.
+    // We hold our own reference here, so the upcoming cache clear cannot null it, and
+    // init() stays deferred until the complete resource arrives (see `initialized`).
+    //
+    // Opt-in (split view only): the partial drives just the header/toolbar there, the
+    // attribute body is reloaded separately. The full view renders attributes directly
+    // from this resource and needs the schema, which the partial lacks, so it keeps
+    // waiting for the complete resource instead. We do not detect changes here on
+    // purpose — the first change-detection pass after ngOnInit renders the seed once
+    // requireAndStream() below has cleared the cache, so child views (e.g. the tab
+    // wrapper) mount against the cleared cache and wait for the full resource rather
+    // than briefly binding the partial.
+    if (forceFullReload && cached && this.renderPartialWhileReloading) {
+      this.workPackage = cached;
+    }
+
     this
       .apiV3Service
       .work_packages
@@ -156,11 +188,14 @@ export abstract class WorkPackageSingleViewBase extends UntilDestroyedMixin {
       .requireAndStream(forceFullReload)
       .pipe(this.untilDestroyed())
       .subscribe((wp:WorkPackageResource) => {
-        if (!this.workPackage) {
-          this.workPackage = wp;
+        this.workPackage = wp;
+
+        // Run one-time initialization only once, against the complete resource —
+        // never against the partial seeded above. When a reload is forced, the first
+        // emission is the freshly loaded full work package.
+        if (!this.initialized) {
+          this.initialized = true;
           this.init();
-        } else {
-          this.workPackage = wp;
         }
 
         // Push the current title
