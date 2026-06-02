@@ -34,6 +34,7 @@ import { StateCacheService } from 'core-app/core/apiv3/cache/state-cache.service
 import { InjectField } from 'core-app/shared/helpers/angular/inject-field.decorator';
 import { SchemaCacheService } from 'core-app/core/schemas/schema-cache.service';
 import isNewResource from 'core-app/features/hal/helpers/is-new-resource';
+import { isPartialWorkPackage } from 'core-app/features/hal/helpers/partial-work-package';
 import { CustomActionResource } from 'core-app/features/hal/resources/custom-action-resource';
 
 @Injectable()
@@ -55,6 +56,18 @@ export class WorkPackageCache extends StateCacheService<WorkPackageResource> {
   }
 
   updateWorkPackage(wp:WorkPackageResource, immediate = false):Promise<WorkPackageResource> {
+    // Never downgrade a complete cached work package to a partial one (e.g. a board's
+    // lightweight `select` payload). A detail/full view subscribed to the cache would
+    // otherwise re-render the stripped subset when the board reloads after an update
+    // (e.g. moving a card between columns). "Full covers partial": keep the complete
+    // resource — a later full load (a new, unmarked object) still supersedes it.
+    if (isPartialWorkPackage(wp)) {
+      const current = this.multiState.get(wp.id!).getValueOr(undefined);
+      if (current && !isPartialWorkPackage(current)) {
+        return Promise.resolve(current);
+      }
+    }
+
     if (immediate || isNewResource(wp)) {
       return super.updateValue(wp.id!, wp);
     }
