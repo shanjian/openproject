@@ -40,6 +40,7 @@ import { WorkPackagesActivityService } from 'core-app/features/work-packages/com
 import { ConfigurationService } from 'core-app/core/config/configuration.service';
 import { WorkPackageNotificationService } from 'core-app/features/work-packages/services/notifications/work-package-notification.service';
 import { WorkPackageCache } from 'core-app/core/apiv3/endpoints/work_packages/work-package.cache';
+import { isPartialWorkPackage, markPartialWorkPackage } from 'core-app/features/hal/helpers/partial-work-package';
 import { TimezoneService } from 'core-app/core/datetime/timezone.service';
 import { HalResourceNotificationService } from 'core-app/features/hal/services/hal-resource-notification.service';
 import { OpenprojectHalModule } from 'core-app/features/hal/openproject-hal.module';
@@ -130,5 +131,66 @@ describe('WorkPackageCache', () => {
     workPackageCache.updateWorkPackageList([dummyWorkPackages[0]], false);
     workPackageCache.updateWorkPackageList([dummyWorkPackages[0]], false);
     workPackageCache.updateWorkPackageList([dummyWorkPackages[0]], false);
+  });
+
+  describe('partial work packages (full covers partial)', () => {
+    const makeWp = (id:string):WorkPackageResource =>
+      new WorkPackageResource(
+        injector,
+        { id, _links: { self: '' } },
+        true,
+        () => undefined,
+        'WorkPackage',
+      ) as unknown as WorkPackageResource;
+
+    it('does not overwrite a complete cached work package with a partial one', async () => {
+      const full = makeWp('10');
+      const partial = makeWp('10');
+      markPartialWorkPackage(partial);
+
+      await workPackageCache.updateWorkPackage(full, true);
+
+      expect(workPackageCache.state('10').value).toBe(full);
+
+      // A board reload tries to write the stripped `select` payload back.
+      const result = await workPackageCache.updateWorkPackage(partial, true);
+
+      // The complete resource is retained and returned.
+      expect(result).toBe(full);
+      expect(workPackageCache.state('10').value).toBe(full);
+      expect(isPartialWorkPackage(workPackageCache.state('10').value)).toBe(false);
+    });
+
+    it('caches a partial work package when the slot is empty', async () => {
+      const partial = makeWp('11');
+      markPartialWorkPackage(partial);
+
+      await workPackageCache.updateWorkPackage(partial, true);
+
+      expect(workPackageCache.state('11').value).toBe(partial);
+    });
+
+    it('replaces a cached partial with a newer partial', async () => {
+      const partial1 = makeWp('12');
+      const partial2 = makeWp('12');
+      markPartialWorkPackage(partial1);
+      markPartialWorkPackage(partial2);
+
+      await workPackageCache.updateWorkPackage(partial1, true);
+      await workPackageCache.updateWorkPackage(partial2, true);
+
+      expect(workPackageCache.state('12').value).toBe(partial2);
+    });
+
+    it('lets a fresh complete work package supersede a cached partial', async () => {
+      const partial = makeWp('13');
+      markPartialWorkPackage(partial);
+      const full = makeWp('13');
+
+      await workPackageCache.updateWorkPackage(partial, true);
+      await workPackageCache.updateWorkPackage(full, true);
+
+      expect(workPackageCache.state('13').value).toBe(full);
+    });
   });
 });
