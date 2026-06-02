@@ -29,16 +29,19 @@
 import { UIRouterGlobals } from '@uirouter/core';
 import {
   Component,
+  inject,
   Input,
   OnInit,
 } from '@angular/core';
 import { I18nService } from 'core-app/core/i18n/i18n.service';
 import { ApiV3Service } from 'core-app/core/apiv3/api-v3.service';
 import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { filter, map } from 'rxjs/operators';
 import { WpTabDefinition } from 'core-app/features/work-packages/components/wp-tabs/components/wp-tab-wrapper/tab';
 import { WorkPackageTabsService } from 'core-app/features/work-packages/components/wp-tabs/services/wp-tabs/wp-tabs.service';
 import { WorkPackageResource } from 'core-app/features/hal/resources/work-package-resource';
+import { isPartialWorkPackage } from 'core-app/features/hal/helpers/partial-work-package';
+import { States } from 'core-app/core/states/states.service';
 
 @Component({
   templateUrl: './wp-tab-wrapper.html',
@@ -56,11 +59,13 @@ export class WpTabWrapperComponent implements OnInit {
     tab:WpTabDefinition | undefined;
   }>;
 
+  private readonly states = inject(States);
+
   constructor(
     readonly I18n:I18nService,
     readonly uiRouterGlobals:UIRouterGlobals,
     readonly apiV3Service:ApiV3Service,
-    readonly wpTabsService:WorkPackageTabsService
+    readonly wpTabsService:WorkPackageTabsService,
   ) {}
 
   ngOnInit() {
@@ -68,12 +73,22 @@ export class WpTabWrapperComponent implements OnInit {
       this.workPackageId = this.uiRouterGlobals.params.workPackageId;
     }
 
+    // If only a partial work package is cached (a board's lightweight `select`
+    // payload), force a full reload, and never surface a partial here. The tab body
+    // (e.g. wp-single-view) builds its view once from the work package it is created
+    // with and does not re-initialize on input changes — so on a board deep-link
+    // reload it would otherwise stay stuck on the stripped, schema-less subset until
+    // the tab is re-created. Filtering guarantees the body is only ever built from the
+    // complete resource.
+    const cached = this.states.workPackages.get(this.workPackageId).getValueOr(undefined);
+
     this.ndcDynamicInputs$ = this
       .apiV3Service
       .work_packages
       .id(this.workPackageId)
-      .requireAndStream()
+      .requireAndStream(isPartialWorkPackage(cached))
       .pipe(
+        filter((wp) => !isPartialWorkPackage(wp)),
         map((wp) => ({
           workPackage: wp,
           tab: this.findTab(wp),
