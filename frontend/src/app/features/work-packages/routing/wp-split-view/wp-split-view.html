@@ -66,4 +66,13 @@
       [localStorageKey]="'openProject-splitViewFlexBasis'" />
     </div>
   </div>
+} @else {
+  <div
+    class="work-packages--details loading-indicator--location"
+    data-indicator-name="wpDetails"
+    >
+    <div class="work-packages--details-content work-packages-tab-view--overflow">
+      <op-wp-loading-skeleton />
+    </div>
+  </div>
 }

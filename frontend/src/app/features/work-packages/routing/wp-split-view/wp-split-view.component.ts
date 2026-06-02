@@ -140,6 +140,10 @@ export class WorkPackageSplitViewComponent extends WorkPackageSingleViewBase imp
     this.backRouting.goToBaseState();
   }
 
+  // Show the cached partial immediately while the full resource reloads — only the
+  // header/toolbar bind to it here; the attribute body is loaded by the tab wrapper.
+  protected readonly renderPartialWhileReloading:boolean = true;
+
   protected handleLoadingError(error:unknown):void {
     const message = this.notificationService.retrieveErrorMessage(error);
 
