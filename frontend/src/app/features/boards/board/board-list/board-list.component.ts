@@ -388,6 +388,9 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
    */
   public setIncludeClosed(includeClosed:boolean):void {
     this.resource.options = { ...this.resource.options, includeClosed };
+    // Reflect the new state in the (re-opened) menu and header right away,
+    // independent of the board save round-trip.
+    this.cdRef.detectChanges();
     this.updateQuery(true);
     this.boardService
       .save(this.board)
