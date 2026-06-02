@@ -182,6 +182,38 @@ cd frontend
 npx eslint src/
 ```
 
+## 13) After code changes: recompile or just restart?
+
+Purpose: clarify when you can rely on dev watchers vs. when extra steps are required.
+
+In this setup, `bin/dev` runs Rails + frontend watchers, so most source changes do **not** require a manual recompile.
+
+Start/restart command:
+
+```bash
+OPENPROJECT_COLLABORATIVE__EDITING__HOCUSPOCUS__SECRET=dev-secret bin/dev
+```
+
+Use additional steps only when relevant:
+
+1. `Gemfile` / `Gemfile.lock` changed
+- Run: `bundle install`
+- Then restart `bin/dev`
+
+2. `package.json` / lockfile / frontend dependency changed
+- Run: `npm ci` (and plugin package install if needed)
+- Then restart `bin/dev`
+
+3. Database migration added/changed
+- Run: `bundle exec rake db:migrate`
+
+4. Environment variables or Rails initializers changed
+- Restart `bin/dev`
+
+5. Linked plugin frontend wiring changed
+- Run: `bundle exec rails openproject:plugins:register_frontend`
+- Then restart `bin/dev`
+
 ---
 
 ## Traps We Encountered (and Fixes)
@@ -213,3 +245,11 @@ npx eslint src/
 - Symptom: login fails even though app boots.
 - Why: `db:migrate` does not create the admin user.
 - Fix: run `bundle exec rake db:seed` to create `admin/admin` (default dev seed).
+
+7. `bundler: failed to load command: rails ... Bundler::GemNotFound`
+- Symptom: `bin/dev` fails right after restart with many “Could not find <gem-version>” messages.
+- Why: active branch/revision changed and local gems for that lockfile are not installed yet.
+- Fix:
+  - `bundle install`
+  - verify with `bundle exec rails -v`
+  - then restart `bin/dev`
