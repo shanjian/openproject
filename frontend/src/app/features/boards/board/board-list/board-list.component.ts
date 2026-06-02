@@ -373,21 +373,41 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
     this.loadColumnTotals();
   }
 
-  /**
-   * Whether this column shows closed work packages. Boards include them by
-   * default (non-breaking); the per-column toggle persists `false` on the
-   * widget to hide them.
-   */
-  public get includeClosed():boolean {
-    return this.resource.options.includeClosed !== false;
+  private get columnFilters():ApiV3Filter[] {
+    return (this.resource.options.filters || []) as ApiV3Filter[];
   }
 
   /**
-   * Persists the per-column "include closed items" state on the widget (shared
-   * board config) and reloads the column with the new filter applied.
+   * The open-status filter we add/remove to hide/show closed work packages.
+   * It lives in the widget's persisted `options.filters` — the same channel
+   * the action attribute filter rides — so it is reliably applied on every
+   * column load (unlike a separate boolean flag, which was not).
+   */
+  private isOpenStatusFilter(filter:ApiV3Filter):boolean {
+    return 'status' in filter && filter.status.operator === 'o';
+  }
+
+  /**
+   * Whether this column shows closed work packages. Derived from the presence
+   * of the open-status filter so the menu state and the actual query can never
+   * disagree. Boards include closed by default (no filter present).
+   */
+  public get includeClosed():boolean {
+    return !this.columnFilters.some((filter) => this.isOpenStatusFilter(filter));
+  }
+
+  /**
+   * Persists the per-column "include closed items" state by adding/removing the
+   * open-status filter on the widget (shared board config) and reloads the
+   * column.
    */
   public setIncludeClosed(includeClosed:boolean):void {
-    this.resource.options = { ...this.resource.options, includeClosed };
+    const filters = this.columnFilters.filter((filter) => !this.isOpenStatusFilter(filter));
+    if (!includeClosed) {
+      filters.push({ status: { operator: 'o', values: [] } });
+    }
+
+    this.resource.options = { ...this.resource.options, filters };
     // Reflect the new state in the (re-opened) menu and header right away,
     // independent of the board save round-trip.
     this.cdRef.detectChanges();
@@ -554,12 +574,9 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
   private setQueryProps(filters:ApiV3Filter[]) {
     const existingFilters = (this.resource.options.filters || []) as ApiV3Filter[];
 
+    // The open-status filter (when closed items are hidden) is part of
+    // `options.filters`, so it flows through here like any other column filter.
     const newFilters = existingFilters.concat(filters);
-    // Boards show open and closed work packages by default. When the column's
-    // "include closed items" toggle is turned off, restrict it to open items.
-    if (!this.includeClosed) {
-      newFilters.push({ status: { operator: 'o', values: [] } });
-    }
     const serializedFilters = JSON.stringify(newFilters);
 
     const selectFields = [...BoardListComponent.cardSelectFields];

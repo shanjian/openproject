@@ -43,15 +43,26 @@ describe('BoardListComponent include-closed filtering', () => {
     return (component as unknown as { columnsQueryProps:{ filters:string } }).columnsQueryProps.filters;
   };
 
-  it('restricts a column to open items when closed items are excluded', () => {
-    const filters = filtersFor(buildComponent({ queryId: 1, includeClosed: false }));
+  it('carries the column filters (incl. an open-status filter) into the query props', () => {
+    const filters = filtersFor(buildComponent({
+      queryId: 1,
+      filters: [{ status: { operator: 'o', values: [] } }],
+    }));
 
     expect(filters).toContain('"status":{"operator":"o"');
   });
 
-  it('does not restrict status by default (closed items included)', () => {
-    const filters = filtersFor(buildComponent({ queryId: 1 }));
+  it('does not restrict status when no open-status filter is configured', () => {
+    const filters = filtersFor(buildComponent({ queryId: 1, filters: [] }));
 
     expect(filters).not.toContain('"operator":"o"');
+  });
+
+  it('derives includeClosed from the presence of the open-status filter', () => {
+    const excluded = buildComponent({ filters: [{ status: { operator: 'o', values: [] } }] });
+    const included = buildComponent({ filters: [{ assignee: { operator: '!*', values: [] } }] });
+
+    expect(excluded.includeClosed).toBe(false);
+    expect(included.includeClosed).toBe(true);
   });
 });
