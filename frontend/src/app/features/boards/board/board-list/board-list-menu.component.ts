@@ -78,7 +78,12 @@ export class BoardListMenuComponent {
 
       if (this.canToggleIncludeClosed()) {
         items.push({
-          icon: this.includeClosed ? 'checkmark' : undefined,
+          // Always show a state indicator (checkmark when on, dash when off),
+          // mirroring the backlogs menu, so the current state is unambiguous.
+          // The value must be a full icon-font class (rendered as
+          // `icon-action-menu <icon>`); a bare name like "checkmark" renders
+          // nothing.
+          icon: this.includeClosed ? 'icon-checkmark' : 'icon-minus2',
           linkText: this.I18n.t('js.boards.lists.include_closed'),
           onClick: () => {
             this.onToggleIncludeClosed.emit(!this.includeClosed);
