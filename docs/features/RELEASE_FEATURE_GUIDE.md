@@ -40,7 +40,7 @@ Releases are managed per project.
    - **Name** (required, e.g. `v2.4.0`)
    - **Start date** / **Finish date** (optional)
    - **Description** (optional)
-   - **Sharing** (optional) — share the release with sub‑projects, the project hierarchy/tree, or all projects, exactly like versions.
+   - **Sharing** (optional) — share the release with sub‑projects, the project hierarchy/tree, or **all projects**, exactly like versions. Sharing with **all projects** (system‑wide) is restricted — see *Permissions*.
    - **Wiki page** (optional) — link a wiki page to publish release notes to (see *Release notes*).
 3. Use the row actions to **Edit** or **Delete** a release.
 
@@ -117,10 +117,21 @@ To enable the wiki button, set the release's **Wiki page** field (when creating/
 | Action | Permission |
 | :--- | :--- |
 | Create / edit / delete releases, run the Release action | **Manage versions** |
+| Share a release with **all projects** (system‑wide) | **Share versions/releases with all projects** (or instance admin) |
 | See a release's work packages | **View work packages** |
 | Write release notes to a wiki page | **Edit wiki pages** |
 
 Releases follow the same visibility rules as versions, including sharing across projects and visibility through shared work packages.
+
+### Letting project admins share releases with all projects
+
+By default, sharing a release with **all projects** is reserved for instance administrators. To let a project role (e.g. a project admin) do this without granting full admin rights, an instance administrator grants that role the **Share versions/releases with all projects** permission:
+
+1. Go to **Administration → Roles and permissions**.
+2. Edit the role (e.g. *Project admin*) and enable **Share versions/releases with all projects**.
+3. Save. Members with that role in a project can now pick **All projects** in a release's **Sharing** field.
+
+Until this permission is granted, the **All projects** option stays hidden for non‑admins; the other sharing options (sub‑projects, hierarchy, tree) are unaffected.
 
 ---
 

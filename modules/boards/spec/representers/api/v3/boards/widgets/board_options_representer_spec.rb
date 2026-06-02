@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 #-- copyright
 # OpenProject is an open source project management software.
 # Copyright (C) the OpenProject GmbH
@@ -26,31 +28,33 @@
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-module API
-  module V3
-    module Boards
-      module Widgets
-        class BoardOptionsRepresenter < ::API::V3::Grids::Widgets::DefaultOptionsRepresenter
-          property :queryId,
-                   getter: ->(represented:, **) {
-                     represented["queryId"] || represented["query_id"]
-                   }
+require "spec_helper"
 
-          property :filters,
-                   getter: ->(represented:, **) {
-                     represented["filters"]
-                   }
+RSpec.describe API::V3::Boards::Widgets::BoardOptionsRepresenter do
+  subject(:parsed) { JSON.parse(json) }
 
-          # Per-column "include closed items" toggle state. Must be exposed
-          # here or the GET response drops it, leaving the frontend unable to
-          # restore the saved state on reload (it would always fall back to
-          # the "included" default).
-          property :includeClosed,
-                   getter: ->(represented:, **) {
-                     represented["includeClosed"]
-                   }
-        end
-      end
+  let(:user) { build_stubbed(:user) }
+  let(:options) do
+    { "queryId" => 5, "filters" => [{ "status" => { "operator" => "o", "values" => [] } }] }
+      .merge(extra_options)
+      .with_indifferent_access
+  end
+  let(:json) { described_class.new(options, current_user: user).to_json }
+
+  context "with an include-closed state set" do
+    let(:extra_options) { { "includeClosed" => false } }
+
+    it "exposes queryId, filters and includeClosed" do
+      expect(parsed).to include("queryId" => 5, "includeClosed" => false)
+      expect(parsed["filters"]).to eq([{ "status" => { "operator" => "o", "values" => [] } }])
+    end
+  end
+
+  context "without an include-closed state (legacy widget)" do
+    let(:extra_options) { {} }
+
+    it "does not force a value, so the frontend keeps its default" do
+      expect(parsed).not_to include("includeClosed" => true)
     end
   end
 end

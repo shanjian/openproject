@@ -36,7 +36,7 @@ module Backlogs
     include Redmine::I18n
     include RbCommonHelper
 
-    attr_reader :sprint, :collapsed, :current_user
+    attr_reader :sprint, :collapsed, :current_user, :include_closed
 
     delegate :project, to: :sprint
     delegate :name, to: :sprint, prefix: :sprint
@@ -44,12 +44,14 @@ module Backlogs
     def initialize(
       sprint:,
       folded: false,
+      include_closed: false,
       current_user: User.current
     )
       super()
 
       @sprint = sprint
       @collapsed = folded
+      @include_closed = include_closed
       @current_user = current_user
     end
 
@@ -58,7 +60,7 @@ module Backlogs
     end
 
     def stories
-      @sprint.work_packages
+      @stories ||= sprint.board_work_packages(include_closed:).to_a
     end
 
     private

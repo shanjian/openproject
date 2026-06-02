@@ -56,7 +56,7 @@ module Backlogs
       @system_arguments[:padding] = :condensed
       @system_arguments[:data] = merge_data(
         @system_arguments,
-        { data: drop_target_config }
+        { data: drop_target_config.merge(controller: "backlogs--card-list-filter") }
       )
     end
 
@@ -84,16 +84,10 @@ module Backlogs
     end
 
     def draggable_item_config(story)
-      # Carry the include-closed flag in the drop URL so dragging a story
-      # out of (or within) the inbox preserves the toggle on the subsequent
-      # turbo-stream refresh.
-      url_options = { project_id: project, id: story }
-      url_options[:inbox_include_closed] = "1" if include_closed
-
       {
         draggable_id: story.id,
         draggable_type: "story",
-        drop_url: move_backlogs_project_inbox_story_path(url_options)
+        drop_url: move_backlogs_project_inbox_story_path(project_id: project, id: story)
       }
     end
   end

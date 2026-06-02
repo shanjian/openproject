@@ -30,11 +30,13 @@
 
 import { Controller } from '@hotwired/stimulus';
 
-// Submits the parent form when an input fires `change`. Used by the
-// Backlogs Inbox column's "include closed" checkbox so toggling refreshes
-// the inbox via the surrounding turbo-frame without needing an Apply button.
-export default class InboxFilterController extends Controller<HTMLFormElement> {
-  submit():void {
-    this.element.requestSubmit();
+// Shows a loading state on a backlogs column while its "include closed"
+// toggle re-fetches the column via turbo-stream. The whole column element is
+// replaced by the turbo-stream response, so the busy state clears itself when
+// the fresh markup arrives — no teardown needed.
+export default class CardListFilterController extends Controller<HTMLElement> {
+  loading():void {
+    this.element.setAttribute('aria-busy', 'true');
+    this.element.classList.add('op-backlogs-list--loading');
   }
 }

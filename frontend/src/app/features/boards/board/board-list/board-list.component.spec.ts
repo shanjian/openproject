@@ -28,3 +28,30 @@ describe('BoardListComponent partial caching', () => {
     expect(updateQuerySpace).toHaveBeenCalledWith(query, query.results);
   });
 });
+
+describe('BoardListComponent include-closed filtering', () => {
+  const buildComponent = (options:Record<string, unknown>):BoardListComponent => {
+    const component = Object.create(BoardListComponent.prototype) as BoardListComponent;
+    const fields = component as unknown as Record<string, unknown>;
+    fields.board = { actionAttribute: 'version' };
+    fields.resource = { options };
+    return component;
+  };
+
+  const filtersFor = (component:BoardListComponent):string => {
+    (component as unknown as { setQueryProps:(f:unknown[]) => void }).setQueryProps([]);
+    return (component as unknown as { columnsQueryProps:{ filters:string } }).columnsQueryProps.filters;
+  };
+
+  it('restricts a column to open items when closed items are excluded', () => {
+    const filters = filtersFor(buildComponent({ queryId: 1, includeClosed: false }));
+
+    expect(filters).toContain('"status":{"operator":"o"');
+  });
+
+  it('does not restrict status by default (closed items included)', () => {
+    const filters = filtersFor(buildComponent({ queryId: 1 }));
+
+    expect(filters).not.toContain('"operator":"o"');
+  });
+});

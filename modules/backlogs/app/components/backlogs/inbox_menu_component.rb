@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 #-- copyright
 # OpenProject is an open source project management software.
 # Copyright (C) the OpenProject GmbH
@@ -26,31 +28,17 @@
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-module API
-  module V3
-    module Boards
-      module Widgets
-        class BoardOptionsRepresenter < ::API::V3::Grids::Widgets::DefaultOptionsRepresenter
-          property :queryId,
-                   getter: ->(represented:, **) {
-                     represented["queryId"] || represented["query_id"]
-                   }
+module Backlogs
+  class InboxMenuComponent < ApplicationComponent
+    include RbCommonHelper
 
-          property :filters,
-                   getter: ->(represented:, **) {
-                     represented["filters"]
-                   }
+    attr_reader :project, :include_closed
 
-          # Per-column "include closed items" toggle state. Must be exposed
-          # here or the GET response drops it, leaving the frontend unable to
-          # restore the saved state on reload (it would always fall back to
-          # the "included" default).
-          property :includeClosed,
-                   getter: ->(represented:, **) {
-                     represented["includeClosed"]
-                   }
-        end
-      end
+    def initialize(project:, include_closed: false)
+      super()
+
+      @project = project
+      @include_closed = include_closed
     end
   end
 end

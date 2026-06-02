@@ -105,28 +105,21 @@ class RbStoriesController < RbApplicationController
   private
 
   def replace_backlog_component_via_turbo_stream(sprint:)
-    @backlog = Backlog.for(sprint:, project: @project)
+    # Backlog.for resolves the column's include-closed state from the user's
+    # per-column preference, so the refreshed column matches what the toggle
+    # last set.
+    @backlog = Backlog.for(sprint:, project: @project, user: current_user)
     replace_via_turbo_stream(
-      component: Backlogs::BacklogComponent.new(
-        backlog: @backlog,
-        project: @project,
-        inbox_include_closed: inbox_include_closed?
-      )
+      component: Backlogs::BacklogComponent.new(backlog: @backlog, project: @project)
     )
   end
 
   def replace_inbox_component_via_turbo_stream
-    include_closed = inbox_include_closed?
+    include_closed = current_user.backlogs_include_closed?(:inbox)
     inbox = Backlog.inbox_backlog(@project, include_closed:)
     replace_via_turbo_stream(
       component: Backlogs::InboxComponent.new(inbox:, project: @project, include_closed:)
     )
-  end
-
-  def inbox_include_closed?
-    # Drag-drop submits as form data; the toggle state is preserved as a
-    # hidden input alongside target_id/position.
-    ActiveModel::Type::Boolean.new.cast(params[:inbox_include_closed]) == true
   end
 
   def move_attributes

@@ -71,7 +71,7 @@ See COPYRIGHT and LICENSE files for more details.
     <% end %>
 
     <% grid.with_area(:menu) do %>
-      <%= render(Backlogs::SprintMenuComponent.new(sprint:, project:)) %>
+      <%= render(Backlogs::SprintMenuComponent.new(sprint:, project:, include_closed:)) %>
     <% end %>
   <% end %>
 <% end %>

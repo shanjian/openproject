@@ -373,6 +373,33 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
     this.loadColumnTotals();
   }
 
+  /**
+   * Whether this column shows closed work packages. Boards include them by
+   * default (non-breaking); the per-column toggle persists `false` on the
+   * widget to hide them.
+   */
+  public get includeClosed():boolean {
+    return this.resource.options.includeClosed !== false;
+  }
+
+  /**
+   * Persists the per-column "include closed items" state on the widget (shared
+   * board config) and reloads the column with the new filter applied.
+   */
+  public setIncludeClosed(includeClosed:boolean):void {
+    this.resource.options = { ...this.resource.options, includeClosed };
+    // Reflect the new state in the (re-opened) menu and header right away,
+    // independent of the board save round-trip.
+    this.cdRef.detectChanges();
+    this.updateQuery(true);
+    this.boardService
+      .save(this.board)
+      .subscribe(
+        () => this.toastService.addSuccess(this.text.updateSuccessful),
+        (_error:unknown) => this.halNotification.handleRawError(_error),
+      );
+  }
+
   /** Whether this column shows accumulated story point / estimated time totals */
   private get showsTotals():boolean {
     return this.board.actionAttribute === 'assignee';
@@ -528,6 +555,11 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
     const existingFilters = (this.resource.options.filters || []) as ApiV3Filter[];
 
     const newFilters = existingFilters.concat(filters);
+    // Boards show open and closed work packages by default. When the column's
+    // "include closed items" toggle is turned off, restrict it to open items.
+    if (!this.includeClosed) {
+      newFilters.push({ status: { operator: 'o', values: [] } });
+    }
     const serializedFilters = JSON.stringify(newFilters);
 
     const selectFields = [...BoardListComponent.cardSelectFields];

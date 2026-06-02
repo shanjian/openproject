@@ -104,18 +104,19 @@ RSpec.describe RbStoriesController, "inbox move flows" do
     end
   end
 
-  describe "PUT #move preserves inbox_include_closed across the turbo-stream refresh" do
+  describe "PUT #move rebuilds the inbox column from the stored include-closed preference" do
     let(:story_to_move) { create(:story, status:, version: nil, project:) }
 
     before { allow(Backlogs::InboxComponent).to receive(:new).and_call_original }
 
-    it "rebuilds the inbox component with include_closed: true when the param is set" do
+    it "rebuilds the inbox component with include_closed: true when the inbox preference is on" do
+      user.set_backlogs_include_closed(:inbox, nil, true)
+
       put :move, params: {
                    project_id: project.id,
                    id: story_to_move.id,
                    target_id: Backlogs::InboxComponent::INBOX_TARGET_ID,
-                   position: 1,
-                   inbox_include_closed: "1"
+                   position: 1
                  },
                  format: :turbo_stream
 
@@ -123,7 +124,7 @@ RSpec.describe RbStoriesController, "inbox move flows" do
       expect(Backlogs::InboxComponent).to have_received(:new).with(hash_including(include_closed: true))
     end
 
-    it "rebuilds the inbox component with include_closed: false when the param is absent" do
+    it "rebuilds the inbox component with include_closed: false by default" do
       put :move, params: {
                    project_id: project.id,
                    id: story_to_move.id,

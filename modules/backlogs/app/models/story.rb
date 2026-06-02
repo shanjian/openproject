@@ -68,12 +68,17 @@ class Story < WorkPackage
   # Returns [stories, truncated?] for a single backlog column. Uses the
   # `LIMIT + 1` trick to detect truncation without a separate COUNT query.
   # Each story gets a sequential `rank` set, matching `.backlogs`' behavior.
-  def self.backlog_for(project_id, sprint_id, limit: COLUMN_LIMIT)
-    candidates = Story.where(Story.condition(project_id, [sprint_id]))
-                      .preload(:status, :type)
-                      .order(Arel.sql(Story::ORDER))
-                      .limit(limit + 1)
-                      .to_a
+  #
+  # By default closed-status work packages are excluded. Pass
+  # `include_closed: true` to surface them too (see `inbox_for` for why
+  # `preload` is paired with a `joins(:status)` filter rather than
+  # `includes`).
+  def self.backlog_for(project_id, sprint_id, include_closed: false, limit: COLUMN_LIMIT)
+    scope = Story.where(Story.condition(project_id, [sprint_id]))
+                 .preload(:status, :type)
+    scope = scope.joins(:status).where(statuses: { is_closed: false }) unless include_closed
+
+    candidates = scope.order(Arel.sql(Story::ORDER)).limit(limit + 1).to_a
 
     truncate_and_rank(candidates, limit)
   end

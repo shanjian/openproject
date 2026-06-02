@@ -74,6 +74,15 @@ See COPYRIGHT and LICENSE files for more details.
       item.with_leading_visual_icon(icon: :"op-view-list")
     end
 
+    menu.with_divider
+    include_closed_action_menu_item(
+      menu,
+      project:,
+      list_type: "sprint",
+      column_id: sprint.id,
+      include_closed:
+    )
+
     # menu.with_item(
     #   # TODO: what to do with the task board?
     #   label: t(".action_menu.task_board"),

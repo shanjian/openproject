@@ -118,12 +118,6 @@ RSpec.describe Backlogs::InboxComponent, type: :component do
         expect(row["data-drop-url"]).to match(%r{/projects/#{project.identifier}/stories/#{wp1.id}/move\z})
       end
 
-      it "appends inbox_include_closed=1 to the drop URL when include_closed is true" do
-        render_component(include_closed: true)
-
-        row = page.find(".Box-row[id='story_#{wp1.id}']")
-        expect(row["data-drop-url"]).to include("inbox_include_closed=1")
-      end
     end
 
     context "without stories" do
@@ -154,36 +148,35 @@ RSpec.describe Backlogs::InboxComponent, type: :component do
       end
     end
 
-    describe "include closed checkbox" do
-      it "renders the checkbox unchecked by default" do
+    describe "include closed menu" do
+      it "renders the inbox actions kebab menu" do
         render_component
 
-        checkbox = page.find("input[type=checkbox][name=inbox_include_closed]")
-        expect(checkbox.checked?).to be(false)
-        expect(page).to have_text(I18n.t("backlogs.inbox_component.include_closed"))
+        expect(page).to have_css("action-menu")
+        expect(page).to have_text(I18n.t("backlogs.include_closed.menu_item"))
       end
 
-      it "renders the checkbox checked when include_closed: true" do
+      it "links to turn the filter on, unchecked, by default" do
+        render_component
+
+        link = page.find(:link, I18n.t("backlogs.include_closed.menu_item"), visible: :all)
+        expect(link["href"]).to include("list_type=inbox", "include_closed=true")
+        expect(link["href"]).not_to include("column_id")
+        expect(link["data-turbo-method"]).to eq("put")
+        expect(link["data-turbo-stream"]).to eq("true")
+      end
+
+      it "links to turn the filter off when currently on" do
         render_component(include_closed: true)
 
-        checkbox = page.find("input[type=checkbox][name=inbox_include_closed]")
-        expect(checkbox.checked?).to be(true)
+        link = page.find(:link, I18n.t("backlogs.include_closed.menu_item"), visible: :all)
+        expect(link["href"]).to include("include_closed=false")
       end
 
-      it "submits to the master backlogs URL, scoped to the backlogs_container turbo-frame" do
+      it "marks the column for the loading spinner controller" do
         render_component
 
-        form = page.find("form[action$='/backlogs']")
-        expect(form["method"]).to eq("get")
-        expect(form["data-turbo-frame"]).to eq("backlogs_container")
-        expect(form["data-controller"]).to eq("backlogs--inbox-filter")
-      end
-
-      it "uses turbo_action: advance so the URL is pushed to browser history" do
-        render_component
-
-        form = page.find("form[action$='/backlogs']")
-        expect(form["data-turbo-action"]).to eq("advance")
+        expect(page.find(".Box")["data-controller"]).to include("backlogs--card-list-filter")
       end
     end
   end

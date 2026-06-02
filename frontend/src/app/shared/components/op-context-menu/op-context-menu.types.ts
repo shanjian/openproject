@@ -6,6 +6,11 @@ export interface OpContextMenuItem {
   disabled?:boolean;
   hidden?:boolean;
   icon?:string;
+  // Trailing icon (rendered after the label), e.g. a state checkmark. The
+  // template already supports `postIcon`/`postIconTitle`; declared here so
+  // callers are type-checked.
+  postIcon?:string;
+  postIconTitle?:string;
   href?:string;
   class?:string;
   ariaLabel?:string;

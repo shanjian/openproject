@@ -68,6 +68,8 @@ en:
   backlogs:
     any: "any"
     column_width: "Column width"
+    include_closed:
+      menu_item: "Include closed items"
     definition_of_done: "Definition of Done"
     impediment: "Impediment"
     label_versions_default_fold_state: "Show versions folded"
@@ -107,7 +109,9 @@ en:
       title: "Inbox"
       blankslate_title: "Inbox is empty"
       blankslate_description: "Work packages with no version or sprint assigned will appear here."
-      include_closed: "Include closed"
+
+    inbox_menu_component:
+      label_actions: "Inbox actions"
 
     backlog_header_component:
       label_toggle_backlog: "Collapse/Expand %{name}"

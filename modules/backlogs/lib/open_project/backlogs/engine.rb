@@ -66,7 +66,7 @@ module OpenProject::Backlogs
 
       project_module :backlogs, dependencies: :work_package_tracking do
         permission :view_sprints,
-                   { rb_master_backlogs: %i[index details],
+                   { rb_master_backlogs: %i[index details toggle_include_closed],
                      rb_sprints: %i[index show show_name],
                      rb_wikis: :show,
                      rb_stories: %i[index show menu],
@@ -160,6 +160,11 @@ module OpenProject::Backlogs
           "backlogs_versions_default_fold_state" => {
             "type" => "string",
             "enum" => %w[open closed]
+          },
+          # Per-column "include closed items" toggle state, keyed by
+          # "<list_type>:<column_id>" (or just "<list_type>" for the inbox).
+          "backlogs_include_closed" => {
+            "type" => "object"
           }
         }
       )
