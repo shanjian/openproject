@@ -276,16 +276,17 @@ export class WorkPackageSingleCardComponent extends UntilDestroyedMixin implemen
     return typeof value === 'number' && value > 0 ? value : null;
   }
 
-  /** Estimated effort ("Work") for the compact meta line (e.g. "5h"), or null when unset/zero. */
+  /** Estimated effort ("Work") for the compact meta line, or null when unset/zero. */
   public cardWork(wp:WorkPackageResource):string|null {
     const hours = (wp as unknown as { estimatedHours?:number|null }).estimatedHours;
     if (typeof hours !== 'number' || hours <= 0) {
       return null;
     }
-    // Round to 2 decimals; i18n renders compactly as "5 h" / "4.5 h" (matches the
-    // board column total format).
-    const rounded = Math.round(hours * 100) / 100;
-    return this.I18n.t('js.units.hour', { count: rounded });
+    // Format like the rest of OpenProject - days + hours per the instance's
+    // duration format / hours-per-day setting (e.g. 8h -> "1d"). The card select
+    // delivers a raw hours number, so convert to an ISO8601 duration first.
+    const iso = this.timezoneService.toISODuration(hours, 'hours');
+    return this.timezoneService.formattedChronicDuration(iso);
   }
 
   /** Whether story points and/or work are present (the right-aligned first-line group). */

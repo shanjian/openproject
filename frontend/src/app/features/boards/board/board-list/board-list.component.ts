@@ -618,7 +618,9 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
 
     const estimatedTime = totalSums.estimatedTime as string|null|undefined;
     if (estimatedTime && this.timezoneService.toHours(estimatedTime) > 0) {
-      this.estimatedTimeSum = this.timezoneService.formattedDuration(estimatedTime, 'hour');
+      // Days + hours per the instance's duration format (e.g. 8h -> "1d"), to match
+      // the per-card Work display and the rest of OpenProject.
+      this.estimatedTimeSum = this.timezoneService.formattedChronicDuration(estimatedTime);
     } else {
       this.estimatedTimeSum = null;
     }

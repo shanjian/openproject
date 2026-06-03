@@ -50,7 +50,13 @@ describe('WorkPackageSingleCardComponent', () => {
         { provide: WorkPackageViewSelectionService, useValue: selection },
         { provide: WorkPackageViewFocusService, useValue: { updateFocus: () => undefined } },
         { provide: WorkPackageCardViewService, useValue: { classIdentifier: (wp:WorkPackageResource) => `wp-row-${wp.id}` } },
-        { provide: TimezoneService, useValue: {} },
+        {
+          provide: TimezoneService,
+          useValue: {
+            toISODuration: (value:number) => `PT${value}H`,
+            formattedChronicDuration: () => '1 d',
+          },
+        },
         { provide: SchemaCacheService, useValue: { of: () => ({}) } },
         { provide: KeepTabService, useValue: { currentShowHref: () => '' } },
       ],
@@ -185,7 +191,8 @@ describe('WorkPackageSingleCardComponent', () => {
       expect(epic().nativeElement.textContent).toContain('Login epic');
       expect(points()).not.toBeNull();
       expect(points().nativeElement.textContent).toContain('js.card.meta.story_points');
-      expect(points().nativeElement.textContent).toContain('js.units.hour');
+      // Work is formatted via the standard chronic-duration formatter (days + hours)
+      expect(points().nativeElement.textContent).toContain('1 d');
     });
 
     it('renders epic and story points/work on the hydrated card', () => {
