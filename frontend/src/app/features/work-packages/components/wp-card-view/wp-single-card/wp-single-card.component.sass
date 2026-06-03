@@ -28,71 +28,18 @@
   &_ghosted
     opacity: 0.5
 
-  // Lightweight stand-in rendered for not-yet-hydrated lazy cards (boards).
-  // Reserves roughly the height of a typical card (no cover image) so the
-  // scrollbar is approximately proportioned and hydration causes minimal reflow.
-  &_placeholder
-    min-height: 92px
-
-  // Placeholder content: id + subject only. Kept as a self-contained flex
-  // column with min-width: 0 and a truncating subject so it can NEVER grow the
-  // card past the column (a bare subject in the real --content grid would,
-  // because grid/flex items default to min-width: auto = min-content width).
-  &--placeholder
-    flex: 1
-    min-width: 0
-    display: flex
-    flex-direction: column
-    gap: 4px
+  // Static status pill shown on not-yet-hydrated cards in place of the
+  // interactive status button. Same colour as the button via the global
+  // __hl_background_status_<id> highlight class, so they look alike.
+  &--content-status-badge
+    max-width: 100%
+    padding: 1px 6px
+    border-radius: 2px
+    font-size: 12px
+    line-height: 16px
     overflow: hidden
-
-    // First line: status + id, with story points / work right aligned - mirrors
-    // the hydrated card's first line, but rendered purely from the (already
-    // loaded) select payload, so no hydration / backend access is needed.
-    &-header
-      display: flex
-      align-items: center
-      gap: 6px
-      min-width: 0
-
-    &-status
-      flex: 0 1 auto
-      min-width: 0
-      max-width: 100%
-      padding: 1px 6px
-      border-radius: 2px
-      font-size: 12px
-      overflow: hidden
-      text-overflow: ellipsis
-      white-space: nowrap
-
-    &-id
-      flex: 0 0 auto
-      color: var(--fgColor-muted)
-      font-size: 12px
-
-    &-points
-      flex: 0 0 auto
-      margin-left: auto
-      display: flex
-      align-items: center
-      white-space: nowrap
-      color: var(--fgColor-muted)
-      font-size: 12px
-
-    &-epic
-      min-width: 0
-      color: var(--fgColor-muted)
-      font-size: 12px
-      overflow: hidden
-      text-overflow: ellipsis
-      white-space: nowrap
-
-    &-subject
-      min-width: 0
-      overflow: hidden
-      text-overflow: ellipsis
-      white-space: nowrap
+    text-overflow: ellipsis
+    white-space: nowrap
 
   &_selected
     background-color: var(--selection-bgColor)

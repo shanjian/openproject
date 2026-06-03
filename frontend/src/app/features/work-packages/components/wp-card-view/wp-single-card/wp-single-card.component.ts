@@ -293,6 +293,26 @@ export class WorkPackageSingleCardComponent extends UntilDestroyedMixin implemen
     return this.cardStoryPoints(wp) !== null || this.cardWork(wp) !== null;
   }
 
+  /**
+   * Static start/due text for the not-yet-hydrated card, mirroring the combined
+   * date display-field. Values come from the select payload, so no hydration or
+   * backend access is needed; hydration swaps in the interactive display-field.
+   */
+  public cardDates(wp:WorkPackageResource):string|null {
+    const start = wp.startDate;
+    const due = wp.dueDate;
+    if (!start && !due) {
+      return null;
+    }
+
+    const format = (date:string) => this.timezoneService.formattedDate(date, 'MMM DD, YYYY');
+    if (start && due && start !== due) {
+      return `${format(start)} - ${format(due)}`;
+    }
+
+    return format(due || start);
+  }
+
   public fullWorkPackageLink(wp:WorkPackageResource):string {
     return this.keepTabService.currentShowHref(wp.id!);
   }
