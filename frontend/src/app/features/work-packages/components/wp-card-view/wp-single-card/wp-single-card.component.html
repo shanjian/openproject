@@ -92,13 +92,17 @@
 
   @if (!isNewResource(workPackage)) {
     <div
-      class="op-wp-single-card--content">
-      <span
-        class="op-wp-single-card--content-project-name"
-        [ngClass]="{'op-wp-single-card--content-project-name_hideable': showInfoButton || showRemoveButton}"
-        >
-        - {{wpProjectName(workPackage)}}
-      </span>
+      class="op-wp-single-card--content"
+      [class.op-wp-single-card--content_meta]="showCardMeta"
+      [class.op-wp-single-card--content_has-epic]="showCardMeta && !!workPackage.epic">
+      @if (!showCardMeta) {
+        <span
+          class="op-wp-single-card--content-project-name"
+          [ngClass]="{'op-wp-single-card--content-project-name_hideable': showInfoButton || showRemoveButton}"
+          >
+          - {{wpProjectName(workPackage)}}
+        </span>
+      }
       <a class="op-wp-single-card--content-id"
         [href]="fullWorkPackageLink(workPackage)"
         [ngClass]="uiStateLinkClass"
@@ -143,32 +147,34 @@
           </span>
         }
       </span>
-      @if (showCardMeta && hasCardMeta(workPackage)) {
-        <div
-          class="op-wp-single-card--content-meta"
-          data-test-selector="op-wp-single-card--content-meta">
-          @if (workPackage.epic; as epic) {
-            <span
-              class="op-wp-single-card--meta-item op-wp-single-card--meta-epic"
-              data-test-selector="op-wp-single-card--meta-epic"
-              [title]="text.epicLabel + ': ' + epic.name"
-              [textContent]="epic.name"></span>
-          }
-          @if (cardStoryPoints(workPackage); as storyPoints) {
-            <span
-              class="op-wp-single-card--meta-item"
-              data-test-selector="op-wp-single-card--meta-story-points"
-              [title]="text.storyPointsLabel"
-              [textContent]="text.storyPoints(storyPoints)"></span>
-          }
-          @if (cardWork(workPackage); as work) {
-            <span
-              class="op-wp-single-card--meta-item"
-              data-test-selector="op-wp-single-card--meta-work"
-              [title]="text.workLabel"
-              [textContent]="work"></span>
-          }
-        </div>
+      @if (showCardMeta) {
+        @if (hasCardPoints(workPackage)) {
+          <span
+            class="op-wp-single-card--content-points"
+            data-test-selector="op-wp-single-card--content-points">
+            @if (cardStoryPoints(workPackage); as storyPoints) {
+              <span
+                class="op-wp-single-card--meta-item"
+                data-test-selector="op-wp-single-card--meta-story-points"
+                [title]="text.storyPointsLabel"
+                [textContent]="text.storyPoints(storyPoints)"></span>
+            }
+            @if (cardWork(workPackage); as work) {
+              <span
+                class="op-wp-single-card--meta-item"
+                data-test-selector="op-wp-single-card--meta-work"
+                [title]="text.workLabel"
+                [textContent]="work"></span>
+            }
+          </span>
+        }
+        @if (workPackage.epic; as epic) {
+          <span
+            class="op-wp-single-card--content-epic"
+            data-test-selector="op-wp-single-card--meta-epic"
+            [title]="text.epicLabel + ': ' + epic.name"
+            [textContent]="epic.name"></span>
+        }
       }
       @if (this.cardCoverImageShown(workPackage) && !showAsInlineCard) {
         <img
@@ -203,7 +209,7 @@
           }
         }
       </div>
-      @if (workPackage.assignee) {
+      @if (showAssignee && workPackage.assignee) {
         @if (showAssigneeName) {
           <span
             class="op-wp-single-card--content-assignee"

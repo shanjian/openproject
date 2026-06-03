@@ -79,6 +79,7 @@
         [highlightingMode]="board.highlightingMode"
         [showStatusButton]="showCardStatusButton()"
         [showCardMeta]="true"
+        [showAssignee]="board.actionAttribute !== 'assignee'"
         (itemClicked)="openFullViewOnDoubleClick($event)"
         (stateLinkClicked)="openStateLink($event)" />
     </div>

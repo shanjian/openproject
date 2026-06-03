@@ -113,14 +113,25 @@
     &:not(.-new)
       display: grid
       grid-template-columns: max-content max-content auto auto 1fr
-      grid-template-rows: auto 1fr max-content max-content auto
+      grid-template-rows: auto 1fr max-content auto
       grid-row-gap: 5px
       grid-column-gap: 5px
-      grid-template-areas: "status id project project project" "subject subject subject subject subject" "meta meta meta meta meta" "image image image image image" "avatar avatar avatar dates dates"
+      grid-template-areas: "status id project project project" "subject subject subject subject subject" "image image image image image" "avatar avatar avatar dates dates"
       overflow: hidden
       flex-grow: 1
       font-size: var(--body-font-size)
       line-height: 16px
+
+    // Boards (showCardMeta): drop the project name, put story points / work on the
+    // first line (right aligned), and give the epic its own line right under it.
+    &_meta:not(.-new)
+      grid-template-rows: auto 1fr max-content auto
+      grid-template-areas: "status id points points points" "subject subject subject subject subject" "image image image image image" "avatar avatar avatar dates dates"
+
+    // When an epic is present, insert its line directly after the status/id line.
+    &_has-epic:not(.-new)
+      grid-template-rows: auto max-content 1fr max-content auto
+      grid-template-areas: "status id points points points" "epic epic epic epic epic" "subject subject subject subject subject" "image image image image image" "avatar avatar avatar dates dates"
 
     &-project-name
       grid-area: project
@@ -182,15 +193,25 @@
       margin: 0 8px
       white-space: nowrap
 
-    // Compact one-line metadata (story points, work, epic). Boards only.
-    &-meta
-      grid-area: meta
+    // Boards: story points / work, right aligned on the first line.
+    &-points
+      grid-area: points
+      justify-self: end
+      align-self: center
       display: flex
       align-items: center
-      overflow: hidden
+      white-space: nowrap
       color: var(--fgColor-muted)
       font-size: 12px
-      line-height: 14px
+
+    // Boards: epic on its own line (subject can be long, so ellipsize).
+    &-epic
+      grid-area: epic
+      overflow: hidden
+      text-overflow: ellipsis
+      white-space: nowrap
+      color: var(--fgColor-muted)
+      font-size: 12px
 
   &--meta-item
     flex: 0 0 auto
@@ -200,13 +221,6 @@
       content: "·"
       margin: 0 6px
       color: var(--borderColor-muted)
-
-  &--meta-epic
-    // Epic subject can be long: let it shrink and ellipsize while SP/work stay intact.
-    flex: 0 1 auto
-    min-width: 0
-    overflow: hidden
-    text-overflow: ellipsis
 
   &--highlighting
     width: 100%

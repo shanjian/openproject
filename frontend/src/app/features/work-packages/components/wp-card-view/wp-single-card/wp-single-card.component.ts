@@ -77,6 +77,12 @@ export class WorkPackageSingleCardComponent extends UntilDestroyedMixin implemen
   @Input() public showAssigneeName = false;
 
   /**
+   * Render the assignee at all. Suppressed on assignee boards, where the column
+   * already is the assignee, so the avatar would be redundant. Defaults to true.
+   */
+  @Input() public showAssignee = true;
+
+  /**
    * Render the compact metadata line (story points, work, epic) below the subject.
    * Boards only - the values are projected onto the card resource by the boards
    * card select (see BoardListComponent.cardSelectFields). Defaults to false so
@@ -282,9 +288,9 @@ export class WorkPackageSingleCardComponent extends UntilDestroyedMixin implemen
     return this.I18n.t('js.units.hour', { count: rounded });
   }
 
-  /** Whether any compact-meta value is present, so the line can be skipped entirely when empty. */
-  public hasCardMeta(wp:WorkPackageResource):boolean {
-    return this.cardStoryPoints(wp) !== null || this.cardWork(wp) !== null || !!wp.epic;
+  /** Whether story points and/or work are present (the right-aligned first-line group). */
+  public hasCardPoints(wp:WorkPackageResource):boolean {
+    return this.cardStoryPoints(wp) !== null || this.cardWork(wp) !== null;
   }
 
   public fullWorkPackageLink(wp:WorkPackageResource):string {
