@@ -40,7 +40,10 @@ class Sprint < Version
   }
 
   scope :apply_to, lambda { |project|
-    where("#{Version.table_name}.project_id = #{project.id}" +
+    # Only Sprint-kind versions belong in the backlog view; Release-kind versions
+    # share the versions table but must never appear as sprints (see Version::VERSION_KINDS).
+    sprints
+      .where("#{Version.table_name}.project_id = #{project.id}" +
         " OR (#{Project.table_name}.active = #{true} AND (" +
         " #{Version.table_name}.sharing = 'system'" +
         " OR (#{Project.table_name}.lft >= #{project.root.lft} AND #{Project.table_name}.rgt <= #{project.root.rgt} AND #{Version.table_name}.sharing = 'tree')" +
