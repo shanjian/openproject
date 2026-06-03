@@ -146,6 +146,12 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
     'elements/project',
     'elements/startDate',
     'elements/dueDate',
+    // Compact card metadata line (story points, work, epic). storyPoints and
+    // estimatedHours are bare columns; epic is a single indexed self-join in the
+    // SQL representer - all still on the fast projection path.
+    'elements/storyPoints',
+    'elements/estimatedHours',
+    'elements/epic',
   ];
 
   /** Accumulated story points across the column's work packages, or null when not summable */

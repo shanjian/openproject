@@ -76,6 +76,14 @@ export class WorkPackageSingleCardComponent extends UntilDestroyedMixin implemen
   /** Render the assignee as a name (text) instead of an avatar. Used by boards. */
   @Input() public showAssigneeName = false;
 
+  /**
+   * Render the compact metadata line (story points, work, epic) below the subject.
+   * Boards only - the values are projected onto the card resource by the boards
+   * card select (see BoardListComponent.cardSelectFields). Defaults to false so
+   * other consumers (wp-grid, team planner) are unaffected.
+   */
+  @Input() public showCardMeta = false;
+
   @Input() public showRemoveButton = false;
 
   @Input() public highlightingMode:CardHighlightingMode = 'inline';
@@ -137,6 +145,10 @@ export class WorkPackageSingleCardComponent extends UntilDestroyedMixin implemen
     baseLineIconRemoved: this.I18n.t('js.baseline.icon_tooltip.removed'),
     assigneeAlt:(assignee:string) =>
       this.I18n.t('js.label_assignee_alt_text', { name: assignee }),
+    storyPointsLabel: this.I18n.t('js.card.meta.story_points_label'),
+    workLabel: this.I18n.t('js.card.meta.work_label'),
+    epicLabel: this.I18n.t('js.card.meta.epic_label'),
+    storyPoints:(count:number) => this.I18n.t('js.card.meta.story_points', { count }),
   };
 
   public isNewResource = isNewResource;
@@ -250,6 +262,29 @@ export class WorkPackageSingleCardComponent extends UntilDestroyedMixin implemen
 
   public wpProjectName(wp:WorkPackageResource):string {
     return wp.project?.name;
+  }
+
+  /** Story points for the compact meta line, or null when unset/zero. */
+  public cardStoryPoints(wp:WorkPackageResource):number|null {
+    const value = (wp as unknown as { storyPoints?:number|null }).storyPoints;
+    return typeof value === 'number' && value > 0 ? value : null;
+  }
+
+  /** Estimated effort ("Work") for the compact meta line (e.g. "5h"), or null when unset/zero. */
+  public cardWork(wp:WorkPackageResource):string|null {
+    const hours = (wp as unknown as { estimatedHours?:number|null }).estimatedHours;
+    if (typeof hours !== 'number' || hours <= 0) {
+      return null;
+    }
+    // Round to 2 decimals; i18n renders compactly as "5 h" / "4.5 h" (matches the
+    // board column total format).
+    const rounded = Math.round(hours * 100) / 100;
+    return this.I18n.t('js.units.hour', { count: rounded });
+  }
+
+  /** Whether any compact-meta value is present, so the line can be skipped entirely when empty. */
+  public hasCardMeta(wp:WorkPackageResource):boolean {
+    return this.cardStoryPoints(wp) !== null || this.cardWork(wp) !== null || !!wp.epic;
   }
 
   public fullWorkPackageLink(wp:WorkPackageResource):string {

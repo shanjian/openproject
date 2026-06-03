@@ -143,6 +143,33 @@
           </span>
         }
       </span>
+      @if (showCardMeta && hasCardMeta(workPackage)) {
+        <div
+          class="op-wp-single-card--content-meta"
+          data-test-selector="op-wp-single-card--content-meta">
+          @if (workPackage.epic; as epic) {
+            <span
+              class="op-wp-single-card--meta-item op-wp-single-card--meta-epic"
+              data-test-selector="op-wp-single-card--meta-epic"
+              [title]="text.epicLabel + ': ' + epic.name"
+              [textContent]="epic.name"></span>
+          }
+          @if (cardStoryPoints(workPackage); as storyPoints) {
+            <span
+              class="op-wp-single-card--meta-item"
+              data-test-selector="op-wp-single-card--meta-story-points"
+              [title]="text.storyPointsLabel"
+              [textContent]="text.storyPoints(storyPoints)"></span>
+          }
+          @if (cardWork(workPackage); as work) {
+            <span
+              class="op-wp-single-card--meta-item"
+              data-test-selector="op-wp-single-card--meta-work"
+              [title]="text.workLabel"
+              [textContent]="work"></span>
+          }
+        </div>
+      }
       @if (this.cardCoverImageShown(workPackage) && !showAsInlineCard) {
         <img
           [src]="this.bcfSnapshotPath(workPackage)"

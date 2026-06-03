@@ -113,10 +113,10 @@
     &:not(.-new)
       display: grid
       grid-template-columns: max-content max-content auto auto 1fr
-      grid-template-rows: auto 1fr max-content auto
+      grid-template-rows: auto 1fr max-content max-content auto
       grid-row-gap: 5px
       grid-column-gap: 5px
-      grid-template-areas: "status id project project project" "subject subject subject subject subject" "image image image image image" "avatar avatar avatar dates dates"
+      grid-template-areas: "status id project project project" "subject subject subject subject subject" "meta meta meta meta meta" "image image image image image" "avatar avatar avatar dates dates"
       overflow: hidden
       flex-grow: 1
       font-size: var(--body-font-size)
@@ -181,6 +181,32 @@
       color: var(--fgColor-muted)
       margin: 0 8px
       white-space: nowrap
+
+    // Compact one-line metadata (story points, work, epic). Boards only.
+    &-meta
+      grid-area: meta
+      display: flex
+      align-items: center
+      overflow: hidden
+      color: var(--fgColor-muted)
+      font-size: 12px
+      line-height: 14px
+
+  &--meta-item
+    flex: 0 0 auto
+    white-space: nowrap
+
+    &:not(:last-child)::after
+      content: "·"
+      margin: 0 6px
+      color: var(--borderColor-muted)
+
+  &--meta-epic
+    // Epic subject can be long: let it shrink and ellipsize while SP/work stay intact.
+    flex: 0 1 auto
+    min-width: 0
+    overflow: hidden
+    text-overflow: ellipsis
 
   &--highlighting
     width: 100%
