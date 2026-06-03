@@ -258,6 +258,18 @@ RSpec.describe Sprint do
         it { expect(Sprint.apply_to(project).size).to eq(1) }
         it { expect(Sprint.apply_to(project)[0]).to eql(@version) }
       end
+
+      describe "WITH a release-kind version in the project" do
+        before do
+          project.save
+          @sprint = create(:sprint, name: "a sprint", project:)
+          @release = create(:version, name: "a release", project:, kind: "release")
+        end
+
+        it "returns only the sprint-kind version, excluding the release" do
+          expect(Sprint.apply_to(project)).to contain_exactly(@sprint)
+        end
+      end
     end
   end
 
