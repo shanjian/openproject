@@ -75,6 +75,8 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
           subject: rendered_work_package.subject,
           dueDate: rendered_work_package.due_date,
           startDate: rendered_work_package.start_date,
+          storyPoints: nil,
+          estimatedHours: nil,
           _links: {
             self: {
               href: api_v3_paths.work_package(rendered_work_package.id),
@@ -105,6 +107,9 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
             priority: {
               href: api_v3_paths.priority(rendered_work_package.priority.id),
               title: rendered_work_package.priority.name
+            },
+            epic: {
+              href: nil
             }
           }
         }
@@ -124,6 +129,8 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
           id: rendered_work_package.id,
           subject: rendered_work_package.subject,
           date: rendered_work_package.start_date,
+          storyPoints: nil,
+          estimatedHours: nil,
           _links: {
             self: {
               href: api_v3_paths.work_package(rendered_work_package.id),
@@ -154,6 +161,9 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
             priority: {
               href: api_v3_paths.priority(rendered_work_package.priority.id),
               title: rendered_work_package.priority.name
+            },
+            epic: {
+              href: nil
             }
           }
         }
@@ -286,6 +296,73 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
 
       it "renders a null priority link" do
         expect(json).to be_json_eql(expected.to_json)
+      end
+    end
+  end
+
+  describe "story points and estimated hours properties" do
+    let(:select) { { "storyPoints" => {}, "estimatedHours" => {} } }
+
+    before do
+      rendered_work_package.update_columns(story_points: 5, estimated_hours: 7.5)
+    end
+
+    it "renders the raw values" do
+      expect(json).to be_json_eql({ storyPoints: 5, estimatedHours: 7.5 }.to_json)
+    end
+  end
+
+  describe "epic link" do
+    let(:select) { { "epic" => {} } }
+
+    context "with an epic" do
+      let(:epic) { create(:work_package, project:, subject: "Parent epic") }
+      let(:expected) do
+        {
+          _links: {
+            epic: {
+              href: api_v3_paths.work_package(epic.id),
+              title: "Parent epic"
+            }
+          }
+        }
+      end
+
+      before { rendered_work_package.update_column(:epic_id, epic.id) }
+
+      it "renders the epic link with the epic's subject" do
+        expect(json).to be_json_eql(expected.to_json)
+      end
+    end
+
+    context "without an epic" do
+      let(:expected) do
+        {
+          _links: {
+            epic: {
+              href: nil
+            }
+          }
+        }
+      end
+
+      it "renders a null epic link" do
+        expect(json).to be_json_eql(expected.to_json)
+      end
+    end
+
+    # Regression: the epic subject is joined from a derived table exposing only
+    # (id, subject). A bare work_packages self-join would add a second
+    # work_packages instance and make the unqualified assigned_to_id / author_id /
+    # responsible_id references in the sibling user links ambiguous
+    # (PG::AmbiguousColumn), which 500-ed every board list.
+    context "when selected together with the user links (board card select)" do
+      let(:select) { { "epic" => {}, "assignee" => {}, "author" => {}, "responsible" => {} } }
+      let(:assignee) { create(:user) }
+      let(:responsible) { create(:user) }
+
+      it "renders without raising an ambiguous-column error" do
+        expect { json }.not_to raise_error
       end
     end
   end

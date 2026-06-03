@@ -131,6 +131,11 @@ en:
         inline: "Highlight inline:"
         entire_card_by: "Entire card by"
       remove_from_list: "Remove card from list"
+      meta:
+        story_points: "%{count} SP"
+        story_points_label: "Story points"
+        work_label: "Work"
+        epic_label: "Epic"
 
     caption_rate_history: "Rate history"
 

@@ -106,33 +106,32 @@ describe('WorkPackageSingleCardComponent', () => {
   });
 
   describe('when not hydrated', () => {
+    const statusButton = () => fixture.debugElement.query(By.css('wp-status-button'));
+    const statusBadge = () => fixture.debugElement.query(
+      By.css('[data-test-selector="op-wp-single-card--content-status-badge"]'),
+    );
+
     beforeEach(() => {
       fixture.componentRef.setInput('hydrated', false);
       fixture.detectChanges();
     });
 
-    it('renders only the lightweight placeholder', () => {
+    it('flags the card as a placeholder but still renders the shared content layout', () => {
       expect(placeholder()).not.toBeNull();
-      expect(subject()).toBeNull();
+      // Same layout as the hydrated card: the subject (and other cheap payload
+      // values) render regardless of hydration.
+      expect(subject()).not.toBeNull();
+      expect(subject().nativeElement.textContent).toContain('A subject');
     });
 
-    it('keeps the subject text so the card stays findable and readable', () => {
-      const placeholderSubject = fixture.debugElement.query(
-        By.css('[data-test-selector="op-wp-single-card--placeholder-subject"]'),
-      );
-
-      expect(placeholderSubject).not.toBeNull();
-      expect(placeholderSubject.nativeElement.textContent).toContain('A subject');
+    it('defers only the heavy interactive widgets (status dropdown)', () => {
+      expect(statusButton()).toBeNull();
     });
 
-    it('shows the status (name + color) in the placeholder, without hydration', () => {
-      const badge = fixture.debugElement.query(
-        By.css('[data-test-selector="op-wp-single-card--placeholder-status"]'),
-      );
-
-      expect(badge).not.toBeNull();
-      expect(badge.nativeElement.textContent).toContain('New');
-      expect(badge.nativeElement.classList).toContain('__hl_background_status_1');
+    it('shows a static status pill (name + color) in place of the dropdown', () => {
+      expect(statusBadge()).not.toBeNull();
+      expect(statusBadge().nativeElement.textContent).toContain('New');
+      expect(statusBadge().nativeElement.classList).toContain('__hl_background_status_1');
     });
 
     it('requests hydration when focused', () => {
@@ -147,13 +146,54 @@ describe('WorkPackageSingleCardComponent', () => {
       expect(selection.live$).not.toHaveBeenCalled();
     });
 
-    it('hydrates and subscribes once flipped to hydrated', () => {
+    it('hydrates (status dropdown appears) and subscribes once flipped to hydrated', () => {
       fixture.componentRef.setInput('hydrated', true);
       fixture.detectChanges();
 
       expect(placeholder()).toBeNull();
       expect(subject()).not.toBeNull();
+      expect(statusButton()).not.toBeNull();
+      expect(statusBadge()).toBeNull();
       expect(selection.live$).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('compact meta on boards (showCardMeta)', () => {
+    const withMeta = {
+      ...workPackage,
+      storyPoints: 3,
+      estimatedHours: 5,
+      epic: { name: 'Login epic' },
+    } as unknown as WorkPackageResource;
+
+    const points = () => fixture.debugElement.query(By.css('[data-test-selector="op-wp-single-card--content-points"]'));
+    const epic = () => fixture.debugElement.query(By.css('[data-test-selector="op-wp-single-card--meta-epic"]'));
+
+    beforeEach(() => {
+      fixture.componentInstance.workPackage = withMeta;
+      fixture.componentRef.setInput('showCardMeta', true);
+    });
+
+    // The values come from the (already-loaded) select payload, so the single
+    // shared layout shows them whether or not the card is hydrated - no backend.
+    it('renders epic and story points/work without hydration', () => {
+      fixture.componentRef.setInput('hydrated', false);
+      fixture.detectChanges();
+
+      expect(placeholder()).not.toBeNull();
+      expect(epic()).not.toBeNull();
+      expect(epic().nativeElement.textContent).toContain('Login epic');
+      expect(points()).not.toBeNull();
+      expect(points().nativeElement.textContent).toContain('js.card.meta.story_points');
+      expect(points().nativeElement.textContent).toContain('js.units.hour');
+    });
+
+    it('renders epic and story points/work on the hydrated card', () => {
+      fixture.componentRef.setInput('hydrated', true);
+      fixture.detectChanges();
+
+      expect(points()).not.toBeNull();
+      expect(epic().nativeElement.textContent).toContain('Login epic');
     });
   });
 });

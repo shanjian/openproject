@@ -28,43 +28,18 @@
   &_ghosted
     opacity: 0.5
 
-  // Lightweight stand-in rendered for not-yet-hydrated lazy cards (boards).
-  // Reserves roughly the height of a typical card (no cover image) so the
-  // scrollbar is approximately proportioned and hydration causes minimal reflow.
-  &_placeholder
-    min-height: 92px
-
-  // Placeholder content: id + subject only. Kept as a self-contained flex
-  // column with min-width: 0 and a truncating subject so it can NEVER grow the
-  // card past the column (a bare subject in the real --content grid would,
-  // because grid/flex items default to min-width: auto = min-content width).
-  &--placeholder
-    flex: 1
-    min-width: 0
-    display: flex
-    flex-direction: column
-    gap: 4px
+  // Static status pill shown on not-yet-hydrated cards in place of the
+  // interactive status button. Same colour as the button via the global
+  // __hl_background_status_<id> highlight class, so they look alike.
+  &--content-status-badge
+    max-width: 100%
+    padding: 1px 6px
+    border-radius: 2px
+    font-size: 12px
+    line-height: 16px
     overflow: hidden
-
-    &-status
-      align-self: flex-start
-      max-width: 100%
-      padding: 1px 6px
-      border-radius: 2px
-      font-size: 12px
-      overflow: hidden
-      text-overflow: ellipsis
-      white-space: nowrap
-
-    &-id
-      color: var(--fgColor-muted)
-      font-size: 12px
-
-    &-subject
-      min-width: 0
-      overflow: hidden
-      text-overflow: ellipsis
-      white-space: nowrap
+    text-overflow: ellipsis
+    white-space: nowrap
 
   &_selected
     background-color: var(--selection-bgColor)
@@ -121,6 +96,17 @@
       flex-grow: 1
       font-size: var(--body-font-size)
       line-height: 16px
+
+    // Boards (showCardMeta): drop the project name, put story points / work on the
+    // first line (right aligned), and give the epic its own line right under it.
+    &_meta:not(.-new)
+      grid-template-rows: auto 1fr max-content auto
+      grid-template-areas: "status id points points points" "subject subject subject subject subject" "image image image image image" "avatar avatar avatar dates dates"
+
+    // When an epic is present, insert its line directly after the status/id line.
+    &_has-epic:not(.-new)
+      grid-template-rows: auto max-content 1fr max-content auto
+      grid-template-areas: "status id points points points" "epic epic epic epic epic" "subject subject subject subject subject" "image image image image image" "avatar avatar avatar dates dates"
 
     &-project-name
       grid-area: project
@@ -181,6 +167,35 @@
       color: var(--fgColor-muted)
       margin: 0 8px
       white-space: nowrap
+
+    // Boards: story points / work, right aligned on the first line.
+    &-points
+      grid-area: points
+      justify-self: end
+      align-self: center
+      display: flex
+      align-items: center
+      white-space: nowrap
+      color: var(--fgColor-muted)
+      font-size: 12px
+
+    // Boards: epic on its own line (subject can be long, so ellipsize).
+    &-epic
+      grid-area: epic
+      overflow: hidden
+      text-overflow: ellipsis
+      white-space: nowrap
+      color: var(--fgColor-muted)
+      font-size: 12px
+
+  &--meta-item
+    flex: 0 0 auto
+    white-space: nowrap
+
+    &:not(:last-child)::after
+      content: "·"
+      margin: 0 6px
+      color: var(--borderColor-muted)
 
   &--highlighting
     width: 100%

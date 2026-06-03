@@ -84,6 +84,12 @@ export class WorkPackageCardViewComponent extends UntilDestroyedMixin implements
   /** Show the assignee as a name (text) instead of an avatar. Used by boards. */
   @Input() public showAssigneeName = false;
 
+  /** Show the compact metadata (story points, work, epic) on cards. Boards only. */
+  @Input() public showCardMeta = false;
+
+  /** Render the assignee at all. Suppressed on assignee boards (redundant). */
+  @Input() public showAssignee = true;
+
   /**
    * When enabled, cards are rendered as lightweight placeholders and only
    * hydrated into full cards once they scroll near the viewport. Used by boards,

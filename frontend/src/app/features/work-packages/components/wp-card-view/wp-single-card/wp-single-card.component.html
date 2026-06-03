@@ -17,62 +17,47 @@
   (contextmenu)="cardContextMenu.emit({ workPackageId: workPackage.id, event: $event })"
   >
 
-@if (!hydrated) {
-  <div class="op-wp-single-card--placeholder">
-    @if (showStatusButton && workPackage.status) {
-      <span
-        class="op-wp-single-card--placeholder-status"
-        data-test-selector="op-wp-single-card--placeholder-status"
-        [ngClass]="statusHighlightClass(workPackage)"
-        [textContent]="workPackage.status.name"
-      ></span>
-    }
-    <span class="op-wp-single-card--placeholder-id">#{{workPackage.id}}</span>
-    <span
-      class="op-wp-single-card--placeholder-subject"
-      data-test-selector="op-wp-single-card--placeholder-subject"
-      [textContent]="wpSubject(workPackage)"
-    ></span>
-  </div>
-} @else {
-
   <div class="op-wp-single-card--highlighting"
     [ngClass]="cardHighlightingClass(workPackage)">
   </div>
 
-  <div class="op-wp-single-card--card-actions">
-    <div class="op-wp-single-card--inline-buttons hidden-for-mobile"
-      data-test-selector="op-wp-single-card--inline-buttons">
-      @if (!isNewResource(workPackage) && showInfoButton) {
-        <button
-          type="button"
-          class="spot-link op-wp-single-card--details-button op-wp-single-card--card-action"
-          data-test-selector="op-wp-single-card--details-button"
-          [title]="text.detailsView"
-          (click)="emitStateLinkClicked($event, workPackage, true)">
-          <op-icon icon-classes="icon3 icon-info2" />
-        </button>
-      }
+  <!-- Hover/interactive actions: only meaningful once hydrated (and new cards,
+       which need the cancel button, are always hydrated). -->
+  @if (hydrated) {
+    <div class="op-wp-single-card--card-actions">
+      <div class="op-wp-single-card--inline-buttons hidden-for-mobile"
+        data-test-selector="op-wp-single-card--inline-buttons">
+        @if (!isNewResource(workPackage) && showInfoButton) {
+          <button
+            type="button"
+            class="spot-link op-wp-single-card--details-button op-wp-single-card--card-action"
+            data-test-selector="op-wp-single-card--details-button"
+            [title]="text.detailsView"
+            (click)="emitStateLinkClicked($event, workPackage, true)">
+            <op-icon icon-classes="icon3 icon-info2" />
+          </button>
+        }
 
-      @if (isNewResource(workPackage) || showRemoveButton) {
-        <button
-          class="spot-link op-wp-single-card--inline-cancel-button op-wp-single-card--card-action"
-          data-test-selector="op-wp-single-card--inline-cancel-button"
-          [class.-show]="isNewResource(workPackage)"
-          [title]="text.removeCard"
-          (click)="onRemoved(workPackage)">
-          <op-icon icon-classes="icon-context icon-close" />
-        </button>
-      }
+        @if (isNewResource(workPackage) || showRemoveButton) {
+          <button
+            class="spot-link op-wp-single-card--inline-cancel-button op-wp-single-card--card-action"
+            data-test-selector="op-wp-single-card--inline-cancel-button"
+            [class.-show]="isNewResource(workPackage)"
+            [title]="text.removeCard"
+            (click)="onRemoved(workPackage)">
+            <op-icon icon-classes="icon-context icon-close" />
+          </button>
+        }
 
-      @if (disabledInfo && disabledInfo.text.length > 0) {
-        <op-icon [attr.data-tooltip]="disabledInfo.text"
-          class="-multiline op-wp-single-card--card-action op-wp-single-card--card-action_closed"
-          [ngClass]="'tooltip--' + disabledInfo.orientation"
-          icon-classes="icon-context icon-not-supported" />
-      }
+        @if (disabledInfo && disabledInfo.text.length > 0) {
+          <op-icon [attr.data-tooltip]="disabledInfo.text"
+            class="-multiline op-wp-single-card--card-action op-wp-single-card--card-action_closed"
+            [ngClass]="'tooltip--' + disabledInfo.orientation"
+            icon-classes="icon-context icon-not-supported" />
+        }
+      </div>
     </div>
-  </div>
+  }
 
   @if (isNewResource(workPackage)) {
     <edit-form [resource]="workPackage"
@@ -90,15 +75,24 @@
     </edit-form>
   }
 
+  <!-- Single layout for both hydrated and not-yet-hydrated cards. All values come
+       from the column's fast select, so the structure and text always render; only
+       the heavy interactive widgets (status dropdown, date display-field, cover
+       image, avatar image) are deferred until hydration, with cheap static
+       stand-ins shown meanwhile so placeholders look like the real card. -->
   @if (!isNewResource(workPackage)) {
     <div
-      class="op-wp-single-card--content">
-      <span
-        class="op-wp-single-card--content-project-name"
-        [ngClass]="{'op-wp-single-card--content-project-name_hideable': showInfoButton || showRemoveButton}"
-        >
-        - {{wpProjectName(workPackage)}}
-      </span>
+      class="op-wp-single-card--content"
+      [class.op-wp-single-card--content_meta]="showCardMeta"
+      [class.op-wp-single-card--content_has-epic]="showCardMeta && !!workPackage.epic">
+      @if (!showCardMeta) {
+        <span
+          class="op-wp-single-card--content-project-name"
+          [ngClass]="{'op-wp-single-card--content-project-name_hideable': showInfoButton || showRemoveButton}"
+          >
+          - {{wpProjectName(workPackage)}}
+        </span>
+      }
       <a class="op-wp-single-card--content-id"
         [href]="fullWorkPackageLink(workPackage)"
         [ngClass]="uiStateLinkClass"
@@ -143,7 +137,36 @@
           </span>
         }
       </span>
-      @if (this.cardCoverImageShown(workPackage) && !showAsInlineCard) {
+      @if (showCardMeta) {
+        @if (hasCardPoints(workPackage)) {
+          <span
+            class="op-wp-single-card--content-points"
+            data-test-selector="op-wp-single-card--content-points">
+            @if (cardStoryPoints(workPackage); as storyPoints) {
+              <span
+                class="op-wp-single-card--meta-item"
+                data-test-selector="op-wp-single-card--meta-story-points"
+                [title]="text.storyPointsLabel"
+                [textContent]="text.storyPoints(storyPoints)"></span>
+            }
+            @if (cardWork(workPackage); as work) {
+              <span
+                class="op-wp-single-card--meta-item"
+                data-test-selector="op-wp-single-card--meta-work"
+                [title]="text.workLabel"
+                [textContent]="work"></span>
+            }
+          </span>
+        }
+        @if (workPackage.epic; as epic) {
+          <span
+            class="op-wp-single-card--content-epic"
+            data-test-selector="op-wp-single-card--meta-epic"
+            [title]="text.epicLabel + ': ' + epic.name"
+            [textContent]="epic.name"></span>
+        }
+      }
+      @if (hydrated && this.cardCoverImageShown(workPackage) && !showAsInlineCard) {
         <img
           [src]="this.bcfSnapshotPath(workPackage)"
           class="op-wp-single-card--content-cover-image"
@@ -151,10 +174,18 @@
       }
       <div class="op-wp-single-card--content-status-baseline">
         @if (showStatusButton) {
-          <wp-status-button [workPackage]="workPackage"
-            [small]="true"
-            class="op-wp-single-card--content-status"
-             />
+          @if (hydrated) {
+            <wp-status-button [workPackage]="workPackage"
+              [small]="true"
+              class="op-wp-single-card--content-status"
+               />
+          } @else if (workPackage.status) {
+            <span
+              class="op-wp-single-card--content-status-badge"
+              data-test-selector="op-wp-single-card--content-status-badge"
+              [ngClass]="statusHighlightClass(workPackage)"
+              [textContent]="workPackage.status.name"></span>
+          }
         }
         @if (baselineIcon(workPackage) !== null) {
           @switch (baselineMode) {
@@ -176,14 +207,14 @@
           }
         }
       </div>
-      @if (workPackage.assignee) {
+      @if (showAssignee && workPackage.assignee) {
         @if (showAssigneeName) {
           <span
             class="op-wp-single-card--content-assignee"
             data-test-selector="op-wp-single-card--content-assignee"
             [textContent]="workPackage.assignee.name"
           ></span>
-        } @else {
+        } @else if (hydrated) {
           <op-principal [principal]="workPackage.assignee"
             [hideName]="true"
             [link]="false"
@@ -195,14 +226,20 @@
         }
       }
       @if (!showAsInlineCard && (workPackage.startDate || workPackage.dueDate)) {
-        <display-field [resource]="workPackage"
-          [displayFieldOptions]="{ writable: false, dateFormat: 'MMM DD, YYYY', placeholder: '' }"
-          [displayClass]="combinedDateDisplayField"
-          fieldName="dueDate"
-          class="op-wp-single-card--content-dates"
-          containerType="single-view" />
+        @if (hydrated) {
+          <display-field [resource]="workPackage"
+            [displayFieldOptions]="{ writable: false, dateFormat: 'MMM DD, YYYY', placeholder: '' }"
+            [displayClass]="combinedDateDisplayField"
+            fieldName="dueDate"
+            class="op-wp-single-card--content-dates"
+            containerType="single-view" />
+        } @else {
+          <span
+            class="op-wp-single-card--content-dates"
+            data-test-selector="op-wp-single-card--content-dates-static"
+            [textContent]="cardDates(workPackage)"></span>
+        }
       }
     </div>
   }
-}
 </div>
