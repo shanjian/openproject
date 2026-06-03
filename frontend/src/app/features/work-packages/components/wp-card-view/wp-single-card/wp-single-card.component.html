@@ -19,15 +19,39 @@
 
 @if (!hydrated) {
   <div class="op-wp-single-card--placeholder">
-    @if (showStatusButton && workPackage.status) {
+    <div class="op-wp-single-card--placeholder-header">
+      @if (showStatusButton && workPackage.status) {
+        <span
+          class="op-wp-single-card--placeholder-status"
+          data-test-selector="op-wp-single-card--placeholder-status"
+          [ngClass]="statusHighlightClass(workPackage)"
+          [textContent]="workPackage.status.name"
+        ></span>
+      }
+      <span class="op-wp-single-card--placeholder-id">#{{workPackage.id}}</span>
+      @if (showCardMeta && hasCardPoints(workPackage)) {
+        <span class="op-wp-single-card--placeholder-points">
+          @if (cardStoryPoints(workPackage); as storyPoints) {
+            <span
+              class="op-wp-single-card--meta-item"
+              [title]="text.storyPointsLabel"
+              [textContent]="text.storyPoints(storyPoints)"></span>
+          }
+          @if (cardWork(workPackage); as work) {
+            <span
+              class="op-wp-single-card--meta-item"
+              [title]="text.workLabel"
+              [textContent]="work"></span>
+          }
+        </span>
+      }
+    </div>
+    @if (showCardMeta && workPackage.epic; as epic) {
       <span
-        class="op-wp-single-card--placeholder-status"
-        data-test-selector="op-wp-single-card--placeholder-status"
-        [ngClass]="statusHighlightClass(workPackage)"
-        [textContent]="workPackage.status.name"
-      ></span>
+        class="op-wp-single-card--placeholder-epic"
+        [title]="text.epicLabel + ': ' + epic.name"
+        [textContent]="epic.name"></span>
     }
-    <span class="op-wp-single-card--placeholder-id">#{{workPackage.id}}</span>
     <span
       class="op-wp-single-card--placeholder-subject"
       data-test-selector="op-wp-single-card--placeholder-subject"

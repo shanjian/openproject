@@ -156,4 +156,46 @@ describe('WorkPackageSingleCardComponent', () => {
       expect(selection.live$).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe('compact meta on boards (showCardMeta)', () => {
+    const withMeta = {
+      ...workPackage,
+      storyPoints: 3,
+      estimatedHours: 5,
+      epic: { name: 'Login epic' },
+    } as unknown as WorkPackageResource;
+
+    const placeholderEpic = () => fixture.debugElement.query(By.css('.op-wp-single-card--placeholder-epic'));
+    const placeholderPoints = () => fixture.debugElement.query(By.css('.op-wp-single-card--placeholder-points'));
+
+    beforeEach(() => {
+      fixture.componentInstance.workPackage = withMeta;
+      fixture.componentRef.setInput('showCardMeta', true);
+    });
+
+    // The values come from the (already-loaded) select payload, so they must show
+    // even on the lightweight placeholder - no hydration / backend access needed.
+    it('renders epic and story points/work in the placeholder without hydration', () => {
+      fixture.componentRef.setInput('hydrated', false);
+      fixture.detectChanges();
+
+      expect(placeholder()).not.toBeNull();
+      expect(placeholderEpic()).not.toBeNull();
+      expect(placeholderEpic().nativeElement.textContent).toContain('Login epic');
+      expect(placeholderPoints()).not.toBeNull();
+      expect(placeholderPoints().nativeElement.textContent).toContain('js.card.meta.story_points');
+      expect(placeholderPoints().nativeElement.textContent).toContain('js.units.hour');
+    });
+
+    it('renders epic and story points/work on the hydrated card', () => {
+      fixture.componentRef.setInput('hydrated', true);
+      fixture.detectChanges();
+
+      const points = fixture.debugElement.query(By.css('[data-test-selector="op-wp-single-card--content-points"]'));
+      const epic = fixture.debugElement.query(By.css('[data-test-selector="op-wp-single-card--meta-epic"]'));
+
+      expect(points).not.toBeNull();
+      expect(epic.nativeElement.textContent).toContain('Login epic');
+    });
+  });
 });

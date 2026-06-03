@@ -46,8 +46,18 @@
     gap: 4px
     overflow: hidden
 
+    // First line: status + id, with story points / work right aligned - mirrors
+    // the hydrated card's first line, but rendered purely from the (already
+    // loaded) select payload, so no hydration / backend access is needed.
+    &-header
+      display: flex
+      align-items: center
+      gap: 6px
+      min-width: 0
+
     &-status
-      align-self: flex-start
+      flex: 0 1 auto
+      min-width: 0
       max-width: 100%
       padding: 1px 6px
       border-radius: 2px
@@ -57,8 +67,26 @@
       white-space: nowrap
 
     &-id
+      flex: 0 0 auto
       color: var(--fgColor-muted)
       font-size: 12px
+
+    &-points
+      flex: 0 0 auto
+      margin-left: auto
+      display: flex
+      align-items: center
+      white-space: nowrap
+      color: var(--fgColor-muted)
+      font-size: 12px
+
+    &-epic
+      min-width: 0
+      color: var(--fgColor-muted)
+      font-size: 12px
+      overflow: hidden
+      text-overflow: ellipsis
+      white-space: nowrap
 
     &-subject
       min-width: 0
