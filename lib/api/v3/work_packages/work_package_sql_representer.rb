@@ -94,12 +94,20 @@ module API
         associated_user_link :responsible
 
         # Epic link for board cards. epic_id is nullable, so render a null href when
-        # there is no epic (mirrors the optional priority/assignee links above). The
-        # epic's subject is pulled through a single indexed self-join (epic_id is
-        # indexed) and only when the client actually selects `epic`, so the SQL
-        # fast-path stays cheap. NOTE: unlike WorkPackageRepresenter this does not
-        # filter on epic visibility - acceptable because boards only render this for
-        # work packages the user can already see, and epic links are project-scoped.
+        # there is no epic (mirrors the optional priority/assignee links above).
+        #
+        # The epic's subject is joined from a DERIVED TABLE that exposes only
+        # (id, subject) rather than joining work_packages to itself directly. A bare
+        # self-join would add a second full work_packages instance, making every
+        # UNqualified work_packages column in the sibling user links (assigned_to_id,
+        # author_id, responsible_id, ...) ambiguous and 500-ing the whole collection.
+        # Restricting the join target to (id, subject) keeps it a single indexed
+        # primary-key join (epic_id -> id) with no overlapping column names, and it
+        # only runs when the client selects `epic`, so the SQL fast-path stays cheap.
+        #
+        # NOTE: unlike WorkPackageRepresenter this does not filter on epic
+        # visibility - acceptable because boards only render this for work packages
+        # the user can already see, and epic links are project-scoped.
         link :epic,
              href: ->(*) {
                <<~SQL.squish
@@ -110,7 +118,7 @@ module API
              },
              title: -> { "epic_subject" },
              join: {
-               table: :work_packages,
+               table: "(SELECT id, subject FROM work_packages)",
                alias: :epics,
                condition: "epics.id = work_packages.epic_id",
                select: ["epics.subject epic_subject"]
