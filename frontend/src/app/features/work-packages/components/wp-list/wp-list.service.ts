@@ -231,19 +231,57 @@ export class WorkPackagesListService {
     return firstValueFrom(this.fromQueryParams(this.$state.params as { query_id?:string|null, query_props?:string }, projectIdentifier));
   }
 
-  public loadForm(query:QueryResource):Promise<QueryFormResource> {
-    return firstValueFrom(
-      this
-        .apiV3Service
-        .queries
-        .form
-        .load(query),
-    )
-      .then(([form, _]) => {
-        this.wpStatesInitialization.updateStatesFromForm(query, form);
+  // Dedupes duplicate, concurrent query form loads. The form state
+  // (querySpace.queryForm) is only populated once the POST /api/v3/queries/:id/form
+  // resolves, which can take ~1.5s because the form embeds every column, filter and
+  // sort schema with their allowed values (~370KB). A second query emission arriving
+  // within that window would otherwise fire an identical, equally expensive POST.
+  //
+  // We cache only the in-flight HTTP request, keyed by its actual request identity
+  // (the query id, project scope and name - everything ApiV3QueryForm#load sends).
+  // The post-load side effect is deliberately NOT cached: updateStatesFromForm must
+  // still run for each caller's own query resource, so a query that re-emits with
+  // refreshed params within the window still gets its own state initialization.
+  private inFlightFormRequests = new Map<string, Promise<[QueryFormResource, QueryResource]>>();
 
-        return form;
-      });
+  public loadForm(query:QueryResource):Promise<QueryFormResource> {
+    const key = this.formRequestKey(query);
+
+    let request = this.inFlightFormRequests.get(key);
+    if (!request) {
+      request = firstValueFrom(
+        this
+          .apiV3Service
+          .queries
+          .form
+          .load(query),
+      );
+      this.inFlightFormRequests.set(key, request);
+      // Clear once settled so later intentional reloads issue a fresh request. The
+      // rejection is swallowed on this cleanup branch only; callers below still see it.
+      void request
+        .catch(() => undefined)
+        .finally(() => this.inFlightFormRequests.delete(key));
+    }
+
+    // Each caller initializes its OWN query's states from the shared form result.
+    return request.then(([form, _]) => {
+      this.wpStatesInitialization.updateStatesFromForm(query, form);
+
+      return form;
+    });
+  }
+
+  // Mirror the identity ApiV3QueryForm#load actually requests on: the path id (or
+  // "new" for unsaved/default queries) and the project scope sent in the payload.
+  // Without the project, concurrent default-query loads for different projects would
+  // wrongly share one pending form/schema.
+  private formRequestKey(query:QueryResource):string {
+    const id = query.id ?? 'new';
+    const project = query.project?.href ?? 'global';
+    const name = query.name ?? '';
+
+    return `${id}::${project}::${name}`;
   }
 
   /**
