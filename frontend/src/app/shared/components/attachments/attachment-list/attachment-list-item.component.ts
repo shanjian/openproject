@@ -32,6 +32,7 @@ import {
   Component,
   ElementRef,
   EventEmitter,
+  inject,
   Input,
   OnInit,
   Output,
@@ -51,6 +52,7 @@ import { ConfirmDialogService } from 'core-app/shared/components/modals/confirm-
 import { ConfirmDialogOptions } from 'core-app/shared/components/modals/confirm-dialog/confirm-dialog.modal';
 import { getIconForMimeType } from 'core-app/shared/components/storages/functions/storages.functions';
 import { IFileIcon } from 'core-app/shared/components/storages/icons.mapping';
+import { OpAttachmentPreviewService } from 'core-app/shared/components/attachments/attachment-preview/attachment-preview.service';
 
 @Component({
   // eslint-disable-next-line @angular-eslint/component-selector
@@ -60,9 +62,26 @@ import { IFileIcon } from 'core-app/shared/components/storages/icons.mapping';
   standalone: false,
 })
 export class OpAttachmentListItemComponent extends UntilDestroyedMixin implements OnInit, AfterViewInit {
+  private readonly I18n = inject(I18nService);
+
+  private readonly pathHelper = inject(PathHelperService);
+
+  private readonly timezoneService = inject(TimezoneService);
+
+  private readonly confirmDialogService = inject(ConfirmDialogService);
+
+  private readonly principalsResourceService = inject(PrincipalsResourceService);
+
+  private readonly principalRendererService = inject(PrincipalRendererService);
+
+  private readonly attachmentPreviewService = inject(OpAttachmentPreviewService);
+
   @Input() public attachment:IAttachment;
 
   @Input() public index:number;
+
+  /** Sibling attachments used to build the preview gallery (prev/next navigation). */
+  @Input() public siblings:IAttachment[] = [];
 
   @Input() public showTimestamp = true;
 
@@ -94,17 +113,6 @@ export class OpAttachmentListItemComponent extends UntilDestroyedMixin implement
 
   private viewInitialized$ = new BehaviorSubject<boolean>(false);
 
-  constructor(
-    private readonly I18n:I18nService,
-    private readonly pathHelper:PathHelperService,
-    private readonly timezoneService:TimezoneService,
-    private readonly confirmDialogService:ConfirmDialogService,
-    private readonly principalsResourceService:PrincipalsResourceService,
-    private readonly principalRendererService:PrincipalRendererService,
-  ) {
-    super();
-  }
-
   ngOnInit():void {
     this.fileIcon = getIconForMimeType(this.attachment.contentType);
 
@@ -133,6 +141,29 @@ export class OpAttachmentListItemComponent extends UntilDestroyedMixin implement
 
   ngAfterViewInit():void {
     this.viewInitialized$.next(true);
+  }
+
+  /**
+   * Open images/videos in the in-app preview (lightbox) instead of navigating
+   * to the raw content URL. Non-previewable files, or files backed by external
+   * storage (originOpen), keep their default link behavior.
+   */
+  public openPreview(evt:MouseEvent):void {
+    // Respect modifier clicks / non-primary buttons (open in new tab, etc.)
+    if (evt.button !== 0 || evt.metaKey || evt.ctrlKey || evt.shiftKey || evt.altKey) {
+      return;
+    }
+
+    // External-storage attachments open in their origin app; don't hijack.
+    if (this.attachment._links.originOpen) {
+      return;
+    }
+
+    const siblings = this.siblings.length > 0 ? this.siblings : [this.attachment];
+    if (this.attachmentPreviewService.openForAttachment(this.attachment, siblings)) {
+      evt.preventDefault();
+      evt.stopPropagation();
+    }
   }
 
   /**
@@ -172,7 +203,7 @@ export class OpAttachmentListItemComponent extends UntilDestroyedMixin implement
   }
 
   private get isImage():boolean {
-    const ext = this.attachment.fileName.split('.').pop() || '';
+    const ext = this.attachment.fileName.split('.').pop() ?? '';
     return OpAttachmentListItemComponent.imageFileExtensions.includes(ext.toLowerCase());
   }
 

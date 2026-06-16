@@ -4,6 +4,7 @@
     [class.spot-list--item-action_disabled]="attachment.status === 'quarantined'"
     [href]="attachment._links.originOpen?.href || attachment._links.staticDownloadLocation.href"
     target="_blank"
+    (click)="openPreview($event)"
     (dragstart)="setDragData($event)"
   >
     <div
