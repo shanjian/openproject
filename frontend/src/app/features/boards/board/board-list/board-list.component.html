@@ -83,6 +83,20 @@
         (itemClicked)="openFullViewOnDoubleClick($event)"
         (stateLinkClicked)="openStateLink($event)" />
     </div>
+    @if (hasMoreCards) {
+      <div class="op-board-list--load-more"
+        data-test-selector="op-board-list--load-more">
+        <button type="button"
+          class="spot-link op-board-list--load-more-button"
+          data-test-selector="op-board-list--load-more-button"
+          [disabled]="loadingMore"
+          (click)="loadMoreCards()">
+          {{ loadingMore ? text.loadingMore : text.loadMore }}
+        </button>
+        <span class="op-board-list--load-more-count"
+          data-test-selector="op-board-list--load-more-count">{{ cardsShownText }}</span>
+      </div>
+    }
   }
   @if (loadingError) {
     <div class="op-board-list--toaster-box -error">

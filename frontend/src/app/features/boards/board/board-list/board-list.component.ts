@@ -152,7 +152,34 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
     'elements/storyPoints',
     'elements/estimatedHours',
     'elements/epic',
+    // Ask for the collection total so the column knows whether it is truncated by
+    // the page size and can offer "load more". Without this the SQL projection
+    // returns total = -1 (the count is only computed when explicitly selected).
+    'total',
   ];
+
+  /**
+   * Page size for the initial column load. Matches the historical effective cap
+   * (Setting.forced_single_page_size default) so existing boards render exactly as
+   * before; columns with more cards now expose a "load more" control instead of
+   * silently truncating. Each "load more" grows the single top-anchored page by
+   * {@link pageSizeIncrement} (manual sort always renders one contiguous page).
+   */
+  private static readonly initialPageSize = 250;
+
+  private static readonly pageSizeIncrement = 250;
+
+  /** Current target page size for this column; grown by loadMoreCards(). */
+  private currentPageSize = BoardListComponent.initialPageSize;
+
+  /** Number of cards currently loaded in this column. */
+  public loadedCount = 0;
+
+  /** Total number of cards matching this column, regardless of the page size. */
+  public totalCount = 0;
+
+  /** Whether a "load more" request is in flight. */
+  public loadingMore = false;
 
   /** Accumulated story points across the column's work packages, or null when not summable */
   public storyPointsSum:number|null = null;
@@ -166,6 +193,8 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
     areYouSure: this.I18n.t('js.text_are_you_sure'),
     unnamed_list: this.I18n.t('js.boards.label_unnamed_list'),
     click_to_remove: this.I18n.t('js.boards.click_to_remove_list'),
+    loadMore: this.I18n.t('js.boards.load_more'),
+    loadingMore: this.I18n.t('js.boards.loading_more'),
     totals: {
       story_points: this.I18n.t('js.boards.totals.story_points'),
       estimated_time: this.I18n.t('js.boards.totals.estimated_time'),
@@ -269,7 +298,12 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
       .pipe(
         this.untilDestroyed(),
       )
-      .subscribe(() => this.updateQuery(true));
+      .subscribe(() => {
+        // A different filter set is a different result set, so start back at the
+        // first page rather than keeping a previously grown page size.
+        this.currentPageSize = BoardListComponent.initialPageSize;
+        this.updateQuery(true);
+      });
 
     // Listen to changes to action attribute
     this.listenToActionAttributeChanges();
@@ -530,9 +564,12 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
           // view reloads the complete resource instead of rendering the card subset.
           query.results.elements.forEach((wp) => markPartialWorkPackage(wp));
           this.wpStatesInitialization.updateQuerySpace(query, query.results);
+          this.updateCardCounts(query);
+          this.loadingMore = false;
           this.cdRef.markForCheck();
         },
         (error) => {
+          this.loadingMore = false;
           const userIsNotAllowedToSeeSubprojectError = 'urn:openproject-org:api:v3:errors:InvalidQuery';
           // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
           if (error.errorIdentifier === userIsNotAllowedToSeeSubprojectError) {
@@ -546,6 +583,45 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
 
   private get indicatorInstance() {
     return this.loadingIndicator.indicator(this.indicator.nativeElement);
+  }
+
+  /**
+   * Record how many of the column's cards are loaded versus how many match in
+   * total. `total` is -1 when the API could not compute it (e.g. the `total`
+   * select was dropped); guard against that so we never offer a misleading
+   * "load more".
+   */
+  private updateCardCounts(query:QueryResource):void {
+    this.loadedCount = query.results.count;
+    this.totalCount = query.results.total;
+  }
+
+  /** Whether the column holds more cards than are currently loaded. */
+  public get hasMoreCards():boolean {
+    return this.totalCount > this.loadedCount;
+  }
+
+  /** Human-readable "showing X of Y" label for the load-more control. */
+  public get cardsShownText():string {
+    return this.I18n.t('js.boards.cards_shown', { loaded: this.loadedCount, total: this.totalCount });
+  }
+
+  /**
+   * Grow the single top-anchored page and reload the column. We re-fetch from the
+   * top (rather than appending an offset window) because manual sort requires a
+   * contiguous page for stable drag positions; see the server-side
+   * `manually_sorted_page_size`. Loaded invisibly so only the button shows a
+   * pending state instead of flashing the whole-column spinner.
+   */
+  public loadMoreCards():void {
+    if (this.loadingMore || !this.hasMoreCards) {
+      return;
+    }
+
+    this.loadingMore = true;
+    this.currentPageSize += BoardListComponent.pageSizeIncrement;
+    this.setQueryProps(this.boardFilters.current);
+    this.loadQuery(false);
   }
 
   /**
@@ -593,7 +669,7 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
     this.columnsQueryProps = {
       select: selectFields.join(','),
       showHierarchies: false,
-      pageSize: 500,
+      pageSize: this.currentPageSize,
       filters: serializedFilters,
     };
 

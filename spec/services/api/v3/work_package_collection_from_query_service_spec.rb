@@ -429,10 +429,19 @@ RSpec.describe API::V3::WorkPackageCollectionFromQueryService,
               .to be(42)
           end
 
-          context "with a provided value" do
+          context "with a provided value larger than the setting" do
             let(:params) { { "pageSize" => 100 } }
 
-            it "is the setting value" do
+            it "is the provided value (progressive loading of a big column)" do
+              expect(subject.query_params[:pageSize])
+                .to be(100)
+            end
+          end
+
+          context "with a provided value smaller than the setting" do
+            let(:params) { { "pageSize" => 10 } }
+
+            it "is the setting value (kept as the minimum single page)" do
               expect(subject.query_params[:pageSize])
                 .to be(42)
             end

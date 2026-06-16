@@ -36,6 +36,6 @@ RSpec.shared_examples "sets the appropriate sort_criteria on each query" do
 
     queries_sort_criteria = queries.map(&:sort_criteria)
 
-    expect(queries_sort_criteria).to all eq([%w[manual_sorting asc], %w[id asc]])
+    expect(queries_sort_criteria).to all eq([%w[manual_sorting desc], %w[id desc]])
   end
 end
