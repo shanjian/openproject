@@ -158,6 +158,23 @@ describe('setupAttachmentContentPreview', () => {
     expect(openSpy).not.toHaveBeenCalled();
   });
 
+  it('ignores content images inside an inline-editable field (keeps click-to-edit)', async () => {
+    // e.g. the work package description, where clicking the image should
+    // activate the editor rather than open the preview.
+    const field = document.createElement('op-editable-attribute-field');
+    const container = document.createElement('div');
+    container.className = 'op-uc-container';
+    const img = contentImage();
+    container.appendChild(img);
+    field.appendChild(container);
+    root.appendChild(field);
+
+    click(img);
+    await flush();
+
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
   it('ignores modifier / non-primary clicks', async () => {
     const container = document.createElement('div');
     container.className = 'op-uc-container';
