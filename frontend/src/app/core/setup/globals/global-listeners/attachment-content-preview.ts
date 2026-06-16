@@ -37,6 +37,10 @@ const CONTENT_IMAGE_SELECTOR = 'img.op-uc-image';
 const CONTENT_CONTAINER_SELECTOR = '.op-uc-container';
 // Do not hijack clicks while the content is being edited in CKEditor.
 const EDITING_SELECTOR = '.op-uc-container_editing, .ck-content';
+// Images inside an inline-editable field (e.g. the work package description)
+// keep their click-to-edit behavior: the field already displays the image
+// well, and the click should activate the editor rather than open the preview.
+const EDITABLE_FIELD_SELECTOR = 'op-editable-attribute-field';
 
 function fileNameFromImage(img:HTMLImageElement):string {
   if (img.alt) {
@@ -86,7 +90,8 @@ export function setupAttachmentContentPreview():void {
       }
 
       // Linked images keep their link behavior; editing widgets keep theirs.
-      if (img.closest('a') || img.closest(EDITING_SELECTOR)) {
+      // Images inside an inline-editable field keep click-to-edit.
+      if (img.closest('a') || img.closest(EDITING_SELECTOR) || img.closest(EDITABLE_FIELD_SELECTOR)) {
         return;
       }
 
