@@ -621,7 +621,12 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
     }
 
     this.loadingMore = true;
-    this.currentPageSize += BoardListComponent.pageSizeIncrement;
+    // Grow from what the server actually returned, not just our requested size.
+    // The backend clamps manually sorted queries up to Setting.forced_single_page_size,
+    // so when that setting exceeds our request the initial load already returns more
+    // than currentPageSize. Incrementing the requested size alone could re-request the
+    // same clamped size and load nothing (a no-op "load more").
+    this.currentPageSize = Math.max(this.currentPageSize, this.loadedCount) + BoardListComponent.pageSizeIncrement;
     this.setQueryProps(this.boardFilters.current);
     this.loadQuery(false);
   }
