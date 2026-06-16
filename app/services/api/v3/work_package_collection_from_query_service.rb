@@ -170,14 +170,26 @@ module API
       def handle_offset_paging_params(params)
         if query.manually_sorted?
           params[:query_id] = query.id
+          # Manually sorted views always render a single page anchored at the top so the
+          # drag-and-drop positions stay well-defined (an offset window would slice the
+          # ordered set and make relative positioning ambiguous).
           params[:offset] = 1
-          # Force the setting value in all cases except when 0 is requested explicitly. Fetching with pageSize = 0
-          # is done for performance reasons to simply get the query without the results.
-          params[:pageSize] = pageSizeParam(params) == 0 ? pageSizeParam(params) : Setting.forced_single_page_size
+          params[:pageSize] = manually_sorted_page_size(params)
         else
           params[:offset] = to_i_or_nil(params[:offset])
           params[:pageSize] = pageSizeParam(params)
         end
+      end
+
+      # Page size for a manually sorted query. Defaults to the configured forced size,
+      # but honors an explicitly requested *larger* size so clients can progressively
+      # grow the single page ("show more") for big columns. pageSize 0 is preserved as-is:
+      # it is requested for performance to fetch the query without any results.
+      def manually_sorted_page_size(params)
+        requested = pageSizeParam(params)
+        return 0 if requested == 0
+
+        [requested || 0, Setting.forced_single_page_size].max
       end
 
       def handle_select_params(params, provided_params)

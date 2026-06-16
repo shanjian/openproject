@@ -70,7 +70,13 @@ module Boards
     end
 
     def query_sort_criteria
-      [[:manual_sorting, "asc"], [:id, "asc"]]
+      # Newest cards first: manual_sorting's sortable is
+      # "ordered_work_packages.position NULLS LAST, work_packages.id", so a desc
+      # direction flips its trailing id tiebreaker to DESC. Manually positioned
+      # cards keep their drag order (position stays ascending); the unpositioned
+      # tail — which is most of an unbounded column like "Done" — orders newest
+      # first so recent items land inside the forced_single_page_size window.
+      [[:manual_sorting, "desc"], [:id, "desc"]]
     end
 
     def options_for_grid(params)

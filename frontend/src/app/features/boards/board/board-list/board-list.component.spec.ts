@@ -66,3 +66,75 @@ describe('BoardListComponent include-closed filtering', () => {
     expect(included.includeClosed).toBe(true);
   });
 });
+
+describe('BoardListComponent load more', () => {
+  const buildComponent = (query:unknown):BoardListComponent => {
+    const component = Object.create(BoardListComponent.prototype) as BoardListComponent;
+    const fields = component as unknown as Record<string, unknown>;
+    fields.apiv3Service = { queries: { find: () => of(query) } };
+    fields.wpStatesInitialization = { updateQuerySpace: () => undefined };
+    fields.cdRef = { markForCheck: () => undefined, detectChanges: () => undefined };
+    fields.halNotification = { retrieveErrorMessage: () => '' };
+    fields.resource = { options: { queryId: 1, filters: [] } };
+    fields.board = { actionAttribute: 'status' };
+    fields.boardFilters = { current: [] };
+    // Object.create skips the constructor, so seed the field the initializer would set.
+    fields.currentPageSize = 250;
+    return component;
+  };
+
+  const loadQuery = (component:BoardListComponent):void =>
+    (component as unknown as { loadQuery:(visibly?:boolean) => void }).loadQuery(false);
+
+  const pageSizeOf = (component:BoardListComponent):number =>
+    (component as unknown as { columnsQueryProps:{ pageSize:number } }).columnsQueryProps.pageSize;
+
+  // The SQL projection only emits selected properties; the board selects `total`
+  // but not `count`, so loaded count must come from the `elements` array length.
+  const results = (loaded:number, total:number):unknown =>
+    ({
+      results: {
+        elements: Array.from({ length: loaded }, (_, i) => ({ id: String(i) } as WorkPackageResource)),
+        total,
+      },
+    });
+
+  it('captures loaded/total counts from elements length and reports truncation', () => {
+    const component = buildComponent(results(250, 1341));
+
+    loadQuery(component);
+
+    expect(component.loadedCount).toBe(250);
+    expect(component.totalCount).toBe(1341);
+    expect(component.hasMoreCards).toBe(true);
+  });
+
+  it('reports no more cards when the loaded elements already cover the total', () => {
+    const component = buildComponent(results(12, 12));
+
+    loadQuery(component);
+
+    expect(component.hasMoreCards).toBe(false);
+  });
+
+  it('grows the page size by the increment and reloads when loading more', () => {
+    const component = buildComponent(results(250, 1341));
+    loadQuery(component);
+
+    component.loadMoreCards();
+
+    expect(pageSizeOf(component)).toBe(500);
+  });
+
+  it('does not request more when the column is not truncated', () => {
+    const component = buildComponent(results(12, 12));
+    loadQuery(component);
+
+    const findSpy = jasmine.createSpy('find').and.returnValue(of(results(12, 12)));
+    (component as unknown as Record<string, unknown>).apiv3Service = { queries: { find: findSpy } };
+
+    component.loadMoreCards();
+
+    expect(findSpy).not.toHaveBeenCalled();
+  });
+});
