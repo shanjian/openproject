@@ -89,8 +89,18 @@ describe('BoardListComponent load more', () => {
   const pageSizeOf = (component:BoardListComponent):number =>
     (component as unknown as { columnsQueryProps:{ pageSize:number } }).columnsQueryProps.pageSize;
 
-  it('captures loaded/total counts and reports the column as truncated', () => {
-    const component = buildComponent({ results: { elements: [], count: 250, total: 1341 } });
+  // The SQL projection only emits selected properties; the board selects `total`
+  // but not `count`, so loaded count must come from the `elements` array length.
+  const results = (loaded:number, total:number):unknown =>
+    ({
+      results: {
+        elements: Array.from({ length: loaded }, (_, i) => ({ id: String(i) } as WorkPackageResource)),
+        total,
+      },
+    });
+
+  it('captures loaded/total counts from elements length and reports truncation', () => {
+    const component = buildComponent(results(250, 1341));
 
     loadQuery(component);
 
@@ -99,8 +109,8 @@ describe('BoardListComponent load more', () => {
     expect(component.hasMoreCards).toBe(true);
   });
 
-  it('reports no more cards when the page already covers the total', () => {
-    const component = buildComponent({ results: { elements: [], count: 12, total: 12 } });
+  it('reports no more cards when the loaded elements already cover the total', () => {
+    const component = buildComponent(results(12, 12));
 
     loadQuery(component);
 
@@ -108,7 +118,7 @@ describe('BoardListComponent load more', () => {
   });
 
   it('grows the page size by the increment and reloads when loading more', () => {
-    const component = buildComponent({ results: { elements: [], count: 250, total: 1341 } });
+    const component = buildComponent(results(250, 1341));
     loadQuery(component);
 
     component.loadMoreCards();
@@ -117,10 +127,10 @@ describe('BoardListComponent load more', () => {
   });
 
   it('does not request more when the column is not truncated', () => {
-    const component = buildComponent({ results: { elements: [], count: 12, total: 12 } });
+    const component = buildComponent(results(12, 12));
     loadQuery(component);
 
-    const findSpy = jasmine.createSpy('find').and.returnValue(of({ results: { elements: [], count: 12, total: 12 } }));
+    const findSpy = jasmine.createSpy('find').and.returnValue(of(results(12, 12)));
     (component as unknown as Record<string, unknown>).apiv3Service = { queries: { find: findSpy } };
 
     component.loadMoreCards();

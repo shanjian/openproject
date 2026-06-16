@@ -587,12 +587,14 @@ export class BoardListComponent extends AbstractWidgetComponent implements OnIni
 
   /**
    * Record how many of the column's cards are loaded versus how many match in
-   * total. `total` is -1 when the API could not compute it (e.g. the `total`
-   * select was dropped); guard against that so we never offer a misleading
-   * "load more".
+   * total. The loaded count is taken from the rendered `elements` rather than the
+   * collection's `count`: the SQL projection only emits properties named in the
+   * `select`, and the board does not select `count`, so `count` is undefined here.
+   * `total` is -1 when the API could not compute it (guarded by the `>` in
+   * hasMoreCards, since -1 never exceeds a real loaded count).
    */
   private updateCardCounts(query:QueryResource):void {
-    this.loadedCount = query.results.count;
+    this.loadedCount = query.results.elements.length;
     this.totalCount = query.results.total;
   }
 
