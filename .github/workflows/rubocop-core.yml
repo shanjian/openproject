@@ -31,9 +31,16 @@ jobs:
           only_changed: true
       - name: Install erb_lint
         run: gem install -N erb_lint erblint-github
+      - name: Set up reviewdog
+        uses: reviewdog/action-setup@v1
       - name: Run erb-lint
-        uses: tk0miya/action-erblint@v1
-        with:
-          github_token: ${{ secrets.github_token }}
-          reporter: github-pr-check
-          fail_on_error: true
+        run: |
+          erb_lint --lint-all --format compact | \
+            reviewdog \
+              -efm="%f:%l:%c: %m" \
+              -name="erb_lint" \
+              -reporter=github-pr-check \
+              -filter-mode=added \
+              -fail-on-error=true
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.github_token }}
