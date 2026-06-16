@@ -96,6 +96,15 @@ module OpenProject
       INLINE_MOVIE_TYPES.include?(mime_type)
     end
 
+    # Returns the inline-displayable video MIME type implied by the given file
+    # name's extension, or nil when the extension is not a known inline video
+    # format. Used as a fallback when content-based detection yields a generic
+    # binary type (e.g. some MP4s are reported as application/octet-stream).
+    def self.inline_movie_type_for(name)
+      type = of(name)
+      type if type && INLINE_MOVIE_TYPES.include?(type)
+    end
+
     def self.image?(mime_type)
       INLINE_IMAGE_TYPES.include?(mime_type)
     end

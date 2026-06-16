@@ -206,6 +206,52 @@ RSpec.describe Attachment do
     end
   end
 
+  describe ".content_type_for" do
+    let(:detector) { instance_double(OpenProject::ContentTypeDetector) }
+
+    before do
+      allow(OpenProject::ContentTypeDetector).to receive(:new).and_return(detector)
+    end
+
+    context "when content detection returns a generic binary type" do
+      before { allow(detector).to receive(:detect).and_return("application/octet-stream") }
+
+      it "falls back to the video MIME implied by a video extension" do
+        expect(described_class.content_type_for("/tmp/clip.mp4")).to eq "video/mp4"
+      end
+
+      it "keeps the generic type for a non-video extension" do
+        expect(described_class.content_type_for("/tmp/archive.bin")).to eq "application/octet-stream"
+      end
+    end
+
+    context "when content detection returns a specific type" do
+      before { allow(detector).to receive(:detect).and_return("image/svg+xml") }
+
+      it "never overrides it based on the extension (preserves content-based detection)" do
+        expect(described_class.content_type_for("/tmp/sneaky.mp4")).to eq "image/svg+xml"
+      end
+    end
+  end
+
+  describe ".redetect_generic_content_types" do
+    let!(:generic_video) do
+      described_class.create!(container: work_package, author:,
+                              file: FileHelpers.mock_uploaded_file(name: "clip.mp4"))
+                     .tap { |a| a.update_columns(content_type: "application/octet-stream") }
+    end
+
+    it "re-detects generic-typed attachments via the extension fallback" do
+      allow(OpenProject::ContentTypeDetector)
+        .to receive(:new)
+        .and_return(instance_double(OpenProject::ContentTypeDetector, detect: "application/octet-stream"))
+
+      expect { described_class.redetect_generic_content_types }
+        .to change { generic_video.reload.content_type }
+        .from("application/octet-stream").to("video/mp4")
+    end
+  end
+
   describe "two attachments with same file name" do
     let(:second_file) { create(:uploaded_jpg, name: file.original_filename) }
 

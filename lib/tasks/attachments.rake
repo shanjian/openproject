@@ -121,4 +121,11 @@ namespace :attachments do
   task force_extract_fulltext: :environment do
     Attachment.force_extract_fulltext
   end
+
+  desc 'Re-detect content types for attachments stored with a generic binary type \
+        (e.g. videos detected as application/octet-stream).'
+  task redetect_content_types: :environment do
+    updated = Attachment.redetect_generic_content_types
+    puts "Updated content type of #{updated} attachment(s)."
+  end
 end
