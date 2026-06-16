@@ -40,6 +40,11 @@ en:
       draggable_hint: |
         Drag on editor field to inline image or reference attachment. Closed editor fields will be opened while you keep dragging.
       quarantined_hint: "The file is quarantined, as a virus was found. It is not available for download."
+      preview:
+        previous: "Previous"
+        next: "Next"
+        open_in_new_tab: "Open in new tab"
+        counter: "%{current} of %{total}"
 
     autocomplete_ng_select:
       add_tag: "Add item"

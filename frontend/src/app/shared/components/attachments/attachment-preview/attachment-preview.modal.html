@@ -1,0 +1,63 @@
+<div
+  class="op-attachment-preview"
+  data-test-selector="op-attachment-preview"
+  (mousedown)="onBackdropMousedown($event)"
+>
+  @if (hasMultiple) {
+    <button
+      type="button"
+      class="op-attachment-preview--nav op-attachment-preview--nav_prev"
+      [attr.aria-label]="text.previous"
+      [title]="text.previous"
+      (click)="previous($event)"
+    >
+      <svg chevron-left-icon size="medium"></svg>
+    </button>
+  }
+
+  <figure class="op-attachment-preview--figure">
+    @if (current.kind === 'image') {
+      <img
+        class="op-attachment-preview--media"
+        [src]="current.url"
+        [alt]="current.fileName"
+      />
+    } @else {
+      <video
+        class="op-attachment-preview--media"
+        [src]="current.url"
+        controls
+        autoplay
+      ></video>
+    }
+
+    <figcaption class="op-attachment-preview--caption">
+      <span class="op-attachment-preview--filename" [textContent]="current.fileName"></span>
+      @if (hasMultiple) {
+        <span class="op-attachment-preview--counter">{{ text.counter(index + 1, items.length) }}</span>
+      }
+      <a
+        class="op-attachment-preview--external"
+        [href]="current.downloadUrl || current.url"
+        target="_blank"
+        rel="noopener"
+        [title]="text.open_in_new_tab"
+        [attr.aria-label]="text.open_in_new_tab"
+      >
+        <svg link-external-icon size="small"></svg>
+      </a>
+    </figcaption>
+  </figure>
+
+  @if (hasMultiple) {
+    <button
+      type="button"
+      class="op-attachment-preview--nav op-attachment-preview--nav_next"
+      [attr.aria-label]="text.next"
+      [title]="text.next"
+      (click)="next($event)"
+    >
+      <svg chevron-right-icon size="medium"></svg>
+    </button>
+  }
+</div>

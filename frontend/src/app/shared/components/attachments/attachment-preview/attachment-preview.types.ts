@@ -26,33 +26,20 @@
 // See COPYRIGHT and LICENSE files for more details.
 //++
 
-import { NgModule } from '@angular/core';
-import { CommonModule } from '@angular/common';
+export type OpPreviewMediaKind = 'image'|'video';
 
-import { IconModule } from 'core-app/shared/components/icon/icon.module';
-
-import { OpAttachmentsComponent } from './attachments.component';
-import { OpAttachmentListComponent } from './attachment-list/attachment-list.component';
-import { OpAttachmentListItemComponent } from './attachment-list/attachment-list-item.component';
-import { OpAttachmentPreviewModalComponent } from './attachment-preview/attachment-preview.modal';
-
-@NgModule({
-  imports: [
-    CommonModule,
-    IconModule,
-  ],
-  declarations: [
-    OpAttachmentsComponent,
-    OpAttachmentListComponent,
-    OpAttachmentListItemComponent,
-    OpAttachmentPreviewModalComponent,
-  ],
-  exports: [
-    OpAttachmentListComponent,
-    OpAttachmentsComponent,
-
-    OpAttachmentListItemComponent,
-  ],
-})
-export class OpenprojectAttachmentsModule {
+/**
+ * A single previewable media item shown in the attachment preview (lightbox).
+ */
+export interface OpPreviewItem {
+  /** Source URL used to render the media (inline content URL). */
+  url:string;
+  /** Display name, used as the caption and image alt text. */
+  fileName:string;
+  /** Original MIME type of the attachment. */
+  contentType:string;
+  /** Which media element to render. */
+  kind:OpPreviewMediaKind;
+  /** Optional URL used by the "open in new tab" / download action. Defaults to url. */
+  downloadUrl?:string;
 }
