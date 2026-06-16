@@ -100,6 +100,28 @@ RSpec.describe "GET /api/v3/attachments/:id/thumbnail", content_type: :json do
     end
   end
 
+  context "when the status is ready but the file was deleted" do
+    before do
+      attachment.update_column(:thumbnail_status, "ready")
+      allow(Attachments::ThumbnailGenerator).to receive(:new) do |att|
+        instance_double(Attachments::ThumbnailGenerator).tap do |generator|
+          allow(generator).to receive(:call) do
+            FileUtils.mkdir_p(att.thumbnail_path.dirname)
+            File.binwrite(att.thumbnail_path, "RIFF....WEBPfake-bytes")
+            :ready
+          end
+        end
+      end
+
+      get path
+    end
+
+    it "regenerates instead of 404ing forever" do
+      expect(response).to have_http_status 200
+      expect(response.headers["Content-Type"]).to eq "image/webp"
+    end
+  end
+
   context "when generation already failed (status error)" do
     before do
       attachment.update_column(:thumbnail_status, "error")

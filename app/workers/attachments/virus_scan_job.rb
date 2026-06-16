@@ -70,6 +70,9 @@ module Attachments
     def handle_success_response(attachment)
       Rails.logger.warn { "Scanned file #{attachment.id}. No viruses found." }
       attachment.update!(status: :scanned)
+      # Thumbnail generation is deferred until scanning clears the file (see
+      # Attachment#enqueue_thumbnail_generation), so kick it off now.
+      attachment.enqueue_thumbnail_generation
     end
 
     def handle_virus_response(attachment, virus_name)

@@ -158,8 +158,8 @@ RSpec.describe API::V3::Attachments::AttachmentRepresenter do
     end
 
     describe "thumbnail link" do
-      context "when a thumbnail has been generated" do
-        before { allow(attachment).to receive(:thumbnail_ready?).and_return(true) }
+      context "when a thumbnail is available" do
+        before { allow(attachment).to receive(:thumbnail_available?).and_return(true) }
 
         it_behaves_like "has an untitled link" do
           let(:link) { "thumbnail" }
@@ -167,8 +167,8 @@ RSpec.describe API::V3::Attachments::AttachmentRepresenter do
         end
       end
 
-      context "when no thumbnail has been generated" do
-        before { allow(attachment).to receive(:thumbnail_ready?).and_return(false) }
+      context "when no thumbnail is available" do
+        before { allow(attachment).to receive(:thumbnail_available?).and_return(false) }
 
         it_behaves_like "has no link" do
           let(:link) { "thumbnail" }

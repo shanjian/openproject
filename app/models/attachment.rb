@@ -204,6 +204,21 @@ class Attachment < ApplicationRecord
   end
 
   ##
+  # Whether the API should advertise a thumbnail link. True for thumbnailable
+  # images that are not blocked by virus scanning and have not been ruled out
+  # (unsupported/error). The link resolves to an already-generated file or
+  # triggers lazy generation at the endpoint, so it also appears for images
+  # that predate the feature (status nil) or whose job has not finished yet
+  # (status pending) — i.e. lazy generation stays reachable. No DB query, no
+  # disk stat.
+  def thumbnail_available?
+    thumbnailable? &&
+      !status_quarantined? &&
+      !pending_virus_scan? &&
+      !thumbnail_status.in?(%w[unsupported error])
+  end
+
+  ##
   # Directory holding this attachment's derived thumbnails, parallel to the
   # original under a dedicated, safely-wipeable subtree. The "_thumbnails" prefix
   # never collides with a CarrierWave store_dir (which is "<model>/file/<id>").
@@ -220,13 +235,13 @@ class Attachment < ApplicationRecord
 
   ##
   # Generate (or regenerate) the thumbnail for this attachment and persist the
-  # resulting status. Idempotent and safe to re-run. Returns true when a
-  # thumbnail now exists on disk.
+  # resulting status. Idempotent and safe to re-run. Returns the derivation
+  # status symbol (:ready, :unsupported or :error).
   def generate_thumbnail!(variant: DEFAULT_THUMBNAIL_VARIANT)
     status = Attachments::ThumbnailGenerator.new(self, variant:).call
     update_column(:thumbnail_status, status.to_s) unless destroyed?
 
-    status == :ready
+    status
   end
 
   # Returns true if the file is readable
@@ -371,6 +386,10 @@ class Attachment < ApplicationRecord
 
   def enqueue_thumbnail_generation
     return unless thumbnailable?
+    # Defer until the virus scan completes; the scan success path re-invokes
+    # this. Enqueuing now would only run a job that no-ops on the pending scan
+    # and leaves thumbnail_status stuck at "pending".
+    return if pending_virus_scan?
 
     update_column(:thumbnail_status, "pending")
     Attachments::GenerateThumbnailJob.perform_later(id)

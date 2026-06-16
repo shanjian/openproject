@@ -107,12 +107,13 @@ module API
           !attachment.pending_virus_scan?
       end
 
-      # Returns the on-disk path of a ready thumbnail, triggering lazy generation
-      # only for attachments not yet considered (status nil/pending). Unsupported
-      # and previously-failed rows are never retried here.
+      # Returns the on-disk path of a usable thumbnail, lazily (re)generating on a
+      # miss. Regeneration also covers a "ready" row whose file has gone missing
+      # (e.g. the _thumbnails tree was wiped) so the endpoint self-heals instead
+      # of 404ing forever. Terminal states (unsupported/error) are never retried.
       def resolve_thumbnail_path(attachment)
         return attachment.thumbnail_path if existing_thumbnail?(attachment)
-        return attachment.thumbnail_path if lazily_generated_thumbnail?(attachment)
+        return attachment.thumbnail_path if regenerated_thumbnail?(attachment)
 
         nil
       end
@@ -121,8 +122,10 @@ module API
         attachment.thumbnail_ready? && File.exist?(attachment.thumbnail_path)
       end
 
-      def lazily_generated_thumbnail?(attachment)
-        attachment.thumbnail_status.in?([nil, "pending"]) && attachment.generate_thumbnail!
+      def regenerated_thumbnail?(attachment)
+        return false if attachment.thumbnail_status.in?(%w[unsupported error])
+
+        attachment.generate_thumbnail! == :ready
       end
 
       def send_thumbnail(attachment, path)

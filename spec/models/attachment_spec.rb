@@ -547,6 +547,39 @@ RSpec.describe Attachment do
       end
     end
 
+    describe "#thumbnail_available?" do
+      it "is true for a thumbnailable image regardless of generation progress" do
+        attachment.thumbnail_status = nil
+        expect(attachment.thumbnail_available?).to be true
+
+        attachment.thumbnail_status = "pending"
+        expect(attachment.thumbnail_available?).to be true
+
+        attachment.thumbnail_status = "ready"
+        expect(attachment.thumbnail_available?).to be true
+      end
+
+      it "is false once generation is ruled out" do
+        attachment.thumbnail_status = "unsupported"
+        expect(attachment.thumbnail_available?).to be false
+
+        attachment.thumbnail_status = "error"
+        expect(attachment.thumbnail_available?).to be false
+      end
+
+      it "is false while a virus scan is pending" do
+        allow(attachment).to receive(:pending_virus_scan?).and_return(true)
+
+        expect(attachment.thumbnail_available?).to be false
+      end
+
+      it "is false for a non-thumbnailable attachment" do
+        allow(attachment).to receive(:is_image?).and_return(false)
+
+        expect(attachment.thumbnail_available?).to be false
+      end
+    end
+
     describe "#generate_thumbnail!" do
       let(:container) { work_package }
       let(:persisted_attachment) { create(:attachment, author:, container:, content_type: nil, file:) }
@@ -556,17 +589,17 @@ RSpec.describe Attachment do
         allow(Attachments::ThumbnailGenerator).to receive(:new).and_return(generator)
       end
 
-      it "persists a successful result and returns true" do
+      it "persists and returns a successful result" do
         allow(generator).to receive(:call).and_return(:ready)
 
-        expect(persisted_attachment.generate_thumbnail!).to be true
+        expect(persisted_attachment.generate_thumbnail!).to eq :ready
         expect(persisted_attachment.reload.thumbnail_status).to eq "ready"
       end
 
-      it "persists a failure result and returns false" do
+      it "persists and returns a failure result" do
         allow(generator).to receive(:call).and_return(:error)
 
-        expect(persisted_attachment.generate_thumbnail!).to be false
+        expect(persisted_attachment.generate_thumbnail!).to eq :error
         expect(persisted_attachment.reload.thumbnail_status).to eq "error"
       end
     end
@@ -588,6 +621,18 @@ RSpec.describe Attachment do
 
         expect(created.thumbnail_status).to be_nil
         expect(Attachments::GenerateThumbnailJob).not_to have_been_enqueued
+      end
+
+      context "with virus scanning enabled",
+              with_ee: %i[virus_scanning],
+              with_settings: { antivirus_scan_mode: :clamav_socket } do
+        it "defers generation until the scan completes" do
+          created = create(:attachment, author:, container:, status: :uploaded, content_type: nil, file:)
+
+          expect(created.pending_virus_scan?).to be true
+          expect(created.thumbnail_status).to be_nil
+          expect(Attachments::GenerateThumbnailJob).not_to have_been_enqueued
+        end
       end
     end
 
