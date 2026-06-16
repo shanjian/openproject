@@ -502,4 +502,126 @@ RSpec.describe Attachment do
       end
     end
   end
+
+  describe "thumbnails" do
+    describe "#thumbnailable?" do
+      it "is true for a locally stored image" do
+        expect(attachment.thumbnailable?).to be true
+      end
+
+      it "is false for a non-image" do
+        allow(attachment).to receive(:is_image?).and_return(false)
+
+        expect(attachment.thumbnailable?).to be false
+      end
+
+      it "is false when the feature is disabled", with_config: { attachments_thumbnails_enabled: false } do
+        expect(attachment.thumbnailable?).to be false
+      end
+
+      it "is false for an externally stored attachment" do
+        allow(attachment).to receive(:external_storage?).and_return(true)
+
+        expect(attachment.thumbnailable?).to be false
+      end
+    end
+
+    describe "paths" do
+      before { allow(attachment).to receive(:id).and_return(123) }
+
+      it "places thumbnails under the _thumbnails subtree keyed by id" do
+        expected_dir = OpenProject::Configuration.attachments_storage_path.join("_thumbnails", "123")
+
+        expect(attachment.thumbnails_directory.to_s).to eq expected_dir.to_s
+        expect(attachment.thumbnail_path.to_s).to end_with "_thumbnails/123/card.webp"
+      end
+    end
+
+    describe "#thumbnail_ready?" do
+      it "reflects the thumbnail_status column" do
+        attachment.thumbnail_status = "ready"
+        expect(attachment.thumbnail_ready?).to be true
+
+        attachment.thumbnail_status = "pending"
+        expect(attachment.thumbnail_ready?).to be false
+      end
+    end
+
+    describe "#generate_thumbnail!" do
+      let(:container) { work_package }
+      let(:persisted_attachment) { create(:attachment, author:, container:, content_type: nil, file:) }
+      let(:generator) { instance_double(Attachments::ThumbnailGenerator) }
+
+      before do
+        allow(Attachments::ThumbnailGenerator).to receive(:new).and_return(generator)
+      end
+
+      it "persists a successful result and returns true" do
+        allow(generator).to receive(:call).and_return(:ready)
+
+        expect(persisted_attachment.generate_thumbnail!).to be true
+        expect(persisted_attachment.reload.thumbnail_status).to eq "ready"
+      end
+
+      it "persists a failure result and returns false" do
+        allow(generator).to receive(:call).and_return(:error)
+
+        expect(persisted_attachment.generate_thumbnail!).to be false
+        expect(persisted_attachment.reload.thumbnail_status).to eq "error"
+      end
+    end
+
+    describe "thumbnail generation job on commit" do
+      let(:container) { work_package }
+
+      it "marks the attachment pending and enqueues the job for an image" do
+        created = create(:attachment, author:, container:, content_type: nil, file:)
+
+        expect(created.thumbnail_status).to eq "pending"
+        expect(Attachments::GenerateThumbnailJob).to have_been_enqueued.with(created.id)
+      end
+
+      it "does not enqueue for a non-thumbnailable attachment" do
+        allow_any_instance_of(described_class).to receive(:thumbnailable?).and_return(false) # rubocop:disable RSpec/AnyInstance
+
+        created = create(:attachment, author:, container:, content_type: nil, file:)
+
+        expect(created.thumbnail_status).to be_nil
+        expect(Attachments::GenerateThumbnailJob).not_to have_been_enqueued
+      end
+    end
+
+    describe "removing thumbnails on destroy" do
+      let(:container) { work_package }
+      let(:persisted_attachment) { create(:attachment, author:, container:, content_type: nil, file:) }
+
+      it "deletes the per-attachment thumbnail directory" do
+        dir = persisted_attachment.thumbnails_directory
+        FileUtils.mkdir_p(dir)
+        FileUtils.touch(dir.join("card.webp"))
+
+        persisted_attachment.destroy!
+
+        expect(File.exist?(dir)).to be false
+      end
+    end
+
+    describe ".generate_thumbnails_where_missing" do
+      let(:container) { work_package }
+
+      it "enqueues the job only for rows not yet considered or still pending" do
+        ready = create(:attachment, author:, container:, content_type: nil, file:)
+        ready.update_column(:thumbnail_status, "ready")
+        pending = create(:attachment, author:, container:, content_type: nil, file: second_file)
+        pending.update_column(:thumbnail_status, "pending")
+
+        allow(Attachments::GenerateThumbnailJob).to receive(:perform_now)
+
+        described_class.generate_thumbnails_where_missing(run_now: true)
+
+        expect(Attachments::GenerateThumbnailJob).to have_received(:perform_now).with(pending.id)
+        expect(Attachments::GenerateThumbnailJob).not_to have_received(:perform_now).with(ready.id)
+      end
+    end
+  end
 end

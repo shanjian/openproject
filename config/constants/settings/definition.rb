@@ -105,6 +105,22 @@ module Settings
         description: "Time in minutes to wait before uploaded files not attached to any container are removed",
         default: 180
       },
+      # Whether server-side thumbnails are generated for image attachments stored
+      # on the local disk backend. When disabled, attachments advertise no
+      # thumbnail link and the UI keeps the generic MIME icon.
+      attachments_thumbnails_enabled: {
+        description: "Generate server-side thumbnails for image attachments (local disk storage only)",
+        default: true
+      },
+      # Absolute path to an ffmpeg binary, enabling video poster-frame thumbnails.
+      # Defaults to nil (video thumbnails disabled); ffmpeg is never a build or
+      # runtime dependency, only opportunistically used when this is set.
+      ffmpeg_path: {
+        description: "Path to an ffmpeg binary used for video thumbnails (disabled when unset)",
+        format: :string,
+        default: nil,
+        writable: false
+      },
       antivirus_scan_available: {
         description: "Virus scanning option selectable in the UI",
         default: true

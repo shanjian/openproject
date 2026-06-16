@@ -64,6 +64,10 @@ module API
               @attachment
             })
 
+            namespace :thumbnail, &::API::Helpers::AttachmentRenderer.thumbnail_endpoint(&-> {
+              @attachment
+            })
+
             namespace :uploaded do
               get do
                 attachment = Attachment.pending_direct_upload.find(params[:id])

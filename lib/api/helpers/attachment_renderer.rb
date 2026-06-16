@@ -46,6 +46,23 @@ module API
         }
       end
 
+      def self.thumbnail_endpoint(&)
+        ->(*) {
+          helpers ::API::Helpers::AttachmentRenderer
+
+          # Applied last, after the framework would otherwise default the
+          # response to "Cache-Control: no-cache".
+          finally do
+            set_thumbnail_cache_headers!
+          end
+
+          get do
+            attachment = instance_exec(&)
+            respond_with_thumbnail attachment
+          end
+        }
+      end
+
       ##
       # Render an attachment, either by redirecting
       # to the external storage,
@@ -66,7 +83,65 @@ module API
         end
       end
 
+      ##
+      # Serve a previously-generated thumbnail, lazily generating it on a cache
+      # miss for attachments that predate the feature or whose eager job has not
+      # run yet. Returns 404 for anything not thumbnailable, not yet scanned, or
+      # whose generation produced no usable image — never leaking the original's
+      # bytes or content-type.
+      def respond_with_thumbnail(attachment)
+        raise ::API::Errors::NotFound.new unless thumbnail_servable?(attachment)
+
+        path = resolve_thumbnail_path(attachment)
+        raise ::API::Errors::NotFound.new if path.nil?
+
+        send_thumbnail(attachment, path)
+      end
+
       private
+
+      def thumbnail_servable?(attachment)
+        attachment.thumbnailable? &&
+          !attachment.external_storage? &&
+          !attachment.status_quarantined? &&
+          !attachment.pending_virus_scan?
+      end
+
+      # Returns the on-disk path of a ready thumbnail, triggering lazy generation
+      # only for attachments not yet considered (status nil/pending). Unsupported
+      # and previously-failed rows are never retried here.
+      def resolve_thumbnail_path(attachment)
+        return attachment.thumbnail_path if existing_thumbnail?(attachment)
+        return attachment.thumbnail_path if lazily_generated_thumbnail?(attachment)
+
+        nil
+      end
+
+      def existing_thumbnail?(attachment)
+        attachment.thumbnail_ready? && File.exist?(attachment.thumbnail_path)
+      end
+
+      def lazily_generated_thumbnail?(attachment)
+        attachment.thumbnail_status.in?([nil, "pending"]) && attachment.generate_thumbnail!
+      end
+
+      def send_thumbnail(attachment, path)
+        # Thumbnails are immutable per digest: advertise a long-lived cache.
+        # Stashed and applied in the endpoint's `finally` block so the framework
+        # default ("no-cache") cannot clobber it.
+        @thumbnail_cache_headers = { "Cache-Control" => "public, max-age=31536000, immutable" }
+        @thumbnail_cache_headers["ETag"] = %("#{attachment.digest}") if attachment.digest.present?
+        # Always our re-encoded WebP, never the user's bytes or content-type.
+        content_type "image/webp"
+        header["Content-Disposition"] = "inline"
+        header["X-Content-Type-Options"] = "nosniff"
+        env["api.format"] = :binary
+        sendfile path.to_s
+      end
+
+      def set_thumbnail_cache_headers!
+        (@thumbnail_cache_headers || {}).each { |key, value| header key, value }
+      end
 
       def validate_attachment_access!(attachment)
         if attachment.status_quarantined?

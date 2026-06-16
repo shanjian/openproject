@@ -97,6 +97,17 @@ properties:
             Direct download link to the attachment
 
             **Resource**: -
+      thumbnail:
+        allOf:
+        - $ref: "./link.yml"
+        - description: |-
+            Inline, access-controlled thumbnail (image/webp) of the attachment.
+
+            Only present once a thumbnail has been generated (image attachments
+            on local disk storage). Absent for non-image, externally stored, or
+            not-yet-processed attachments.
+
+            **Resource**: -
 example:
   _type: Attachment
   _links:

@@ -89,6 +89,17 @@ module API
           }
         end
 
+        # Rendered only once a thumbnail has actually been generated, so the
+        # client can branch cleanly. Gated on the column (a pure read, no disk
+        # stat during list serialization); a freshly uploaded image briefly
+        # lacks the link until its eager job finishes. See design doc §8.2/§D5.
+        link :thumbnail,
+             cache_if: -> { represented.thumbnail_ready? } do
+          {
+            href: api_v3_paths.attachment_thumbnail(represented.id)
+          }
+        end
+
         link :delete,
              cache_if: -> { represented.deletable?(current_user) } do
           {

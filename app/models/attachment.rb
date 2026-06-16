@@ -29,6 +29,7 @@
 #++
 
 require "digest/md5"
+require "fileutils"
 
 class Attachment < ApplicationRecord
   enum :status, {
@@ -73,6 +74,7 @@ class Attachment < ApplicationRecord
   mount_uploader :file, OpenProject::Configuration.file_uploader
 
   after_commit :enqueue_jobs, on: :create, if: -> { !internal_container? }
+  after_commit :remove_thumbnails, on: :destroy
 
   scope :pending_direct_upload, -> { status_prepared }
   scope :not_pending_direct_upload, -> { not_status_prepared }
@@ -177,6 +179,55 @@ class Attachment < ApplicationRecord
     is_text? && filename =~ /\.(patch|diff)\z/i
   end
   # rubocop:enable Naming/PredicateName
+
+  # The single thumbnail variant shipped in v1: a ~240px WebP for list/grid views.
+  # See attachment_thumbnail_design.md §4.
+  DEFAULT_THUMBNAIL_VARIANT = :card
+
+  ##
+  # Whether a server-side thumbnail can, in principle, be derived for this
+  # attachment. v1: locally-stored raster images only (SVG is excluded because it
+  # is not part of OpenProject::MimeType::INLINE_IMAGE_TYPES). Video is designed
+  # but not shipped; see the design doc §6.
+  def thumbnailable?
+    OpenProject::Configuration.attachments_thumbnails_enabled? &&
+      !internal_container? &&
+      !external_storage? &&
+      is_image?
+  end
+
+  ##
+  # Whether a valid thumbnail has been generated. A pure column read so the
+  # representer can gate the HAL link without a per-attachment disk stat.
+  def thumbnail_ready?
+    thumbnail_status == "ready"
+  end
+
+  ##
+  # Directory holding this attachment's derived thumbnails, parallel to the
+  # original under a dedicated, safely-wipeable subtree. The "_thumbnails" prefix
+  # never collides with a CarrierWave store_dir (which is "<model>/file/<id>").
+  def thumbnails_directory
+    OpenProject::Configuration.attachments_storage_path.join("_thumbnails", id.to_s)
+  end
+
+  ##
+  # On-disk path of a given thumbnail variant (a Pathname). Built from the
+  # integer id only — never from user-controlled input.
+  def thumbnail_path(variant: DEFAULT_THUMBNAIL_VARIANT)
+    thumbnails_directory.join("#{variant}.webp")
+  end
+
+  ##
+  # Generate (or regenerate) the thumbnail for this attachment and persist the
+  # resulting status. Idempotent and safe to re-run. Returns true when a
+  # thumbnail now exists on disk.
+  def generate_thumbnail!(variant: DEFAULT_THUMBNAIL_VARIANT)
+    status = Attachments::ThumbnailGenerator.new(self, variant:).call
+    update_column(:thumbnail_status, status.to_s) unless destroyed?
+
+    status == :ready
+  end
 
   # Returns true if the file is readable
   delegate :readable?, to: :file
@@ -311,9 +362,33 @@ class Attachment < ApplicationRecord
 
   def enqueue_jobs
     extract_fulltext
+    enqueue_thumbnail_generation
 
     if pending_virus_scan?
       Attachments::VirusScanJob.perform_later(self)
+    end
+  end
+
+  def enqueue_thumbnail_generation
+    return unless thumbnailable?
+
+    update_column(:thumbnail_status, "pending")
+    Attachments::GenerateThumbnailJob.perform_later(id)
+  end
+
+  # Generate thumbnails for attachments that have not been considered yet
+  # (status nil) or whose generation never finished (status "pending"). Unlike a
+  # one-shot migration this can be re-run safely and skips unsupported/error
+  # rows. Runs inline by default, mirroring +extract_fulltext_where_missing+.
+  def self.generate_thumbnails_where_missing(run_now: true)
+    where(thumbnail_status: [nil, "pending"])
+      .pluck(:id)
+      .each do |id|
+      if run_now
+        Attachments::GenerateThumbnailJob.perform_now(id)
+      else
+        Attachments::GenerateThumbnailJob.perform_later(id)
+      end
     end
   end
 
@@ -386,6 +461,15 @@ class Attachment < ApplicationRecord
   end
 
   private
+
+  # Thumbnails are derived, disposable artifacts; drop the whole per-attachment
+  # subtree when the original is destroyed. Failures are logged, never raised, so
+  # they cannot block attachment deletion.
+  def remove_thumbnails
+    FileUtils.rm_rf(thumbnails_directory)
+  rescue StandardError => e
+    Rails.logger.error("Failed to remove thumbnails for attachment ##{id}: #{e.message}")
+  end
 
   def filesize_below_allowed_maximum
     if filesize.to_i > Setting.attachment_max_size.to_i.kilobytes

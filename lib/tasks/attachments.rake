@@ -128,4 +128,14 @@ namespace :attachments do
     updated = Attachment.redetect_generic_content_types
     puts "Updated content type of #{updated} attachment(s)."
   end
+
+  desc "Generate thumbnails for image attachments that don't have one yet (synchronous)."
+  task generate_thumbnails_where_missing: :environment do
+    Attachment.generate_thumbnails_where_missing(run_now: true)
+  end
+
+  desc "Schedule thumbnail generation for image attachments that don't have one yet."
+  task schedule_thumbnail_generation_where_missing: :environment do
+    Attachment.generate_thumbnails_where_missing(run_now: false)
+  end
 end
