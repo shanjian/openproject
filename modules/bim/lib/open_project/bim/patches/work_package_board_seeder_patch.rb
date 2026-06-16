@@ -68,7 +68,7 @@ module OpenProject::Bim::Patches::WorkPackageBoardSeederPatch
           query.add_filter("status_id", "=", [status.id])
 
           # Set manual sort filter
-          query.sort_criteria = [[:manual_sorting, "asc"]]
+          query.sort_criteria = [[:manual_sorting, "desc"], [:id, "desc"]]
 
           query.save!
         end

@@ -120,7 +120,7 @@ module DemoData
           query.add_filter("status_id", "=", [status.id])
 
           # Set manual sort filter
-          query.sort_criteria = [[:manual_sorting, "asc"]]
+          query.sort_criteria = [[:manual_sorting, "desc"], [:id, "desc"]]
 
           query.save!
         end
@@ -169,7 +169,7 @@ module DemoData
       ).tap do |query|
         # Set manual sort filter
         query.add_filter("manual_sort", "ow", [])
-        query.sort_criteria = [[:manual_sorting, "asc"]]
+        query.sort_criteria = [[:manual_sorting, "desc"], [:id, "desc"]]
 
         list["work_packages"].each_with_index do |wp_reference, i|
           work_package_id = seed_data.find_reference(wp_reference).id
@@ -218,7 +218,7 @@ module DemoData
           query.add_filter("parent", "=", [parent.id])
 
           # Set manual sort filter
-          query.sort_criteria = [[:manual_sorting, "asc"]]
+          query.sort_criteria = [[:manual_sorting, "desc"], [:id, "desc"]]
 
           query.save!
         end
