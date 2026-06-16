@@ -65,7 +65,10 @@ export class OpAttachmentPreviewService {
    */
   public static itemFor(attachment:IAttachment):OpPreviewItem|null {
     const kind = this.previewKind(attachment.contentType);
-    if (!kind || attachment.status === 'quarantined') {
+    // Skip non-previewable, quarantined, and external-storage attachments. The
+    // latter (originOpen) must keep their origin-app behavior, so they are
+    // excluded both on direct click and as gallery siblings.
+    if (!kind || attachment.status === 'quarantined' || attachment._links.originOpen) {
       return null;
     }
 

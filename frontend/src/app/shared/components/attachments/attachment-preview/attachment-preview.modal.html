@@ -1,7 +1,7 @@
 <div
   class="op-attachment-preview"
   data-test-selector="op-attachment-preview"
-  (click)="onBackdropClick($event)"
+  (mousedown)="onBackdropMousedown($event)"
 >
   @if (hasMultiple) {
     <button
@@ -15,7 +15,7 @@
     </button>
   }
 
-  <figure class="op-attachment-preview--figure" (click)="$event.stopPropagation()">
+  <figure class="op-attachment-preview--figure">
     @if (current.kind === 'image') {
       <img
         class="op-attachment-preview--media"
@@ -23,7 +23,6 @@
         [alt]="current.fileName"
       />
     } @else {
-      <!-- eslint-disable-next-line -->
       <video
         class="op-attachment-preview--media"
         [src]="current.url"

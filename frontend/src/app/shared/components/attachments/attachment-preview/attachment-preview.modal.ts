@@ -94,8 +94,12 @@ export class OpAttachmentPreviewModalComponent extends OpModalComponent {
     this.cdRef.markForCheck();
   }
 
-  /** Close only when the click happened on the backdrop itself, not the media. */
-  public onBackdropClick(evt:MouseEvent):void {
+  /**
+   * Close when the user presses on the backdrop itself (the empty area around
+   * the media), but not when pressing on the media or controls. Uses mousedown
+   * to mirror the modal overlay's own backdrop handling.
+   */
+  public onBackdropMousedown(evt:MouseEvent):void {
     if (evt.target === evt.currentTarget) {
       this.closeMe(evt);
     }
