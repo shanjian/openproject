@@ -126,6 +126,18 @@ describe('BoardListComponent load more', () => {
     expect(pageSizeOf(component)).toBe(500);
   });
 
+  it('grows from the actually-loaded count when the server returned more than requested', () => {
+    // forced_single_page_size > our initial 250: the backend clamps up, so the
+    // first load already returned 500. The next request must exceed 500, not
+    // re-request 500 (which would load nothing).
+    const component = buildComponent(results(500, 1341));
+    loadQuery(component);
+
+    component.loadMoreCards();
+
+    expect(pageSizeOf(component)).toBe(750); // max(250, 500) + 250
+  });
+
   it('does not request more when the column is not truncated', () => {
     const component = buildComponent(results(12, 12));
     loadQuery(component);
