@@ -41,6 +41,20 @@ RSpec.describe OpenProject::MimeType do
     end
   end
 
+  describe "#inline_movie_type_for" do
+    to_test = { "clip.mp4" => "video/mp4",
+                "movie.mov" => "video/quicktime",
+                "clip.webm" => "video/webm",
+                "clip.flv" => nil, # known video extension, but not an inline movie type
+                "notes.txt" => nil,
+                "noext" => nil }
+    to_test.each do |name, expected|
+      it "returns #{expected.inspect} for #{name}" do
+        expect(described_class.inline_movie_type_for(name)).to eq expected
+      end
+    end
+  end
+
   describe "#css_class_of" do
     to_test = { "test.unk" => nil,
                 "test.txt" => "text-plain",

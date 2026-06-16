@@ -249,7 +249,49 @@ class Attachment < ApplicationRecord
     # Do NOT use MimeType.narrow_type here as it could incorrectly narrow
     # security-sensitive types (e.g., SVG with .png extension -> image/png)
     content_type = OpenProject::ContentTypeDetector.new(file_path).detect
+
+    # The `file` command reports some videos (notably certain MP4s) as a generic
+    # binary type. In that case only, fall back to the inline video MIME implied
+    # by the file extension so the file is recognized and served as video.
+    # Scoped to video extensions to preserve content-based detection for
+    # security-sensitive types (HTML/SVG/...), which are never generic-binary.
+    if generic_binary_content_type?(content_type)
+      content_type = OpenProject::MimeType.inline_movie_type_for(file_path) || content_type
+    end
+
     content_type || fallback
+  end
+
+  # Content types stored when the content detector could not determine anything
+  # more specific than "some binary blob".
+  GENERIC_BINARY_CONTENT_TYPES = ["application/octet-stream",
+                                  OpenProject::ContentTypeDetector::SENSIBLE_DEFAULT].freeze
+
+  # Whether a detected content type is a generic binary type, i.e. the content
+  # detector could not determine anything more specific.
+  def self.generic_binary_content_type?(content_type)
+    content_type.blank? || GENERIC_BINARY_CONTENT_TYPES.include?(content_type)
+  end
+
+  # Re-runs content type detection for attachments currently stored with a
+  # generic binary content type (e.g. videos detected as octet-stream) and
+  # updates those whose type can now be resolved more specifically.
+  # Returns the number of attachments updated.
+  def self.redetect_generic_content_types
+    updated = 0
+
+    where(content_type: GENERIC_BINARY_CONTENT_TYPES).find_each do |attachment|
+      path = attachment.diskfile&.path
+      next unless path && File.readable?(path)
+
+      new_type = content_type_for(path)
+      next if new_type == attachment.content_type
+
+      attachment.update_columns(content_type: new_type)
+      updated += 1
+    end
+
+    updated
   end
 
   def copy
