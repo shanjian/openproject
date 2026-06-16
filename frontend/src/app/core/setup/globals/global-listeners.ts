@@ -27,6 +27,7 @@
 //++
 
 import { setupServerResponse } from 'core-app/core/setup/globals/global-listeners/setup-server-response';
+import { setupAttachmentContentPreview } from 'core-app/core/setup/globals/global-listeners/attachment-content-preview';
 import { performAnchorHijacking } from './global-listeners/link-hijacking';
 
 /**
@@ -74,6 +75,9 @@ export function initializeGlobalListeners():void {
   const disableDragDefaults = (evt:Event) => { evt.preventDefault(); };
   document.documentElement.addEventListener('dragover', disableDragDefaults);
   document.documentElement.addEventListener('drop', disableDragDefaults);
+
+  // Open images embedded in formatted content in the in-app preview (lightbox)
+  setupAttachmentContentPreview();
 
   // Bootstrap legacy app code
   setupServerResponse();
