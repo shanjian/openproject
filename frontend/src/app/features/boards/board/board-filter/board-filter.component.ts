@@ -1,4 +1,10 @@
-import { AfterViewInit, Component, Input } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  inject,
+  Input,
+  NgZone,
+} from '@angular/core';
 import { Board } from 'core-app/features/boards/board/board';
 import { CurrentProjectService } from 'core-app/core/current-project/current-project.service';
 import { WorkPackageStatesInitializationService } from 'core-app/features/work-packages/components/wp-list/wp-states-initialization.service';
@@ -66,6 +72,8 @@ export class BoardFilterComponent extends UntilDestroyedMixin implements AfterVi
   };
 
   initialized = false;
+
+  private readonly ngZone = inject(NgZone);
 
   constructor(private readonly I18n:I18nService,
     private readonly currentProjectService:CurrentProjectService,
@@ -184,12 +192,31 @@ export class BoardFilterComponent extends UntilDestroyedMixin implements AfterVi
     this.assigneeOptions = assigneeFallback;
     this.versionOptions = versionFallback;
 
+    let assignees:HalResource[] = [];
+    let versions:HalResource[] = [];
+
     try {
-      const [assignees, versions] = await Promise.all([
+      [assignees, versions] = await Promise.all([
         firstValueFrom(this.boardActions.get('assignee').loadAvailable(new Set<string>(), '')),
         firstValueFrom(this.boardActions.get('version').loadAvailable(new Set<string>(), '')),
       ]);
+    } catch (error) {
+      // Keep the fallback options on failure, but surface the error rather
+      // than swallowing it silently.
+      console.error('Failed to load board quick filter options', error);
+    }
 
+    // The component may have been torn down while the options were loading.
+    if (this.componentDestroyed) {
+      return;
+    }
+
+    // loadAvailable resolves its HAL request outside Angular's zone, so simply
+    // assigning the option lists here would not trigger change detection and the
+    // selects would keep rendering only the synchronously-set fallback options.
+    // Re-enter the Angular zone so a change detection pass renders the loaded
+    // values (and the fallbacks when a load failed).
+    this.ngZone.run(() => {
       this.assigneeOptions = [
         ...assigneeFallback,
         ...assignees
@@ -201,12 +228,9 @@ export class BoardFilterComponent extends UntilDestroyedMixin implements AfterVi
         ...versionFallback,
         ...versions.map((version) => this.resourceFilterOption(version)),
       ];
-    } catch {
-      this.assigneeOptions = assigneeFallback;
-      this.versionOptions = versionFallback;
-    }
 
-    this.syncQuickFilterSelections();
+      this.syncQuickFilterSelections();
+    });
   }
 
   private quickFilterOption(
