@@ -40,7 +40,7 @@ module API
           end
 
           after_validation do
-            @versions = @project.shared_versions
+            @versions = @project.shared_versions.order(name: :desc)
             @versions = @versions.with_status_open if params[:active]
 
             authorize_in_project(%i(view_work_packages manage_versions), project: @project)
