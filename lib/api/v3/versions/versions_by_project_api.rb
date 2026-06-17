@@ -40,16 +40,22 @@ module API
           end
 
           after_validation do
-            @versions = @project.shared_versions.order(name: :desc)
+            @versions = @project.shared_versions
             @versions = @versions.with_status_open if params[:active]
 
             authorize_in_project(%i(view_work_packages manage_versions), project: @project)
           end
 
           get do
+            # Default to descending name order when the client did not request an
+            # explicit sort. Injecting it as sortBy (rather than ordering the base
+            # scope) keeps an explicit ?sortBy effective and the self link accurate.
+            query_params = params.except("id")
+            query_params = query_params.merge(sortBy: ::JSON.dump([%w[name desc]])) if query_params[:sortBy].blank?
+
             ::API::V3::Utilities::ParamsToQuery.collection_response(@versions,
                                                                     current_user,
-                                                                    params.except("id"),
+                                                                    query_params,
                                                                     self_link: api_v3_paths.versions_by_workspace(@project.id))
           end
         end

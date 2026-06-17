@@ -96,4 +96,32 @@ RSpec.describe "GET workspaces/:id/versions" do
       expect(statuses).to all(eq("open"))
     end
   end
+
+  describe "ordering" do
+    shared_let(:ordering_project) { create(:project, public: false) }
+    shared_let(:ordering_user) do
+      create(:user, member_with_permissions: { ordering_project => [:view_work_packages] })
+    end
+    shared_let(:version_a) { create(:version, project: ordering_project, name: "Apple") }
+    shared_let(:version_m) { create(:version, project: ordering_project, name: "Mango") }
+    shared_let(:version_z) { create(:version, project: ordering_project, name: "Zebra") }
+
+    current_user { ordering_user }
+
+    def returned_names
+      JSON.parse(last_response.body)["_embedded"]["elements"].pluck("name")
+    end
+
+    it "defaults to descending name order when no sortBy is given" do
+      get api_v3_paths.versions_by_project(ordering_project.id)
+
+      expect(returned_names).to eq(%w[Zebra Mango Apple])
+    end
+
+    it "honours an explicit ascending sortBy" do
+      get "#{api_v3_paths.versions_by_project(ordering_project.id)}?sortBy=#{CGI.escape(JSON.dump([%w[name asc]]))}"
+
+      expect(returned_names).to eq(%w[Apple Mango Zebra])
+    end
+  end
 end
