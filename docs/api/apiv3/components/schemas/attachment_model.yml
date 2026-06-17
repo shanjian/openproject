@@ -101,11 +101,15 @@ properties:
         allOf:
         - $ref: "./link.yml"
         - description: |-
-            Inline, access-controlled thumbnail (image/webp) of the attachment.
+            Requestable inline, access-controlled thumbnail (image/webp) of the
+            attachment.
 
-            Only present once a thumbnail has been generated (image attachments
-            on local disk storage). Absent for non-image, externally stored, or
-            not-yet-processed attachments.
+            Present for thumbnailable image attachments on local disk storage.
+            The endpoint serves an already-generated thumbnail or generates one
+            on demand, so the link may appear before generation has finished
+            (a request then triggers it). Absent for non-image, externally
+            stored, or unsupported/failed attachments, and while a virus scan
+            is still pending.
 
             **Resource**: -
 example:

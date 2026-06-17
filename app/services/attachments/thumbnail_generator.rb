@@ -30,6 +30,7 @@
 
 require "mini_magick"
 require "fileutils"
+require "securerandom"
 
 module Attachments
   # Derives a small WebP thumbnail for a locally-stored image attachment using
@@ -100,9 +101,11 @@ module Attachments
       target = @attachment.thumbnail_path(variant: @variant)
       FileUtils.mkdir_p(target.dirname)
 
-      # Write to a temp file in the same directory and rename into place so a
-      # crashed/partial conversion can never be served as a valid thumbnail.
-      tmp = target.dirname.join(".#{@variant}.#{Process.pid}.tmp.webp")
+      # Write to a per-call unique temp file in the same directory and rename
+      # into place, so a crashed/partial conversion is never served and two
+      # concurrent generations (a lazy request racing the background job, or
+      # each other) never write to or delete the same temp path.
+      tmp = target.dirname.join(".#{@variant}.#{SecureRandom.hex(8)}.tmp.webp")
       begin
         convert(source, tmp.to_s)
         File.rename(tmp.to_s, target.to_s)
