@@ -89,6 +89,18 @@ module API
           }
         end
 
+        # Rendered for any thumbnailable image not ruled out (unsupported/error)
+        # or blocked by virus scanning, so the link is discoverable even for
+        # attachments that predate the feature — the endpoint serves the cached
+        # file or lazily generates it. No DB query or disk stat. See design doc
+        # §8.2/§D5 (this is the "gate on applicability" lever it describes).
+        link :thumbnail,
+             cache_if: -> { represented.thumbnail_available? } do
+          {
+            href: api_v3_paths.attachment_thumbnail(represented.id)
+          }
+        end
+
         link :delete,
              cache_if: -> { represented.deletable?(current_user) } do
           {

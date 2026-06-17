@@ -51,6 +51,15 @@ RSpec.describe Attachments::VirusScanJob,
 
         expect(attachment).to have_received(:update!).with(status: :scanned)
       end
+
+      it "kicks off the deferred thumbnail generation" do
+        allow(attachment).to receive(:update!)
+        allow(attachment).to receive(:enqueue_thumbnail_generation)
+
+        subject
+
+        expect(attachment).to have_received(:enqueue_thumbnail_generation)
+      end
     end
 
     context "when error occurs in clamav" do

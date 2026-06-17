@@ -157,6 +157,25 @@ RSpec.describe API::V3::Attachments::AttachmentRepresenter do
       end
     end
 
+    describe "thumbnail link" do
+      context "when a thumbnail is available" do
+        before { allow(attachment).to receive(:thumbnail_available?).and_return(true) }
+
+        it_behaves_like "has an untitled link" do
+          let(:link) { "thumbnail" }
+          let(:href) { api_v3_paths.attachment_thumbnail(attachment.id) }
+        end
+      end
+
+      context "when no thumbnail is available" do
+        before { allow(attachment).to receive(:thumbnail_available?).and_return(false) }
+
+        it_behaves_like "has no link" do
+          let(:link) { "thumbnail" }
+        end
+      end
+    end
+
     it_behaves_like "has a titled link" do
       let(:link) { "author" }
       let(:href) { api_v3_paths.user(attachment.author.id) }
