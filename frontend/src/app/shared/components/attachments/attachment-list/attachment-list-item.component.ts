@@ -111,7 +111,27 @@ export class OpAttachmentListItemComponent extends UntilDestroyedMixin implement
 
   public fileIcon:IFileIcon;
 
+  /** Set when the thumbnail fails to load, so we fall back to the MIME icon. */
+  public thumbnailFailed = false;
+
   private viewInitialized$ = new BehaviorSubject<boolean>(false);
+
+  /**
+   * URL of the server-side thumbnail, when the attachment advertises one and it
+   * has not failed to load. Absent for non-image/unsupported attachments, which
+   * keep their MIME icon.
+   */
+  public get thumbnailUrl():string|undefined {
+    if (this.thumbnailFailed) {
+      return undefined;
+    }
+
+    return this.attachment._links.thumbnail?.href;
+  }
+
+  public onThumbnailError():void {
+    this.thumbnailFailed = true;
+  }
 
   ngOnInit():void {
     this.fileIcon = getIconForMimeType(this.attachment.contentType);

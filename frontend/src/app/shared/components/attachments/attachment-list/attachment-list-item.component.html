@@ -14,6 +14,14 @@
     >
       @if (attachment.status === 'quarantined') {
         <svg bug-icon size="small" class="op-files-tab--icon op-files-tab--icon_{{fileIcon.clazz}}"></svg>
+      } @else if (thumbnailUrl) {
+        <img
+          class="op-files-tab--thumbnail"
+          [src]="thumbnailUrl"
+          [alt]="attachment.fileName"
+          loading="lazy"
+          (error)="onThumbnailError()"
+        />
       } @else {
         @switch (fileIcon.icon) {
           @case ('file-media') {

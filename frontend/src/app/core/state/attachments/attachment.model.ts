@@ -42,6 +42,9 @@ export interface IAttachmentHalResourceLinks extends IHalResourceLinks {
   downloadLocation:IHalResourceLink;
   staticDownloadLocation:IHalResourceLink;
   originOpen:IHalResourceLink;
+  // Present only for thumbnailable image attachments (server-side WebP
+  // thumbnail). The endpoint serves a cached thumbnail or lazily generates one.
+  thumbnail?:IHalResourceLink;
 }
 
 export interface IAddAttachmentLink extends IHalMethodResourceLink {
