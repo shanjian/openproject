@@ -238,7 +238,7 @@ class VersionsController < ApplicationController
   end
 
   def open_release_targets
-    @project.shared_versions.releases.with_status_open.where.not(id: @version.id).order(:name)
+    @project.shared_versions.releases.with_status_open.where.not(id: @version.id).order(name: :desc)
   end
 
   def set_destroy_error_flash(call)
@@ -306,7 +306,7 @@ class VersionsController < ApplicationController
       versions = versions.or(@project.rolled_up_versions.sprints.includes(:custom_values))
     end
 
-    versions = versions.visible.order(:name).except(:distinct).uniq
+    versions = versions.visible.order(name: :desc).except(:distinct).uniq
     versions.reject! { |version| version.closed? || version.completed? } unless completed
     versions
   end

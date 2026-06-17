@@ -48,12 +48,12 @@ RSpec.describe "project settings index" do
   end
 
   @javascript
-  it "see versions listed in semver order" do
+  it "see versions listed in descending semver order" do
     visit project_settings_versions_path(project)
 
     names_in_order = page.all(".version .name").map { |el| el.text.strip }
 
     expect(names_in_order)
-      .to eql [version6.name, version4.name, version5.name, version3.name, version2.name, version1.name]
+      .to eql [version1.name, version2.name, version3.name, version5.name, version4.name, version6.name]
   end
 end

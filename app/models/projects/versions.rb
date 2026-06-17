@@ -76,7 +76,7 @@ module Projects::Versions
         scope = shared_versions.references(:project)
         scope = scope.where(versions: { kind: }) if kind
         scope = scope.with_status_open if only_open
-        scope.order(:name).to_a
+        scope.order(name: :desc).to_a
       end
     end
   end

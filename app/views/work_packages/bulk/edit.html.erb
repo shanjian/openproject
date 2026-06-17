@@ -141,7 +141,7 @@ See COPYRIGHT and LICENSE files for more details.
                 <%= styled_select_tag(
                       "work_package[version_id]",
                       content_tag("option", t(:label_none), value: "none") +
-                      version_options_for_select(@project.shared_versions.sprints.with_status_open.order(:name)),
+                      version_options_for_select(@project.assignable_versions(kind: "sprint")),
                       include_blank: t(:label_no_change_option)
                     ) %>
               </div>
