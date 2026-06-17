@@ -1,9 +1,9 @@
 import {
   AfterViewInit,
+  ChangeDetectorRef,
   Component,
   inject,
   Input,
-  NgZone,
 } from '@angular/core';
 import { Board } from 'core-app/features/boards/board/board';
 import { CurrentProjectService } from 'core-app/core/current-project/current-project.service';
@@ -73,7 +73,7 @@ export class BoardFilterComponent extends UntilDestroyedMixin implements AfterVi
 
   initialized = false;
 
-  private readonly ngZone = inject(NgZone);
+  private readonly cdRef = inject(ChangeDetectorRef);
 
   constructor(private readonly I18n:I18nService,
     private readonly currentProjectService:CurrentProjectService,
@@ -211,26 +211,26 @@ export class BoardFilterComponent extends UntilDestroyedMixin implements AfterVi
       return;
     }
 
-    // loadAvailable resolves its HAL request outside Angular's zone, so simply
-    // assigning the option lists here would not trigger change detection and the
-    // selects would keep rendering only the synchronously-set fallback options.
-    // Re-enter the Angular zone so a change detection pass renders the loaded
-    // values (and the fallbacks when a load failed).
-    this.ngZone.run(() => {
-      this.assigneeOptions = [
-        ...assigneeFallback,
-        ...assignees
-          .filter((assignee) => this.assigneeOptionAllowed(assignee))
-          .map((assignee) => this.resourceFilterOption(assignee)),
-      ];
+    this.assigneeOptions = [
+      ...assigneeFallback,
+      ...assignees
+        .filter((assignee) => this.assigneeOptionAllowed(assignee))
+        .map((assignee) => this.resourceFilterOption(assignee)),
+    ];
 
-      this.versionOptions = [
-        ...versionFallback,
-        ...versions.map((version) => this.resourceFilterOption(version)),
-      ];
+    this.versionOptions = [
+      ...versionFallback,
+      ...versions.map((version) => this.resourceFilterOption(version)),
+    ];
 
-      this.syncQuickFilterSelections();
-    });
+    this.syncQuickFilterSelections();
+
+    // The option lists load after an awaited HAL request that resolves outside
+    // Angular's change detection, and this component sits under OnPush
+    // ancestors, so a global tick would skip it. Run change detection on this
+    // view directly so the quick-filter selects render the loaded options
+    // instead of only the synchronously-set fallbacks.
+    this.cdRef.detectChanges();
   }
 
   private quickFilterOption(
