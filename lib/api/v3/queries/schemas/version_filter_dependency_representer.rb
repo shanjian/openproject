@@ -49,7 +49,7 @@ module API
           private
 
           def query_params
-            [kind_filter_param, "sortBy=#{to_query [%i(name asc)]}", "pageSize=-1"].compact.join("&")
+            [kind_filter_param, "sortBy=#{to_query [%i(name desc)]}", "pageSize=-1"].compact.join("&")
           end
 
           # Offer only the versions of the kind this filter targets:

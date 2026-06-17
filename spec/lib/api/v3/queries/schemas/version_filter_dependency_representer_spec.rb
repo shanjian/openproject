@@ -52,7 +52,7 @@ RSpec.describe API::V3::Queries::Schemas::VersionFilterDependencyRepresenter do
         let(:path) { "values" }
         let(:type) { "[]Version" }
         let(:sprint_filter) { CGI.escape(JSON.dump([{ kind: { operator: "=", values: ["sprint"] } }])) }
-        let(:order) { "filters=#{sprint_filter}&sortBy=#{CGI.escape(JSON.dump([%i(name asc)]))}&pageSize=-1" }
+        let(:order) { "filters=#{sprint_filter}&sortBy=#{CGI.escape(JSON.dump([%i(name desc)]))}&pageSize=-1" }
 
         context "for operator 'Queries::Operators::All'" do
           let(:operator) { Queries::Operators::All }

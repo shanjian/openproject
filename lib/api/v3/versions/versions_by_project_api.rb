@@ -47,9 +47,15 @@ module API
           end
 
           get do
+            # Default to descending name order when the client did not request an
+            # explicit sort. Injecting it as sortBy (rather than ordering the base
+            # scope) keeps an explicit ?sortBy effective and the self link accurate.
+            query_params = params.except("id")
+            query_params = query_params.merge(sortBy: ::JSON.dump([%w[name desc]])) if query_params[:sortBy].blank?
+
             ::API::V3::Utilities::ParamsToQuery.collection_response(@versions,
                                                                     current_user,
-                                                                    params.except("id"),
+                                                                    query_params,
                                                                     self_link: api_v3_paths.versions_by_workspace(@project.id))
           end
         end
