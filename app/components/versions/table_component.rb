@@ -43,7 +43,7 @@ module Versions
     end
 
     def initial_sort
-      %i[name asc]
+      %i[name desc]
     end
 
     def sortable_columns_correlation
@@ -56,7 +56,7 @@ module Versions
     end
 
     def initial_sort_correlation
-      ["versions.name", "asc"]
+      ["versions.name", "desc"]
     end
 
     def headers
