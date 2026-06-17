@@ -40,6 +40,7 @@ module API
           get &::API::V3::Utilities::Endpoints::Index.new(model: Principal,
                                                           scope: -> {
                                                             Principal.possible_assignee(@project).includes(:preference)
+                                                                     .reorder(nil).ordered_by_name.order(:id)
                                                           },
                                                           render_representer: Users::UnpaginatedUserCollectionRepresenter)
                                                      .mount
