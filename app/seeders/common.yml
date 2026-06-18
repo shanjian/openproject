@@ -373,6 +373,7 @@ project_roles:
       - :add_internal_comments
       - :edit_own_internal_comments
       - :view_project_phases
+      - :view_releases
       - :export_projects
   - reference: :default_role_reader
     t_name: Reader
@@ -399,6 +400,7 @@ project_roles:
       - :view_shared_work_packages
       - :view_project_attributes
       - :view_project_phases
+      - :view_releases
   - reference: :default_role_project_admin
     t_name: Project admin
     position: 5
