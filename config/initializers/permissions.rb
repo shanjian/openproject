@@ -234,6 +234,14 @@ Rails.application.reloader.to_prepare do
                      permissible_on: :project,
                      require: :member
 
+      map.permission :view_releases,
+                     {
+                       "projects/settings/releases": [:show]
+                     },
+                     permissible_on: :project,
+                     require: :member,
+                     dependencies: :view_work_packages
+
       map.permission :share_versions_system_wide,
                      {},
                      permissible_on: :project,
