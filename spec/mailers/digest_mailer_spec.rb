@@ -177,7 +177,7 @@ RSpec.describe DigestMailer do
         end
 
         it "matches generated text" do
-          expect(mail_body).to have_text("Finish date is in 3 days.")
+          expect(mail_body).to have_text("Due date is in 3 days.")
         end
       end
 
@@ -225,7 +225,7 @@ RSpec.describe DigestMailer do
         end
 
         it "matches generated text" do
-          expect(mail_body).to have_text("Finish date is deleted.")
+          expect(mail_body).to have_text("Due date is deleted.")
         end
       end
 
@@ -241,7 +241,7 @@ RSpec.describe DigestMailer do
         end
 
         it "matches generated text" do
-          expect(mail_body).to have_text("Finish date is today.")
+          expect(mail_body).to have_text("Due date is today.")
         end
       end
 
@@ -257,7 +257,7 @@ RSpec.describe DigestMailer do
         end
 
         it "matches generated text" do
-          expect(mail_body).to have_text("Finish date is in 1 day.")
+          expect(mail_body).to have_text("Due date is in 1 day.")
         end
       end
 

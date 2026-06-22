@@ -156,12 +156,12 @@ RSpec.describe API::V3::Notifications::PropertyFactory do
           .to be_a API::V3::Values::Schemas::PropertySchemaRepresenter
       end
 
-      it "returns `Values::Schemas::Model` representer for Finish date" do
+      it "returns `Values::Schemas::Model` representer for Due date" do
         representer = described_class.schemas_for([notification])[0].represented
         expect(representer)
           .to be_a API::V3::Values::Schemas::Model
         expect(representer.name)
-          .to eq "Finish date"
+          .to eq "Due date"
       end
     end
 
@@ -225,12 +225,12 @@ RSpec.describe API::V3::Notifications::PropertyFactory do
           .to all be_a API::V3::Values::Schemas::PropertySchemaRepresenter
       end
 
-      it "returns `Values::Schemas::Model` representer for Finish date" do
+      it "returns `Values::Schemas::Model` representer for Due date" do
         representers = described_class.schemas_for(notifications).map(&:represented)
         expect(representers)
           .to all be_a API::V3::Values::Schemas::Model
         expect(representers.first.name)
-          .to eq "Finish date"
+          .to eq "Due date"
         expect(representers.second.name)
           .to eq "Start date"
         expect(representers.third.name)

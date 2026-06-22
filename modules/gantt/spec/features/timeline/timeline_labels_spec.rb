@@ -170,7 +170,7 @@ RSpec.describe "Work package timeline labels",
                                 farRight: "Status"
 
     config_modal.update_labels left: "Start date",
-                               right: "Finish date",
+                               right: "Due date",
                                farRight: "Subject"
 
     # Check overridden labels

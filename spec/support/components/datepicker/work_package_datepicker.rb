@@ -105,7 +105,7 @@ module Components
     end
 
     def expect_add_finish_date_button_visible
-      expect(container).to have_link("Finish date")
+      expect(container).to have_link("Due date")
     end
 
     def enable_due_date

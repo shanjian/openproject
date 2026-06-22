@@ -82,7 +82,7 @@ RSpec.describe API::V3::Values::Schemas::ValueSchemaAPI,
                 .at_path("value/type")
 
         expect(last_response.body)
-          .to be_json_eql("Finish date".to_json)
+          .to be_json_eql("Due date".to_json)
                 .at_path("value/name")
       end
     end
