@@ -168,7 +168,7 @@ module Type::Attributes
 
     def attr_translate(name)
       if name == "date"
-        I18n.t("label_date")
+        I18n.t("label_scheduled_dates")
       else
         key = attr_i18n_key(name)
         I18n.t("activerecord.attributes.work_package.#{key}", fallback: false, default: "")

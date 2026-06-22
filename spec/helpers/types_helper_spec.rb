@@ -90,7 +90,7 @@ RSpec.describe TypesHelper do
         # The groups attributes
         expect(subject.first[:attributes]).to be_an Array
         expect(subject.first[:attributes].first[:key]).to eq "date"
-        expect(subject.first[:attributes].first[:translation]).to eq "Date"
+        expect(subject.first[:attributes].first[:translation]).to eq "Scheduled dates"
       end
     end
   end
