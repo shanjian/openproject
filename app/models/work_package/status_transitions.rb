@@ -29,6 +29,20 @@
 #++
 
 module WorkPackage::StatusTransitions
+  # Name of the status that marks a work package as completed/done.
+  # Matched case-insensitively against the status name.
+  DONE_STATUS_NAME = "Done"
+
+  # Return true if the issue is being moved to the "Done" status.
+  # Unlike #closing?, this matches only the status named "Done", not other
+  # closed statuses (e.g. "Closed", "Rejected").
+  def becoming_done?
+    return false if !status_id_changed?
+
+    status_new = Status.find_by(id: status_id)
+    status_new.present? && status_new.name.to_s.casecmp?(DONE_STATUS_NAME)
+  end
+
   # Return true if the issue is being reopened
   def reopened?
     if !new_record? && status_id_changed?

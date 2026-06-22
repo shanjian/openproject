@@ -4698,6 +4698,8 @@ en:
     In <b>status-based</b> mode, each status has a % Complete value associated with it. Changing status will change % Complete.
   setting_work_package_properties: "Work package properties"
   setting_work_package_startdate_is_adddate: "Use current date as start date for new work packages"
+  setting_work_package_done_date_custom_field_id: "Completion date field set when status changes to \"Done\""
+  setting_work_package_done_date_custom_field_id_blank: "— None (disabled) —"
   setting_work_packages_projects_export_limit: "Work packages / Projects export limit"
   setting_journal_aggregation_time_minutes: "User actions aggregated within"
   setting_log_requesting_user: "Log user login, name, and mail address for all requests"
