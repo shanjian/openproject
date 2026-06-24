@@ -393,7 +393,7 @@ export class WorkPackageSingleViewComponent extends UntilDestroyedMixin implemen
   private getDateField(change:WorkPackageChangeset):FieldDescriptor {
     const object:FieldDescriptor = {
       name: 'date',
-      label: this.I18n.t('js.work_packages.properties.date'),
+      label: this.I18n.t('js.work_packages.properties.scheduledDates'),
       spanAll: false,
       multiple: false,
     };

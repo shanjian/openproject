@@ -972,6 +972,7 @@ en:
         createdAt: "Created on"
         description: "Description"
         date: "Date"
+        scheduledDates: "Scheduled dates"
         percentComplete: "% Complete"
         percentCompleteAlternative: "Progress"
         dueDate: "Due date"
