@@ -90,6 +90,8 @@ export class UserAutocompleterComponent extends OpAutocompleterComponent<IUserAu
 
   @Input() public additionalOptions:IUserAutocompleteItem[]|null = null;
 
+  @Input() public assignToMe = false;
+
   @Output() public userInvited = new EventEmitter<HalResource>();
 
   readonly opInviteUserDialogService = inject(OpInviteUserDialogService);
@@ -103,6 +105,7 @@ export class UserAutocompleterComponent extends OpAutocompleterComponent<IUserAu
       inviteUserToProject: this.inviteUserToProject,
       isOpenedInModal: this.isOpenedInModal,
       hoverCards: this.hoverCards,
+      assignToMe: this.assignToMe,
     });
 
     this

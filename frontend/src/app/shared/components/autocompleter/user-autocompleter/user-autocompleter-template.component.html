@@ -23,6 +23,22 @@
     >{{ item.email }}</span>
   }
 </ng-template>
+@if (assignToMe) {
+  <ng-template #headerTemplate>
+    @if (showAssignToMe) {
+      <button
+        class="op-select-footer--label op-user-autocompleter--assign-to-me"
+        type="button"
+        (click)="onAssignToMe($event)"
+        >
+        <span class="icon-context">
+          <op-icon icon-classes="icon-assigned-to-me icon-context" />
+          {{ text.assignToMe }}
+        </span>
+      </button>
+    }
+  </ng-template>
+}
 @if (inviteUserToProject) {
   <ng-template #footerTemplate>
     <op-invite-user-button [projectId]="inviteUserToProject"
