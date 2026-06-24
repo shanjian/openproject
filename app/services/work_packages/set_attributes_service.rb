@@ -178,6 +178,7 @@ class WorkPackages::SetAttributesService < BaseServices::SetAttributes
   def set_default_attributes(attributes)
     set_default_priority
     set_default_author
+    set_default_responsible
     set_default_status
     set_default_start_date(attributes)
     set_default_due_date(attributes)
@@ -189,6 +190,15 @@ class WorkPackages::SetAttributesService < BaseServices::SetAttributes
 
   def set_default_author
     work_package.author ||= user
+  end
+
+  def set_default_responsible
+    return if work_package.responsible
+    return unless work_package.author && work_package.project
+
+    if Principal.possible_assignee(work_package.project).exists?(id: work_package.author_id)
+      work_package.responsible = work_package.author
+    end
   end
 
   def set_default_status
