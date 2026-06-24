@@ -662,7 +662,7 @@ RSpec.describe API::V3::Queries::QueryRepresenter do
       let :due_date do
         {
           href: "/api/v3/queries/columns/dueDate",
-          title: "Finish date"
+          title: "Due date"
         }
       end
 

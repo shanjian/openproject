@@ -1309,6 +1309,15 @@ module Settings
       work_package_startdate_is_adddate: {
         default: false
       },
+      # When set to the id of a date work-package custom field, moving a work
+      # package to a status named "Done" stamps that custom field with the
+      # current date, so it reflects the actual completion date. Only applies to
+      # the "Done" status, not to other closed statuses (e.g. "Closed",
+      # "Rejected"). Leave blank to disable.
+      work_package_done_date_custom_field_id: {
+        format: :string,
+        default: nil
+      },
       working_days: {
         description: "Set working days of the week (Array of 1 to 7, where 1=Monday, 7=Sunday)",
         format: :array,

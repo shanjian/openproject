@@ -236,6 +236,16 @@ class WorkPackage < ApplicationRecord
     Setting.percent_complete_on_status_closed == "set_100p"
   end
 
+  # The date custom field, if any, that should be stamped with the current date
+  # when a work package moves to the "Done" status. Returns nil when the feature
+  # is disabled or the configured field no longer exists / is not a date field.
+  def self.done_date_custom_field
+    id = Setting.work_package_done_date_custom_field_id.presence
+    return if id.blank?
+
+    WorkPackageCustomField.where(field_format: "date").find_by(id:)
+  end
+
   def self.epic_source_type?(type_or_name)
     type_name_in?(type_or_name, EPIC_SOURCE_TYPE_NAMES)
   end

@@ -227,7 +227,7 @@ RSpec.describe "filter work packages", :js do
     it "allows filtering, saving and retrieving and altering the saved filter" do
       filters.open
 
-      filters.add_filter_by("Finish date",
+      filters.add_filter_by("Due date",
                             "between",
                             [1.day.ago.strftime("%Y-%m-%d"), Date.current.strftime("%Y-%m-%d")],
                             "dueDate")
@@ -253,12 +253,12 @@ RSpec.describe "filter work packages", :js do
 
       filters.open
 
-      filters.expect_filter_by("Finish date",
+      filters.expect_filter_by("Due date",
                                "between",
                                [1.day.ago.strftime("%Y-%m-%d"), Date.current.strftime("%Y-%m-%d")],
                                "dueDate")
 
-      filters.set_filter "Finish date", "in more than", "1", "dueDate"
+      filters.set_filter "Due date", "in more than", "1", "dueDate"
 
       loading_indicator_saveguard
       wp_table.expect_work_package_listed work_package_without_due_date

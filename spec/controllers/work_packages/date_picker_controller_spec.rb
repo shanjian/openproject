@@ -252,7 +252,7 @@ RSpec.describe WorkPackages::DatePickerController do
         expect(response.body).to include('delay="500"')
 
         expected_message = "Date picker updated. Scheduling mode: Manual, working days only, " +
-          "Start date: 2025-04-15, Finish date: 2025-04-21, Duration: 5 days"
+          "Start date: 2025-04-15, Due date: 2025-04-21, Duration: 5 days"
         expect(response.body).to include("message=\"#{expected_message}\"")
       end
     end

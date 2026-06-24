@@ -50,8 +50,8 @@ RSpec.describe "mobile date filter work packages", :js do
   context "when filtering between finish date" do
     it "allows filtering, saving and retrieving and altering the saved filter" do
       filters.open
-      filters.add_filter("Finish date")
-      filters.set_operator("Finish date", "between", "dueDate")
+      filters.add_filter("Due date")
+      filters.set_operator("Due date", "between", "dueDate")
 
       start_field = find_test_selector("op-basic-range-date-picker-start")
       end_field = find_test_selector("op-basic-range-date-picker-end")
@@ -83,8 +83,8 @@ RSpec.describe "mobile date filter work packages", :js do
   context "when filtering on finish date" do
     it "allows filtering, saving and retrieving and altering the saved filter" do
       filters.open
-      filters.add_filter("Finish date")
-      filters.set_operator("Finish date", "on", "dueDate")
+      filters.add_filter("Due date")
+      filters.set_operator("Due date", "on", "dueDate")
 
       date_field = find_field "values-dueDate"
       expect(date_field["type"]).to eq "date"

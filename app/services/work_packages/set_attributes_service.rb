@@ -79,6 +79,7 @@ class WorkPackages::SetAttributesService < BaseServices::SetAttributes
     update_duration_to_one_day_for_milestones
     update_derivable_date_attribute
     update_progress_attributes
+    set_done_date_custom_field
     update_project_dependent_attributes
     reassign_invalid_status_if_type_changed
     set_templated_description
@@ -335,6 +336,24 @@ class WorkPackages::SetAttributesService < BaseServices::SetAttributes
 
   def update_duration_to_one_day_for_milestones
     work_package.duration = 1 if work_package.milestone?
+  end
+
+  # When the work package is moved to the "Done" status and a date custom field
+  # has been configured for it, stamp that custom field with the current date so
+  # it reflects the actual completion date.
+  #
+  # Skips silently when the feature is disabled or the configured custom field is
+  # not available on this work package (not enabled for its type/project).
+  def set_done_date_custom_field
+    return unless work_package.becoming_done?
+
+    custom_field = WorkPackage.done_date_custom_field
+    return unless custom_field
+
+    setter = "custom_field_#{custom_field.id}="
+    return unless work_package.respond_to?(setter)
+
+    work_package.public_send(setter, Time.zone.today)
   end
 
   def update_progress_attributes

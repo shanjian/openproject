@@ -54,7 +54,7 @@ RSpec.describe "Team planner",
     filters.open_available_filter_list
     filters.expect_available_filter "Author", present: true
     filters.expect_available_filter "Subject", present: true
-    filters.expect_available_filter "Finish date", present: false
+    filters.expect_available_filter "Due date", present: false
     filters.expect_available_filter "Start date", present: false
     filters.expect_available_filter "Assignee", present: false
     filters.expect_available_filter "Assignee or belonging group", present: false
