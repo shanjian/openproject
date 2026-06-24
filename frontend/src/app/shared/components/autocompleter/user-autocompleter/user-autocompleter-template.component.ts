@@ -27,7 +27,8 @@
 //++
 
 import { ChangeDetectionStrategy, Component, inject, Input, OnInit, TemplateRef, ViewChild } from '@angular/core';
-import { take } from 'rxjs/operators';
+import { catchError, map, take } from 'rxjs/operators';
+import { of } from 'rxjs';
 import {
   IAutocompleterTemplateComponent,
   OpAutocompleterComponent,
@@ -38,6 +39,9 @@ import { hrefFromPrincipal, typeFromHref } from 'core-app/shared/components/prin
 import { CurrentUserService } from 'core-app/core/current-user/current-user.service';
 import { ApiV3Service } from 'core-app/core/apiv3/api-v3.service';
 import { I18nService } from 'core-app/core/i18n/i18n.service';
+import { ApiV3FilterBuilder } from 'core-app/shared/helpers/api-v3/api-v3-filter-builder';
+import { addFiltersToPath } from 'core-app/core/apiv3/helpers/add-filters-to-path';
+import { IHALCollection } from 'core-app/core/apiv3/types/hal-collection.type';
 import {
   IUserAutocompleteItem,
 } from 'core-app/shared/components/autocompleter/user-autocompleter/user-autocompleter.component';
@@ -67,6 +71,17 @@ export class UserAutocompleterTemplateComponent implements IAutocompleterTemplat
   /** The current user as an autocompleter item, or null when not logged in */
   currentUserItem:IUserAutocompleteItem|null = null;
 
+  /**
+   * Whether the current user is an allowed assignee of this work package.
+   *
+   * Optimistically `true` so the action shows without waiting for the check
+   * (the common case). A background query against the field's allowed-values
+   * endpoint flips it to `false` for the rare user who may edit the work
+   * package but is not assignable, hiding the action instead of submitting an
+   * invalid assignee.
+   */
+  currentUserAssignable = true;
+
   @ViewChild('optionTemplate') optionTemplate:TemplateRef<Element>;
   @ViewChild('headerTemplate') headerTemplate?:TemplateRef<Element>;
   @ViewChild('footerTemplate') footerTemplate?:TemplateRef<Element>;
@@ -87,13 +102,14 @@ export class UserAutocompleterTemplateComponent implements IAutocompleterTemplat
             name: user.name ?? '',
             href: this.apiV3Service.users.id(user.id).path,
           };
+          this.checkCurrentUserAssignable(user.id);
         }
       });
   }
 
-  /** Whether to render the "Assign to me" footer action */
+  /** Whether to render the "Assign to me" action */
   public get showAssignToMe():boolean {
-    if (!this.assignToMe || !this.currentUserItem) {
+    if (!this.assignToMe || !this.currentUserItem || !this.currentUserAssignable) {
       return false;
     }
 
@@ -104,12 +120,41 @@ export class UserAutocompleterTemplateComponent implements IAutocompleterTemplat
   public onAssignToMe($event:Event):void {
     $event.stopPropagation();
 
-    if (!this.currentUserItem) {
+    if (!this.currentUserItem || !this.currentUserAssignable) {
       return;
     }
 
     this.autocompleter.changed(this.currentUserItem);
     this.autocompleter.closeSelect();
+  }
+
+  /**
+   * Verify the current user is among the field's allowed assignees. Runs in the
+   * background, concurrently with the dropdown's own list load, so it adds no
+   * latency to showing the action or to assigning.
+   */
+  private checkCurrentUserAssignable(userId:string):void {
+    if (!this.autocompleter.url) {
+      return;
+    }
+
+    const filters = new ApiV3FilterBuilder();
+    filters.add('id', '=', [userId]);
+    const url = addFiltersToPath(this.autocompleter.url, filters);
+    url.searchParams.set('pageSize', '1');
+    url.searchParams.set('select', 'total');
+
+    this.autocompleter.http
+      .get<IHALCollection<unknown>>(url.toString())
+      .pipe(
+        map((collection) => collection.total > 0),
+        // On any error leave the action visible and fall back to backend validation
+        catchError(() => of(true)),
+      )
+      .subscribe((assignable) => {
+        this.currentUserAssignable = assignable;
+        this.autocompleter.cdRef.markForCheck();
+      });
   }
 
   public getHoverCardUrl(principal:PrincipalLike) {
