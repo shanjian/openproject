@@ -495,6 +495,88 @@ RSpec.describe WorkPackages::SetAttributesService,
     end
   end
 
+  context "for responsible (accountable)" do
+    let(:other_user) { build_stubbed(:user) }
+    let(:author_assignable) { true }
+    let(:assignable_responsibles) { instance_double(ActiveRecord::Relation) }
+    let(:work_package) do
+      wp = WorkPackage.new(project:)
+      wp.clear_changes_information
+
+      wp
+    end
+
+    before do
+      allow(Principal).to receive(:possible_assignee).with(project).and_return(assignable_responsibles)
+      allow(assignable_responsibles).to receive(:exists?).and_return(author_assignable)
+    end
+
+    context "with no value set before for a new work package and the author being assignable" do
+      let(:call_attributes) { {} }
+      let(:expected_attributes) { {} }
+
+      it_behaves_like "service call" do
+        it "defaults responsible to the author (which is the service's user)" do
+          subject
+
+          expect(work_package.responsible).to eql user
+        end
+
+        it "notes the responsible to be system changed" do
+          subject
+
+          expect(work_package.changed_by_system["responsible_id"]).to eql [nil, user.id]
+        end
+      end
+    end
+
+    context "with no value set before for a new work package and the author not being assignable" do
+      let(:call_attributes) { {} }
+      let(:expected_attributes) { {} }
+      let(:author_assignable) { false }
+
+      it_behaves_like "service call" do
+        it "leaves responsible blank" do
+          subject
+
+          expect(work_package.responsible).to be_nil
+        end
+      end
+    end
+
+    context "when responsible is already set on a new work package" do
+      let(:call_attributes) { expected_attributes }
+      let(:expected_attributes) { { responsible: other_user } }
+
+      it_behaves_like "service call" do
+        it "keeps the provided responsible" do
+          subject
+
+          expect(work_package.responsible).to eql other_user
+        end
+      end
+    end
+
+    context "with no value set on an existing work package" do
+      let(:call_attributes) { {} }
+      let(:expected_attributes) { {} }
+      let(:work_package) do
+        wp = build_stubbed(:work_package, project:, author: user, responsible: nil)
+        wp.clear_changes_information
+
+        wp
+      end
+
+      it_behaves_like "service call" do
+        it "does not default responsible (only happens on create)" do
+          subject
+
+          expect(work_package.responsible).to be_nil
+        end
+      end
+    end
+  end
+
   context "with the actual contract" do
     let(:invalid_wp) do
       build(:work_package, subject: "").tap do |wp|
