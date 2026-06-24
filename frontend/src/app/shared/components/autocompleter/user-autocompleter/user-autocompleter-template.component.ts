@@ -26,13 +26,21 @@
 // See COPYRIGHT and LICENSE files for more details.
 //++
 
-import { ChangeDetectionStrategy, Component, Input, TemplateRef, ViewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, Input, OnInit, TemplateRef, ViewChild } from '@angular/core';
+import { take } from 'rxjs/operators';
 import {
   IAutocompleterTemplateComponent,
+  OpAutocompleterComponent,
 } from 'core-app/shared/components/autocompleter/op-autocompleter/op-autocompleter.component';
 import { PathHelperService } from 'core-app/core/path-helper/path-helper.service';
 import { PrincipalLike } from 'core-app/shared/components/principal/principal-types';
 import { hrefFromPrincipal, typeFromHref } from 'core-app/shared/components/principal/principal-helper';
+import { CurrentUserService } from 'core-app/core/current-user/current-user.service';
+import { ApiV3Service } from 'core-app/core/apiv3/api-v3.service';
+import { I18nService } from 'core-app/core/i18n/i18n.service';
+import {
+  IUserAutocompleteItem,
+} from 'core-app/shared/components/autocompleter/user-autocompleter/user-autocompleter.component';
 
 @Component({
   templateUrl: './user-autocompleter-template.component.html',
@@ -40,15 +48,69 @@ import { hrefFromPrincipal, typeFromHref } from 'core-app/shared/components/prin
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: false,
 })
-export class UserAutocompleterTemplateComponent implements IAutocompleterTemplateComponent {
+export class UserAutocompleterTemplateComponent implements IAutocompleterTemplateComponent, OnInit {
   @Input() public inviteUserToProject:string|undefined;
   @Input() public isOpenedInModal = false;
   @Input() public hoverCards = true;
+  @Input() public assignToMe = false;
 
-  constructor(private readonly pathHelperService:PathHelperService) {}
+  readonly I18n = inject(I18nService);
+  readonly currentUserService = inject(CurrentUserService);
+  readonly apiV3Service = inject(ApiV3Service);
+  readonly autocompleter = inject(OpAutocompleterComponent);
+  private readonly pathHelperService = inject(PathHelperService);
+
+  text = {
+    assignToMe: this.I18n.t('js.label_assign_to_me'),
+  };
+
+  /** The current user as an autocompleter item, or null when not logged in */
+  currentUserItem:IUserAutocompleteItem|null = null;
 
   @ViewChild('optionTemplate') optionTemplate:TemplateRef<Element>;
+  @ViewChild('headerTemplate') headerTemplate?:TemplateRef<Element>;
   @ViewChild('footerTemplate') footerTemplate?:TemplateRef<Element>;
+
+  public ngOnInit():void {
+    if (!this.assignToMe) {
+      return;
+    }
+
+    this
+      .currentUserService
+      .user$
+      .pipe(take(1))
+      .subscribe((user) => {
+        if (user.id) {
+          this.currentUserItem = {
+            id: user.id,
+            name: user.name ?? '',
+            href: this.apiV3Service.users.id(user.id).path,
+          };
+        }
+      });
+  }
+
+  /** Whether to render the "Assign to me" footer action */
+  public get showAssignToMe():boolean {
+    if (!this.assignToMe || !this.currentUserItem) {
+      return false;
+    }
+
+    const model = this.autocompleter.model as IUserAutocompleteItem|undefined|null;
+    return model?.href !== this.currentUserItem.href;
+  }
+
+  public onAssignToMe($event:Event):void {
+    $event.stopPropagation();
+
+    if (!this.currentUserItem) {
+      return;
+    }
+
+    this.autocompleter.changed(this.currentUserItem);
+    this.autocompleter.closeSelect();
+  }
 
   public getHoverCardUrl(principal:PrincipalLike) {
     if (!this.hoverCards || !principal.id) { return ''; }
