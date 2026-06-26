@@ -30,6 +30,7 @@ import {
   FilterOperator,
 } from 'core-app/shared/helpers/api-v3/api-v3-filter-builder';
 import { I18nService } from 'core-app/core/i18n/i18n.service';
+import { CurrentUserService } from 'core-app/core/current-user/current-user.service';
 
 interface QuickFilterOption {
   key:string;
@@ -74,6 +75,8 @@ export class BoardFilterComponent extends UntilDestroyedMixin implements AfterVi
   initialized = false;
 
   private readonly cdRef = inject(ChangeDetectorRef);
+
+  private readonly currentUserService = inject(CurrentUserService);
 
   constructor(private readonly I18n:I18nService,
     private readonly currentProjectService:CurrentProjectService,
@@ -206,6 +209,8 @@ export class BoardFilterComponent extends UntilDestroyedMixin implements AfterVi
       console.error('Failed to load board quick filter options', error);
     }
 
+    const currentUserId = (await firstValueFrom(this.currentUserService.user$))?.id ?? null;
+
     // The component may have been torn down while the options were loading.
     if (this.componentDestroyed) {
       return;
@@ -213,9 +218,7 @@ export class BoardFilterComponent extends UntilDestroyedMixin implements AfterVi
 
     this.assigneeOptions = [
       ...assigneeFallback,
-      ...assignees
-        .filter((assignee) => this.assigneeOptionAllowed(assignee))
-        .map((assignee) => this.resourceFilterOption(assignee)),
+      ...this.assigneeFilterOptions(assignees, currentUserId),
     ];
 
     this.versionOptions = [
@@ -231,6 +234,27 @@ export class BoardFilterComponent extends UntilDestroyedMixin implements AfterVi
     // view directly so the quick-filter selects render the loaded options
     // instead of only the synchronously-set fallbacks.
     this.cdRef.detectChanges();
+  }
+
+  // Builds the assignee quick-filter options, pinning the current user to the
+  // top of the list (right after the fixed "all" / "unassigned" entries) so
+  // users can quickly filter the board to their own work packages.
+  private assigneeFilterOptions(assignees:HalResource[], currentUserId:string|null):QuickFilterOption[] {
+    const options = assignees
+      .filter((assignee) => this.assigneeOptionAllowed(assignee))
+      .map((assignee) => this.resourceFilterOption(assignee));
+
+    if (!currentUserId) {
+      return options;
+    }
+
+    const currentUserIndex = options.findIndex((option) => option.identifier === currentUserId);
+    if (currentUserIndex <= 0) {
+      return options;
+    }
+
+    const [currentUserOption] = options.splice(currentUserIndex, 1);
+    return [currentUserOption, ...options];
   }
 
   private quickFilterOption(
