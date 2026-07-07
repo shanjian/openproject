@@ -77,6 +77,7 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
           startDate: rendered_work_package.start_date,
           storyPoints: nil,
           estimatedHours: nil,
+          lockVersion: rendered_work_package.lock_version,
           _links: {
             self: {
               href: api_v3_paths.work_package(rendered_work_package.id),
@@ -109,6 +110,12 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
               title: rendered_work_package.priority.name
             },
             epic: {
+              href: nil
+            },
+            version: {
+              href: nil
+            },
+            parent: {
               href: nil
             }
           }
@@ -131,6 +138,7 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
           date: rendered_work_package.start_date,
           storyPoints: nil,
           estimatedHours: nil,
+          lockVersion: rendered_work_package.lock_version,
           _links: {
             self: {
               href: api_v3_paths.work_package(rendered_work_package.id),
@@ -163,6 +171,12 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
               title: rendered_work_package.priority.name
             },
             epic: {
+              href: nil
+            },
+            version: {
+              href: nil
+            },
+            parent: {
               href: nil
             }
           }
@@ -364,6 +378,82 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
       it "renders without raising an ambiguous-column error" do
         expect { json }.not_to raise_error
       end
+    end
+  end
+
+  describe "version link" do
+    let(:select) { { "version" => {} } }
+
+    context "with a version" do
+      let(:version) { create(:version, project:, name: "Sprint 1") }
+
+      before { rendered_work_package.update_column(:version_id, version.id) }
+
+      let(:expected) do
+        { _links: { version: { href: api_v3_paths.version(version.id), title: "Sprint 1" } } }
+      end
+
+      it "renders the version link with the version's name" do
+        expect(json).to be_json_eql(expected.to_json)
+      end
+    end
+
+    context "without a version" do
+      let(:expected) { { _links: { version: { href: nil } } } }
+
+      it "renders a null version link" do
+        expect(json).to be_json_eql(expected.to_json)
+      end
+    end
+  end
+
+  describe "parent link" do
+    let(:select) { { "parent" => {} } }
+
+    context "with a parent" do
+      let(:parent) { create(:work_package, project:, subject: "Parent story") }
+
+      before { rendered_work_package.update_column(:parent_id, parent.id) }
+
+      let(:expected) do
+        { _links: { parent: { href: api_v3_paths.work_package(parent.id), title: "Parent story" } } }
+      end
+
+      it "renders the parent link with the parent's subject" do
+        expect(json).to be_json_eql(expected.to_json)
+      end
+    end
+
+    context "without a parent" do
+      let(:expected) { { _links: { parent: { href: nil } } } }
+
+      it "renders a null parent link" do
+        expect(json).to be_json_eql(expected.to_json)
+      end
+    end
+
+    # Same derived-table reasoning as the epic link: selecting parent (a
+    # work_packages self-join) alongside epic and the user links must not raise
+    # PG::AmbiguousColumn.
+    context "when selected together with epic and the user links" do
+      let(:select) do
+        { "parent" => {}, "epic" => {}, "assignee" => {}, "author" => {}, "responsible" => {} }
+      end
+      let(:assignee) { create(:user) }
+      let(:responsible) { create(:user) }
+
+      it "renders without raising an ambiguous-column error" do
+        expect { json }.not_to raise_error
+      end
+    end
+  end
+
+  describe "lockVersion property" do
+    let(:select) { { "lockVersion" => {} } }
+
+    it "renders the raw lock_version" do
+      rendered_work_package.update_column(:lock_version, 3)
+      expect(json).to be_json_eql({ lockVersion: 3 }.to_json)
     end
   end
 end

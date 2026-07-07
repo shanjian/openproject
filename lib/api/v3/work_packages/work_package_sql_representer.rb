@@ -124,6 +124,49 @@ module API
                select: ["epics.subject epic_subject"]
              }
 
+        # Version (sprint/release) link for backlog cards. version_id is nullable,
+        # so render a null href when unset (mirrors the priority/epic links). The
+        # default join alias for a `version` link is `versions` (name.pluralize),
+        # which matches the joined table.
+        link :version,
+             href: ->(*) {
+               <<~SQL.squish
+                 CASE WHEN version_id IS NULL THEN NULL
+                 ELSE format('#{api_v3_paths.version('%s')}', version_id)
+                 END
+               SQL
+             },
+             title: -> { "version_name" },
+             join: {
+               table: :versions,
+               condition: "versions.id = work_packages.version_id",
+               select: ["versions.name version_name"]
+             }
+
+        # Parent link for backlog cards (the client renders the parent as the
+        # "Epic" field). parent_id is nullable -> null href when unset. Uses the
+        # same derived-table self-join trick as the epic link above: a bare
+        # work_packages self-join would make the unqualified user-link columns
+        # (assigned_to_id, author_id, responsible_id) ambiguous and 500 the whole
+        # collection, so the join target is restricted to (id, subject). Like epic
+        # this does NOT filter parent visibility - acceptable because the backlog
+        # only renders work packages the user can already see.
+        link :parent,
+             href: ->(*) {
+               <<~SQL.squish
+                 CASE WHEN parent_id IS NULL THEN NULL
+                 ELSE format('#{api_v3_paths.work_package('%s')}', parent_id)
+                 END
+               SQL
+             },
+             title: -> { "parent_subject" },
+             join: {
+               table: "(SELECT id, subject FROM work_packages)",
+               alias: :parents,
+               condition: "parents.id = work_packages.parent_id",
+               select: ["parents.subject parent_subject"]
+             }
+
         property :_type,
                  representation: ->(*) { "'WorkPackage'" }
 
@@ -157,6 +200,10 @@ module API
         property :storyPoints, column: :story_points
 
         property :estimatedHours, column: :estimated_hours
+
+        # Optimistic-locking token. The client needs it to PATCH a card (e.g. move
+        # it to a sprint) without a stale-lock 409. Bare column, like storyPoints.
+        property :lockVersion, column: :lock_version
       end
     end
   end
