@@ -28,7 +28,8 @@
 //++
 
 import copy from 'copy-text-to-clipboard';
-import { Component, Inject, Input } from '@angular/core';
+import { Component, Inject, Input, inject } from '@angular/core';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { GitActionsService } from '../git-actions/git-actions.service';
 import { ISnippet } from "core-app/features/plugins/linked/openproject-gitlab_integration/typings";
 import { WorkPackageResource } from "core-app/features/hal/resources/work-package-resource";
@@ -38,6 +39,14 @@ import {
   OpContextMenuLocalsToken
 } from "core-app/shared/components/op-context-menu/op-context-menu.types";
 import { I18nService } from "core-app/core/i18n/i18n.service";
+import { ApiV3Service } from 'core-app/core/apiv3/api-v3.service';
+import { ToastService } from 'core-app/shared/components/toaster/toast.service';
+
+interface ICreateBranchResponse {
+  branch:string;
+  webUrl:string|null;
+  alreadyExisted:boolean;
+}
 
 
 @Component({
@@ -57,12 +66,20 @@ export class GitActionsMenuComponent extends OPContextMenuComponent {
     copyResult: {
       success: this.I18n.t('js.gitlab_integration.tab_header_mr.git_actions.copy_success'),
       error: this.I18n.t('js.gitlab_integration.tab_header_mr.git_actions.copy_error')
-    }
+    },
+    createBranch: this.I18n.t('js.gitlab_integration.tab_header_mr.git_actions.create_branch'),
+    createBranchSuccess: this.I18n.t('js.gitlab_integration.tab_header_mr.git_actions.create_branch_success'),
+    createBranchExists: this.I18n.t('js.gitlab_integration.tab_header_mr.git_actions.create_branch_exists'),
   };
 
   public lastCopyResult:string = this.text.copyResult.success;
   public showCopyResult:boolean = false;
   public copiedSnippetId:string = '';
+  public creatingBranch = false;
+
+  private readonly apiV3Service = inject(ApiV3Service);
+  private readonly toastService = inject(ToastService);
+  private readonly http = inject(HttpClient);
 
   public snippets:ISnippet[] = [
     {
@@ -91,6 +108,29 @@ export class GitActionsMenuComponent extends OPContextMenuComponent {
               readonly gitActions:GitActionsService) {
     super(locals);
     this.workPackage = this.locals.workPackage;
+  }
+
+  public createBranch():void {
+    if (this.creatingBranch) {
+      return;
+    }
+
+    this.creatingBranch = true;
+    const path = `${this.apiV3Service.work_packages.id(this.workPackage.id!).path}/gitlab/branches`;
+
+    this.http
+      .post<ICreateBranchResponse>(path, {}, { withCredentials: true })
+      .subscribe({
+        next: (response) => {
+          this.creatingBranch = false;
+          const message = response.alreadyExisted ? this.text.createBranchExists : this.text.createBranchSuccess;
+          this.toastService.addSuccess(`${message} ${response.branch}`);
+        },
+        error: (error:HttpErrorResponse) => {
+          this.creatingBranch = false;
+          this.toastService.addError(error);
+        },
+      });
   }
 
   public onCopyButtonClick(snippet:ISnippet):void {

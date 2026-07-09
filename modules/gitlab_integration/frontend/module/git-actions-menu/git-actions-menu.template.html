@@ -20,4 +20,13 @@
       </label>
     </div>
   }
+
+  <div class="create-branch-wrapper">
+    <button class="button -primary"
+      type="button"
+      [disabled]="creatingBranch"
+      (click)="createBranch()">
+      <span class="button--text" [textContent]="text.createBranch"></span>
+    </button>
+  </div>
 </div>

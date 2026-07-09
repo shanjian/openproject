@@ -2,10 +2,11 @@
 
 This guide documents the features and behavior changes added **on top of OpenProject 17.1.2** in this build. Each section is self‑contained — read or search for just the one you need.
 
-Two larger features have their own dedicated guides:
+Some larger features have their own dedicated guides:
 
 - **[Releases](RELEASE_FEATURE_GUIDE.md)** — group work packages into a deliverable, track readiness, and ship it (separate from Sprints).
 - **[Epics](EPIC_FEATURE_GUIDE.md)** — group work packages under an initiative, across projects (Jira‑style Epic link).
+- **[Create a GitLab branch from a work package](GITLAB_CREATE_BRANCH_FEATURE_GUIDE.md)** — one‑click branch creation in GitLab, named after the work package.
 
 Everything else is below.
 
