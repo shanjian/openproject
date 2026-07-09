@@ -58,18 +58,24 @@ RSpec.describe GitlabUserToken do
     expect { deletable.destroy }.to change(described_class, :count).by(-1)
   end
 
-  context "when a database cipher key is configured" do
-    before do
+  describe "encryption at rest" do
+    # The token must be encrypted regardless of the optional database_cipher_key
+    # setting, because it uses secret_key_base (not Redmine::Ciphering).
+    it "does not persist the raw token even without a database cipher key" do
       allow(OpenProject::Configuration).to receive(:[]).and_call_original
-      allow(OpenProject::Configuration).to receive(:[]).with("database_cipher_key").and_return("a-test-cipher-key")
-    end
+      allow(OpenProject::Configuration).to receive(:[]).with("database_cipher_key").and_return(nil)
 
-    it "does not persist the raw token and still decrypts it" do
       record = described_class.create!(user:, token: "glpat-secret")
 
-      expect(record.read_attribute(:token)).to start_with("aes-256-cbc:")
       expect(record.read_attribute(:token)).not_to include("glpat-secret")
       expect(record.reload.token).to eq("glpat-secret")
+    end
+
+    it "returns nil rather than raising if the stored ciphertext is unreadable" do
+      record = described_class.create!(user:, token: "glpat-secret")
+      record.update_column(:token, "not-a-valid-ciphertext")
+
+      expect(record.reload.token).to be_nil
     end
   end
 end

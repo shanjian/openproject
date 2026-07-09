@@ -83,9 +83,16 @@ Good news: there is an established pattern for outbound calls — `OpenProject.h
   > `write_repository` only authenticates Git-over-HTTP, not the REST API. Branch
   > creation uses the REST Branches API (`POST /projects/:id/repository/branches`),
   > which requires the `api` scope.
-- Storage: table `gitlab_user_tokens`, encrypted at rest via
-  `Redmine::Ciphering` ([model](modules/gitlab_integration/app/models/gitlab_user_token.rb)).
-  A raw PAT (not an OAuth flow) fits a small dedicated table best.
+- Storage: table `gitlab_user_tokens`
+  ([model](modules/gitlab_integration/app/models/gitlab_user_token.rb)). A raw
+  PAT (not an OAuth flow) fits a small dedicated table best.
+- **Always encrypted at rest.** The token is a write-capable credential, so it
+  is encrypted with `ActiveSupport::MessageEncryptor` (AES-256-GCM) using a key
+  derived from the app's `secret_key_base`. This is deliberately **not**
+  `Redmine::Ciphering` (used for repo/LDAP passwords), which silently falls back
+  to plaintext when the optional `database_cipher_key` is unset (its default).
+  `secret_key_base` is always present, so the PAT is never stored in the clear —
+  and saving is never blocked on encryption configuration.
 - The **PAT is never sent to the front-end**; it is only used server-side when
   making the outbound call.
 - UI: a self-contained "My account" page

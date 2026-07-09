@@ -29,21 +29,45 @@
 #++
 
 # A user's GitLab Personal Access Token (needs the `api` scope).
-# The token is stored ciphered and must never be exposed to the frontend.
+#
+# The token is a write-capable credential, so it is *always* encrypted at rest,
+# independent of the optional `database_cipher_key` setting: we use
+# ActiveSupport::MessageEncryptor (AES-256-GCM) with a key derived from the
+# application's `secret_key_base` (which is always present). This deliberately
+# does NOT use Redmine::Ciphering, because that falls back to plaintext when no
+# database cipher key is configured. The token is never exposed to the frontend.
 # See GITLAB_CREATE_BRANCH_DESIGN.md §2.3.
 class GitlabUserToken < ApplicationRecord
-  include Redmine::Ciphering
+  ENCRYPTOR_PURPOSE = "gitlab_integration/user_token"
 
   belongs_to :user
 
   validates :user_id, uniqueness: true
   validates :token, presence: true
 
+  class << self
+    def encryptor
+      @encryptor ||= begin
+        len = ActiveSupport::MessageEncryptor.key_len
+        key = ActiveSupport::KeyGenerator
+                .new(Rails.application.secret_key_base)
+                .generate_key(ENCRYPTOR_PURPOSE, len)
+        ActiveSupport::MessageEncryptor.new(key)
+      end
+    end
+  end
+
   def token
-    read_ciphered_attribute(:token)
+    encrypted = self[:token]
+    return if encrypted.blank?
+
+    self.class.encryptor.decrypt_and_verify(encrypted)
+  rescue ActiveSupport::MessageEncryptor::InvalidMessage
+    nil
   end
 
   def token=(value)
-    write_ciphered_attribute(:token, value.presence && value.strip)
+    stripped = value.presence&.strip
+    self[:token] = stripped && self.class.encryptor.encrypt_and_sign(stripped)
   end
 end
