@@ -30,6 +30,8 @@ module API
       class WorkPackageSqlRepresenter
         include API::Decorators::Sql::Hal
         include API::Decorators::Sql::HalAssociatedResource
+        # Adds `select=customFieldN` support (rendered only when selected, not via `*`).
+        include API::V3::WorkPackages::CustomFieldSqlRepresenter
 
         link :self,
              path: { api: :work_package, params: %w(id) },

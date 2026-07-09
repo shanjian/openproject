@@ -456,4 +456,66 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
       expect(json).to be_json_eql({ lockVersion: 3 }.to_json)
     end
   end
+
+  describe "custom field selects" do
+    let(:version_cf) { create(:wp_custom_field, field_format: "version", multi_value: true) }
+    let(:string_cf) { create(:wp_custom_field, field_format: "string") }
+    let(:type) { create(:type, custom_fields: [version_cf, string_cf]) }
+    let(:project) { create(:project, types: [type], work_package_custom_fields: [version_cf, string_cf]) }
+    let(:version_a) { create(:version, project:, name: "V-A") }
+    let(:version_b) { create(:version, project:, name: "V-B") }
+
+    before do
+      rendered_work_package.custom_field_values = {
+        version_cf.id => [version_a.id, version_b.id],
+        string_cf.id => "hello"
+      }
+      rendered_work_package.save!
+    end
+
+    context "with a multi-value version custom field" do
+      let(:select) { { "customField#{version_cf.id}" => {} } }
+      let(:expected) do
+        {
+          _links: {
+            "customField#{version_cf.id}" => [
+              { href: api_v3_paths.version(version_a.id), title: "V-A" },
+              { href: api_v3_paths.version(version_b.id), title: "V-B" }
+            ]
+          }
+        }
+      end
+
+      it "renders the linked values as an array of href/title under _links" do
+        expect(json).to be_json_eql(expected.to_json)
+      end
+    end
+
+    context "with a primitive (string) custom field" do
+      let(:select) { { "customField#{string_cf.id}" => {} } }
+
+      it "renders the raw value as a top-level property" do
+        expect(json).to be_json_eql({ "customField#{string_cf.id}" => "hello" }.to_json)
+      end
+    end
+
+    context "for a work package without a value" do
+      let(:empty_wp) { create(:work_package, project:, type:) }
+      let(:scope) { WorkPackage.where(id: empty_wp.id) }
+      let(:select) { { "customField#{version_cf.id}" => {} } }
+
+      it "renders an empty array for a multi-value linked field" do
+        expect(json).to be_json_eql({ _links: { "customField#{version_cf.id}" => [] } }.to_json)
+      end
+    end
+
+    context "when selecting * — custom fields must NOT be included" do
+      let(:select) { { "*" => {} } }
+
+      it "omits custom fields from the wildcard select" do
+        expect(json).not_to have_json_path("_links/customField#{version_cf.id}")
+        expect(json).not_to have_json_path("customField#{string_cf.id}")
+      end
+    end
+  end
 end
