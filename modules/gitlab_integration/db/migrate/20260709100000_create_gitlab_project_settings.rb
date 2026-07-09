@@ -5,7 +5,9 @@
 class CreateGitlabProjectSettings < ActiveRecord::Migration[8.0]
   def change
     create_table :gitlab_project_settings do |t|
-      t.references :project, null: false, foreign_key: true, index: { unique: true }
+      t.references :project, null: false,
+                             foreign_key: { on_delete: :cascade },
+                             index: { unique: true }
       # GitLab project identifier: either the numeric id or the URL-encoded
       # "namespace/project" path (GitLab's API accepts both as :id).
       t.string :gitlab_project_id, null: false

@@ -28,22 +28,27 @@
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-# A user's GitLab Personal Access Token (needs the `api` scope).
-# The token is stored ciphered and must never be exposed to the frontend.
-# See GITLAB_CREATE_BRANCH_DESIGN.md §2.3.
-class GitlabUserToken < ApplicationRecord
-  include Redmine::Ciphering
+require "spec_helper"
+require_module_spec_helper
 
-  belongs_to :user
+RSpec.describe GitlabProjectSettings do
+  shared_let(:project) { create(:project) }
 
-  validates :user_id, uniqueness: true
-  validates :token, presence: true
-
-  def token
-    read_ciphered_attribute(:token)
+  it "requires a gitlab_project_id" do
+    expect(described_class.new(project:, gitlab_project_id: nil)).not_to be_valid
   end
 
-  def token=(value)
-    write_ciphered_attribute(:token, value.presence && value.strip)
+  it "allows only one row per project" do
+    described_class.create!(project:, gitlab_project_id: "1")
+    duplicate = described_class.new(project:, gitlab_project_id: "2")
+
+    expect(duplicate).not_to be_valid
+  end
+
+  it "is removed when its project is deleted (FK cascade)" do
+    deletable = create(:project)
+    described_class.create!(project: deletable, gitlab_project_id: "42")
+
+    expect { deletable.destroy }.to change(described_class, :count).by(-1)
   end
 end

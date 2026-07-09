@@ -30,7 +30,7 @@
 
 module GitlabIntegration
   # "My account" page where each user stores their own GitLab Personal Access
-  # Token (needs the `write_repository` scope). The token is only ever written,
+  # Token (needs the `api` scope). The token is only ever written,
   # never rendered back to the browser.
   class MyGitlabTokenController < ::ApplicationController
     before_action :require_login

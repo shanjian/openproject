@@ -40,14 +40,14 @@ Good news: there is an established pattern for outbound calls — `OpenProject.h
 
 | Topic | Decision | Rationale |
 |---|---|---|
-| Write credential | **Per-user PAT** (requires the `write_repository` scope) | Branches are created as the real user; cleanest GitLab-side audit & permissions |
+| Write credential | **Per-user PAT** (requires the `api` scope) | Branches are created as the real user; cleanest GitLab-side audit & permissions |
 | GitLab project mapping | **Configured explicitly in the OpenProject project settings** | Works even for a brand-new work package with no MR activity; configured once per project |
 | Outbound client | Reuse `OpenProject.httpx` | Consistent with the GitHub integration |
 | GitLab instance address | **Single global admin setting** (single-instance assumption) | Bounds the SSRF surface; the project level stores only the project ID/path |
 | GitLab instance count | **Single instance** | Multi-instance would require a host allowlist; deferred |
 | Branch start ref | **Default branch** | Project setting may pin a ref; blank → query the project's `default_branch` at runtime |
 | Permission | **Reuse `show_gitlab_content`** for the create action | Real write permission is enforced by the GitLab PAT anyway |
-| Error UX | **Include a docs link** | On an invalid/insufficient token, the error names the `write_repository` scope and links the GitLab PAT docs |
+| Error UX | **Include a docs link** | On an invalid/insufficient token, the error names the `api` scope and links the GitLab PAT docs |
 
 ---
 
@@ -78,7 +78,11 @@ Good news: there is an established pattern for outbound calls — `OpenProject.h
   permission ([controller](modules/gitlab_integration/app/controllers/projects/settings/gitlab_controller.rb)).
 
 ### 2.3 Per user (My account → GitLab token)
-- Each user enters their own GitLab PAT (`write_repository`).
+- Each user enters their own GitLab PAT with the **`api`** scope.
+  > Note: **not** `write_repository`. Per GitLab's token-scope docs,
+  > `write_repository` only authenticates Git-over-HTTP, not the REST API. Branch
+  > creation uses the REST Branches API (`POST /projects/:id/repository/branches`),
+  > which requires the `api` scope.
 - Storage: table `gitlab_user_tokens`, encrypted at rest via
   `Redmine::Ciphering` ([model](modules/gitlab_integration/app/models/gitlab_user_token.rb)).
   A raw PAT (not an OAuth flow) fits a small dedicated table best.
@@ -117,7 +121,7 @@ Good news: there is an established pattern for outbound calls — `OpenProject.h
    6. Map the response:
       - `201` → success, return `web_url` / branch name.
       - `400 Branch already exists` → treated as an informational success.
-      - `401/403` → invalid token or missing `write_repository`.
+      - `401/403` → invalid token or missing `api`.
       - `404` → wrong project mapping / token has no access.
    7. Return a `ServiceResult`.
 3. **Front-end**: success → toast + link to the new branch; failure → the
@@ -180,6 +184,9 @@ POST /api/v3/work_packages/:id/gitlab/branches
   front-end, and not logged.
 - **Audit**: branches are created with the user's PAT, so GitLab attributes them
   to the correct user.
+- **Deletion**: both tables use `on_delete: :cascade` foreign keys, so deleting a
+  project or user removes its GitLab mapping/token instead of raising a FK
+  violation. Covered by model specs.
 
 ---
 
@@ -202,7 +209,7 @@ and the front-end component. Mitigations:
 2. **Default branch as the start ref.** The project setting may pin a
    `default_ref`; blank → query the GitLab project's `default_branch` at runtime.
    No per-click ref picker.
-3. **Docs link provided.** On an invalid token / missing `write_repository`, the
+3. **Docs link provided.** On an invalid token / missing `api`, the
    error message links the GitLab "Create a Personal Access Token" docs and names
    the required scope.
 4. **Reuse `show_gitlab_content`** for the create action; no dedicated
@@ -220,5 +227,5 @@ and the front-end component. Mitigations:
 - Migrations run on the test DB; the app boots, routes resolve, the plugin
   registers, and the grape endpoint constant loads.
 - **Not yet verified**: an end-to-end call against a live GitLab instance (needs
-  a writable GitLab project + a PAT with `write_repository`). The HTTP round-trip
+  a writable GitLab project + a PAT with `api`). The HTTP round-trip
   is only exercised via stubs in unit tests.

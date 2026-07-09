@@ -51,6 +51,13 @@ RSpec.describe GitlabUserToken do
     expect(duplicate).not_to be_valid
   end
 
+  it "is removed when its user is deleted (FK cascade)" do
+    deletable = create(:user)
+    described_class.create!(user: deletable, token: "gone")
+
+    expect { deletable.destroy }.to change(described_class, :count).by(-1)
+  end
+
   context "when a database cipher key is configured" do
     before do
       allow(OpenProject::Configuration).to receive(:[]).and_call_original

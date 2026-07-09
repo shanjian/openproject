@@ -88,7 +88,7 @@ en:
       field: "Personal access token"
       help_html: >
         To create branches in GitLab from a work package, provide a GitLab
-        Personal Access Token with the <code>write_repository</code> scope. See
+        Personal Access Token with the <code>api</code> scope. See
         <a href="https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html" target="_blank" rel="noopener">the GitLab documentation</a>
         for how to create one.
       configured_hint: "A token is currently stored. Enter a new value to replace it."
@@ -102,7 +102,7 @@ en:
           must configure it in the project's GitLab settings.
         missing_token: >
           You have not configured a GitLab personal access token yet. Add one
-          with the write_repository scope under My account → GitLab token.
+          with the api scope under My account → GitLab token.
         base_url_missing: >
           No GitLab instance URL is configured. An administrator must set it in
           the GitLab integration plugin settings.
@@ -112,7 +112,7 @@ en:
         network_error: "Could not reach GitLab. Please try again later."
         unauthorized: >
           GitLab rejected the request. Make sure your personal access token is
-          valid and has the write_repository scope
+          valid and has the api scope
           (https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html).
         not_found: >
           The configured GitLab project could not be found, or your token has no
