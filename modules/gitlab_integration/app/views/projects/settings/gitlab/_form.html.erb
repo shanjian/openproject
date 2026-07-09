@@ -1,0 +1,107 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<% persisted = mapping.persisted? %>
+<% form_id = persisted ? "gitlab_mapping_#{mapping.id}" : "gitlab_mapping_new" %>
+
+<fieldset class="form--fieldset">
+  <legend class="form--fieldset-legend">
+    <%= persisted ? mapping.display_name : t("gitlab_integration.settings.add") %>
+  </legend>
+
+  <%= styled_form_tag(
+        persisted ? project_settings_gitlab_mapping_path(@project, mapping) : project_settings_gitlab_mappings_path(@project),
+        method: persisted ? :patch : :post,
+        id: form_id
+      ) do %>
+    <div class="form--field">
+      <%= label_tag "#{form_id}_gitlab_project_id",
+                    t("activerecord.attributes.gitlab_project_mapping.gitlab_project_id"),
+                    class: "form--label" %>
+      <div class="form--field-container">
+        <%= text_field_tag "gitlab_project_mapping[gitlab_project_id]",
+                           mapping.gitlab_project_id,
+                           id: "#{form_id}_gitlab_project_id",
+                           class: "form--text-field",
+                           autocomplete: "off",
+                           required: true %>
+      </div>
+      <div class="form--field-instructions">
+        <%= t("gitlab_integration.settings.gitlab_project_id_hint") %>
+      </div>
+    </div>
+
+    <div class="form--field">
+      <%= label_tag "#{form_id}_name",
+                    t("activerecord.attributes.gitlab_project_mapping.name"),
+                    class: "form--label" %>
+      <div class="form--field-container">
+        <%= text_field_tag "gitlab_project_mapping[name]",
+                           mapping.name,
+                           id: "#{form_id}_name",
+                           class: "form--text-field",
+                           autocomplete: "off" %>
+      </div>
+      <div class="form--field-instructions">
+        <%= t("gitlab_integration.settings.name_hint") %>
+      </div>
+    </div>
+
+    <div class="form--field">
+      <%= label_tag "#{form_id}_default_ref",
+                    t("activerecord.attributes.gitlab_project_mapping.default_ref"),
+                    class: "form--label" %>
+      <div class="form--field-container">
+        <%= text_field_tag "gitlab_project_mapping[default_ref]",
+                           mapping.default_ref,
+                           id: "#{form_id}_default_ref",
+                           class: "form--text-field",
+                           autocomplete: "off" %>
+      </div>
+      <div class="form--field-instructions">
+        <%= t("gitlab_integration.settings.default_ref_hint") %>
+      </div>
+    </div>
+
+    <%= styled_button_tag(
+          persisted ? t(:button_save) : t("gitlab_integration.settings.add"),
+          class: "-highlight -with-icon #{persisted ? 'icon-checkmark' : 'icon-add'}"
+        ) %>
+  <% end %>
+
+  <% if persisted %>
+    <%= button_to(
+          t("gitlab_integration.settings.remove"),
+          project_settings_gitlab_mapping_path(@project, mapping),
+          method: :delete,
+          class: "button -with-icon icon-delete",
+          form: { data: { turbo_confirm: t(:text_are_you_sure) } }
+        ) %>
+  <% end %>
+</fieldset>

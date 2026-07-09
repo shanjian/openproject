@@ -31,7 +31,12 @@
 Rails.application.routes.draw do
   scope "projects/:project_id", as: "project", module: "projects" do
     namespace "settings" do
-      resource :gitlab, only: %i[show update], controller: "gitlab"
+      # The GitLab settings page lists the project's GitLab project mappings and
+      # lets project admins add / edit / remove them (many per project).
+      get "gitlab" => "gitlab#show", as: :gitlab
+      post "gitlab/mappings" => "gitlab#create", as: :gitlab_mappings
+      patch "gitlab/mappings/:id" => "gitlab#update", as: :gitlab_mapping
+      delete "gitlab/mappings/:id" => "gitlab#destroy"
     end
   end
 

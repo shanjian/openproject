@@ -33,20 +33,20 @@ module GitlabIntegration
   # named after the work package, using the acting user's Personal Access Token.
   # See GITLAB_CREATE_BRANCH_DESIGN.md §3.
   class CreateBranchService
-    def initialize(user:, work_package:)
+    def initialize(user:, work_package:, mapping:)
       @user = user
       @work_package = work_package
+      @mapping = mapping
     end
 
     def call
-      settings = GitlabProjectSettings.find_by(project_id: @work_package.project_id)
-      return failure(:not_configured) if settings.nil?
+      return failure(:not_configured) if @mapping.nil?
 
       pat = GitlabUserToken.find_by(user_id: @user.id)&.token
       return failure(:missing_token) if pat.blank?
 
       client = APIClient.new(token: pat)
-      create(client, settings)
+      create_branch_in(client)
     rescue APIClient::ConfigurationError
       failure(:base_url_missing)
     end
@@ -62,19 +62,19 @@ module GitlabIntegration
 
     private
 
-    def create(client, settings)
-      ref = settings.default_ref.presence || resolve_default_branch(client, settings)
+    def create_branch_in(client)
+      ref = @mapping.default_ref.presence || resolve_default_branch(client)
       return failure(:no_ref) if ref.blank?
 
       branch = branch_name
-      response = client.create_branch(gitlab_project_id: settings.gitlab_project_id,
+      response = client.create_branch(gitlab_project_id: @mapping.gitlab_project_id,
                                       branch:,
                                       ref:)
       interpret(response, branch)
     end
 
-    def resolve_default_branch(client, settings)
-      response = client.project(gitlab_project_id: settings.gitlab_project_id)
+    def resolve_default_branch(client)
+      response = client.project(gitlab_project_id: @mapping.gitlab_project_id)
       response.success? ? response.body&.fetch("default_branch", nil) : nil
     end
 
@@ -104,7 +104,9 @@ module GitlabIntegration
         result: {
           branch:,
           web_url: body.is_a?(Hash) ? body["web_url"] : nil,
-          already_existed:
+          already_existed:,
+          mapping_id: @mapping.id,
+          repository: @mapping.display_name
         }
       )
     end

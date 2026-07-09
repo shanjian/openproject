@@ -28,27 +28,17 @@
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-require "spec_helper"
-require_module_spec_helper
+# Maps an OpenProject project to a GitLab project so branches can be created
+# from work packages. A project may have several mappings (one per GitLab
+# repository). See GITLAB_CREATE_BRANCH_DESIGN.md §10.
+class GitlabProjectMapping < ApplicationRecord
+  belongs_to :project
 
-RSpec.describe GitlabProjectSettings do
-  shared_let(:project) { create(:project) }
+  validates :gitlab_project_id, presence: true
+  validates :gitlab_project_id, uniqueness: { scope: :project_id }
 
-  it "requires a gitlab_project_id" do
-    expect(described_class.new(project:, gitlab_project_id: nil)).not_to be_valid
-  end
-
-  it "allows only one row per project" do
-    described_class.create!(project:, gitlab_project_id: "1")
-    duplicate = described_class.new(project:, gitlab_project_id: "2")
-
-    expect(duplicate).not_to be_valid
-  end
-
-  it "is removed when its project is deleted (FK cascade)" do
-    deletable = create(:project)
-    described_class.create!(project: deletable, gitlab_project_id: "42")
-
-    expect { deletable.destroy }.to change(described_class, :count).by(-1)
+  # Label shown in the branch-creation picker and toasts.
+  def display_name
+    name.presence || gitlab_project_id
   end
 end

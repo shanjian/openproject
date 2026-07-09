@@ -55,20 +55,24 @@ starting from the project's default branch (unless a start branch is configured)
 > place the GitLab address is configured, which also keeps the server from being
 > pointed at arbitrary hosts.
 
-### 2. Project admin — link the GitLab project
+### 2. Project admin — link one or more GitLab projects
 
 The project must have the **GitLab** module enabled first: **Project settings →
 Modules → GitLab**.
 
 1. In the project, go to **Project settings → GitLab**.
-2. Fill in:
+2. For **each** GitLab repository you want to branch into, fill in the
+   *Add GitLab project* form and save:
    - **GitLab project ID or path** — either the numeric project ID (e.g. `42`)
      or the full path (e.g. `my-group/my-repo`). Both are shown on the GitLab
      project's home page.
+   - **Name** *(optional)* — a friendly label (e.g. *Backend API*) shown when
+     choosing where to create a branch. Defaults to the ID/path.
    - **Default branch to create branches from** *(optional)* — leave blank to
-     use the GitLab project's own default branch; set it (e.g. `develop`) to
+     use that GitLab project's own default branch; set it (e.g. `develop`) to
      branch from somewhere else.
-3. Save.
+3. Repeat to add more. Existing entries can be edited or removed on the same
+   page. A project can link to as many GitLab projects as you need.
 
 Requires project administrator rights — specifically the **Edit project**
 permission, the same one that gates every other page under Project settings.
@@ -95,11 +99,16 @@ Every user who wants to create branches configures their own token.
 1. Open any work package and select the **GitLab** tab.
 2. Click **Git snippets** (the console icon) to open the *Quick snippets for Git*
    menu.
-3. Click **Create branch in GitLab**.
-4. A confirmation appears with the branch name (e.g. *"Branch created in GitLab:
-   feature/1234-fix-login"*). If the branch already existed, you'll see
-   *"Branch already exists in GitLab: …"* instead — no error, nothing is
-   overwritten.
+3. Create the branch:
+   - If the project links to **one** GitLab project, click **Create branch in
+     GitLab**.
+   - If it links to **several**, the menu lists each repository (by its name)
+     plus **All repositories**. Click one repo to create the branch there, or
+     **All repositories** to create it in every linked repo at once.
+4. A confirmation appears per repository with the branch name (e.g. *"Branch
+   created in GitLab: Backend — feature/1234-fix-login"*). If a branch already
+   existed you'll see *"Branch already exists in GitLab: …"* instead — no error,
+   nothing is overwritten.
 
 The branch now exists in GitLab, created under your GitLab identity.
 
@@ -112,22 +121,27 @@ write to.
 
 1. **Admin setting** — after step 1 above, reopen **Administration → Plugins**;
    the **GitLab instance URL** shows your host. ✅
-2. **Project mapping** — after step 2, reopen **Project settings → GitLab**; your
-   project ID/path is still there. ✅
+2. **Project mappings** — after step 2, reopen **Project settings → GitLab**;
+   each GitLab project you added is listed. Add a second one to exercise the
+   multi-repo picker. ✅
 3. **Token** — after step 3, reopen **My account → GitLab token**; it reads
    *"A token is currently stored"* (the value is never displayed). ✅
-4. **Happy path** — on a work package's GitLab tab, click **Git snippets →
-   Create branch in GitLab**. Expect the success toast with the branch name, and
-   the branch to appear in GitLab (Repository → Branches), authored by you. ✅
-5. **Idempotent** — click it again on the same work package. Expect *"Branch
-   already exists in GitLab: …"* and **no** duplicate/error. ✅
-6. **Naming** — confirm the created branch matches
+4. **Happy path (single repo)** — with one repo linked, on a work package's
+   GitLab tab click **Git snippets → Create branch in GitLab**. Expect the
+   success toast, and the branch to appear in GitLab (Repository → Branches),
+   authored by you. ✅
+5. **Picker (multiple repos)** — with 2+ linked, the menu lists each repo by
+   name plus **All repositories**. Click one → branch created in that repo only.
+   Click **All repositories** → a branch in each, one toast per repo. ✅
+6. **Idempotent** — click again for the same repo. Expect *"Branch already
+   exists in GitLab: …"* and **no** duplicate/error. ✅
+7. **Naming** — confirm the created branch matches
    [the naming rule](#how-the-branch-is-named) for that work package. ✅
-7. **Guard rails** (optional negative tests):
+8. **Guard rails** (optional negative tests):
    - Remove your token, click the button → clear error asking you to configure a
      token (see [Troubleshooting](#troubleshooting)).
-   - On a project with no GitLab mapping → clear error asking an admin to
-     configure it.
+   - On a project with no GitLab mapping → the menu shows *"No GitLab projects
+     are linked to this project yet."*
 
 ---
 

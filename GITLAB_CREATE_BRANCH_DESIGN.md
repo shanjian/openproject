@@ -242,3 +242,44 @@ and the front-end component. Mitigations:
 - **Not yet verified**: an end-to-end call against a live GitLab instance (needs
   a writable GitLab project + a PAT with `api`). The HTTP round-trip
   is only exercised via stubs in unit tests.
+
+---
+
+## 10. Multiple GitLab projects per OpenProject project
+
+Some OpenProject projects map to **several** GitLab repositories (e.g. a
+`backend`, `frontend` and `mobile` repo). This section supersedes the
+one-project-per-project assumption in §2.2.
+
+### Decisions
+- **Branch-creation UX:** the "Create branch in GitLab" action lists **one entry
+  per mapped GitLab project**, plus an **"All repositories"** entry. Clicking a
+  repo creates the branch there; "All" creates it in every mapped repo. With a
+  single mapping it stays a one-click button (unchanged behaviour).
+- **Identity:** each mapping stores the GitLab project ID/path plus an
+  **optional friendly name** shown in the picker and toasts.
+
+### Data model
+`gitlab_project_settings` (one row, unique on `project_id`) becomes
+`gitlab_project_mappings` (**many rows per project**):
+- `project_id` (FK, `on_delete: :cascade`)
+- `gitlab_project_id` (string; numeric id or URL-encoded path)
+- `name` (string, optional — friendly label)
+- `default_ref` (string, optional)
+- unique index on **`[project_id, gitlab_project_id]`** (no duplicate repo per project)
+
+Model `GitlabProjectMapping`; `display_name = name.presence || gitlab_project_id`.
+
+### Project settings UI
+The Project settings → GitLab page becomes a small CRUD: a table of mappings
+(Name / GitLab project / Default branch), each row editable + removable, and an
+"Add GitLab project" row. Actions: `show` (list) / `create` / `update` /
+`destroy`, all gated on `edit_project`.
+
+### Create-branch flow
+- `GET /api/v3/work_packages/:id/gitlab/branch_targets` → the project's mappings
+  (`id`, `name`, `gitlabProjectId`), used to render the picker lazily.
+- `POST /api/v3/work_packages/:id/gitlab/branches` takes `mappingId` and creates
+  the branch in that mapping. ("All" = the frontend fires one request per target
+  and aggregates the toasts.) With exactly one mapping, `mappingId` is optional.
+- `CreateBranchService.new(user:, work_package:, mapping:)` acts on one mapping.

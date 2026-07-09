@@ -31,19 +31,38 @@
 class Projects::Settings::GitlabController < Projects::SettingsController
   menu_item :settings_gitlab
 
+  before_action :find_mapping, only: %i[update destroy]
+
   def show
-    @gitlab_project_settings = settings_for_project
+    @mappings = project_mappings.to_a
+    @new_mapping = GitlabProjectMapping.new
+  end
+
+  def create
+    mapping = project_mappings.new(permitted_params)
+
+    if mapping.save
+      flash[:notice] = I18n.t(:notice_successful_create)
+    else
+      flash[:error] = mapping.errors.full_messages.join(", ")
+    end
+
+    redirect_to project_settings_gitlab_path(@project)
   end
 
   def update
-    @gitlab_project_settings = settings_for_project
-    @gitlab_project_settings.assign_attributes(permitted_params)
-
-    if @gitlab_project_settings.save
+    if @mapping.update(permitted_params)
       flash[:notice] = I18n.t(:notice_successful_update)
     else
-      flash[:error] = @gitlab_project_settings.errors.full_messages.join(", ")
+      flash[:error] = @mapping.errors.full_messages.join(", ")
     end
+
+    redirect_to project_settings_gitlab_path(@project)
+  end
+
+  def destroy
+    @mapping.destroy!
+    flash[:notice] = I18n.t(:notice_successful_delete)
 
     redirect_to project_settings_gitlab_path(@project)
   end
@@ -57,12 +76,16 @@ class Projects::Settings::GitlabController < Projects::SettingsController
     do_authorize(:edit_project)
   end
 
-  def settings_for_project
-    GitlabProjectSettings.find_or_initialize_by(project_id: @project.id)
+  def project_mappings
+    GitlabProjectMapping.where(project_id: @project.id).order(:id)
+  end
+
+  def find_mapping
+    @mapping = project_mappings.find(params[:id])
   end
 
   def permitted_params
     params
-      .expect(gitlab_project_settings: %i[gitlab_project_id default_ref])
+      .expect(gitlab_project_mapping: %i[name gitlab_project_id default_ref])
   end
 end

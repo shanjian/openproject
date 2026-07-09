@@ -59,19 +59,59 @@ RSpec.describe Projects::Settings::GitlabController do
     end
   end
 
+  describe "POST create" do
+    current_user { create(:user, member_with_permissions: { project => %i[edit_project] }) }
+
+    it "adds a GitLab project mapping" do
+      expect do
+        post :create, params: {
+          project_id: project.id,
+          gitlab_project_mapping: { name: "Backend", gitlab_project_id: "my-group/backend", default_ref: "develop" }
+        }
+      end.to change(GitlabProjectMapping, :count).by(1)
+
+      expect(response).to redirect_to(project_settings_gitlab_path(project))
+      mapping = GitlabProjectMapping.find_by(project:, gitlab_project_id: "my-group/backend")
+      expect(mapping.name).to eq("Backend")
+      expect(mapping.default_ref).to eq("develop")
+    end
+
+    it "supports several mappings for one project" do
+      post :create, params: { project_id: project.id, gitlab_project_mapping: { gitlab_project_id: "group/a" } }
+      post :create, params: { project_id: project.id, gitlab_project_mapping: { gitlab_project_id: "group/b" } }
+
+      expect(GitlabProjectMapping.where(project:).pluck(:gitlab_project_id)).to contain_exactly("group/a", "group/b")
+    end
+  end
+
   describe "PATCH update" do
     current_user { create(:user, member_with_permissions: { project => %i[edit_project] }) }
 
-    it "stores the GitLab project mapping" do
+    shared_let(:mapping) { GitlabProjectMapping.create!(project:, gitlab_project_id: "group/a", default_ref: "main") }
+
+    it "updates the mapping" do
       patch :update, params: {
         project_id: project.id,
-        gitlab_project_settings: { gitlab_project_id: "my-group/my-repo", default_ref: "develop" }
+        id: mapping.id,
+        gitlab_project_mapping: { default_ref: "develop" }
       }
 
       expect(response).to redirect_to(project_settings_gitlab_path(project))
-      settings = GitlabProjectSettings.find_by(project:)
-      expect(settings.gitlab_project_id).to eq("my-group/my-repo")
-      expect(settings.default_ref).to eq("develop")
+      expect(mapping.reload.default_ref).to eq("develop")
+    end
+  end
+
+  describe "DELETE destroy" do
+    current_user { create(:user, member_with_permissions: { project => %i[edit_project] }) }
+
+    shared_let(:mapping) { GitlabProjectMapping.create!(project:, gitlab_project_id: "group/a") }
+
+    it "removes the mapping" do
+      expect do
+        delete :destroy, params: { project_id: project.id, id: mapping.id }
+      end.to change(GitlabProjectMapping, :count).by(-1)
+
+      expect(response).to redirect_to(project_settings_gitlab_path(project))
     end
   end
 end

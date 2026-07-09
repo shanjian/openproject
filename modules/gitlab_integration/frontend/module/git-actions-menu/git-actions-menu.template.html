@@ -21,12 +21,34 @@
     </div>
   }
 
-  <div class="create-branch-wrapper">
-    <button class="button -primary"
-      type="button"
-      [disabled]="creatingBranch"
-      (click)="createBranch()">
-      <span class="button--text" [textContent]="text.createBranch"></span>
-    </button>
-  </div>
+  @if (targetsLoaded) {
+    <div class="create-branch-wrapper">
+      @if (branchTargets.length === 0) {
+        <p class="create-branch--empty" [textContent]="text.noTargets"></p>
+      } @else if (branchTargets.length === 1) {
+        <button class="button -primary"
+          type="button"
+          [disabled]="creatingBranch"
+          (click)="createBranch(branchTargets[0])">
+          <span class="button--text" [textContent]="text.createBranch"></span>
+        </button>
+      } @else {
+        <div class="create-branch--label" [textContent]="text.createBranch"></div>
+        <button class="button -primary create-branch--target"
+          type="button"
+          [disabled]="creatingBranch"
+          (click)="createInAllTargets()">
+          <span class="button--text" [textContent]="text.createBranchAll"></span>
+        </button>
+        @for (target of branchTargets; track target.id) {
+          <button class="button create-branch--target"
+            type="button"
+            [disabled]="creatingBranch"
+            (click)="createBranch(target)">
+            <span class="button--text" [textContent]="target.name"></span>
+          </button>
+        }
+      }
+    </div>
+  }
 </div>
