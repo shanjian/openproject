@@ -61,7 +61,6 @@ en:
 
   project_module_gitlab: "GitLab"
   permission_show_gitlab_content: "Show GitLab content"
-  permission_manage_gitlab_settings: "Manage GitLab project settings"
 
   gitlab_integration:
     settings:

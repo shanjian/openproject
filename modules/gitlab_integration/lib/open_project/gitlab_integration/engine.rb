@@ -64,14 +64,6 @@ module OpenProject::GitlabIntegration
         permission(:show_gitlab_content,
                    {},
                    permissible_on: %i[work_package project])
-
-        # Managing the per-project GitLab connection (which GitLab project to
-        # create branches in) is an administrative action, gated separately
-        # from merely viewing GitLab content.
-        permission(:manage_gitlab_settings,
-                   { "projects/settings/gitlab": %i[show update] },
-                   permissible_on: :project,
-                   require: :member)
       end
 
       menu :work_package_split_view,
@@ -88,13 +80,18 @@ module OpenProject::GitlabIntegration
            before: :watchers,
            caption: :project_module_github
 
+      # Shown under Project settings for project admins (the `edit_project`
+      # permission, same gate as the other settings pages), when the GitLab
+      # module is enabled. We deliberately reuse `edit_project` rather than a
+      # bespoke permission, which no role would hold by default.
       menu :project_menu,
            :settings_gitlab,
            { controller: "/projects/settings/gitlab", action: :show },
            caption: :"gitlab_integration.settings.menu",
            parent: :settings,
            if: ->(project) {
-             User.current.allowed_in_project?(:manage_gitlab_settings, project)
+             project.module_enabled?(:gitlab) &&
+               User.current.allowed_in_project?(:edit_project, project)
            }
 
       # Per-user GitLab Personal Access Token, kept in a self-contained "My

@@ -50,6 +50,13 @@ class Projects::Settings::GitlabController < Projects::SettingsController
 
   private
 
+  # This page is not mapped to a permission in AccessControl, so authorize it
+  # explicitly against `edit_project` — the same permission that gates the other
+  # project settings pages, which every project admin already holds.
+  def authorize
+    do_authorize(:edit_project)
+  end
+
   def settings_for_project
     GitlabProjectSettings.find_or_initialize_by(project_id: @project.id)
   end

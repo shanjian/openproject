@@ -70,8 +70,8 @@ Modules → GitLab**.
      branch from somewhere else.
 3. Save.
 
-Requires the **Manage GitLab project settings** permission (project admins have
-it by default).
+Requires project administrator rights — specifically the **Edit project**
+permission, the same one that gates every other page under Project settings.
 
 ### 3. Each user — add your GitLab token
 
@@ -170,7 +170,7 @@ The button reports a readable message on failure. Common cases:
 - **Start ref.** Branches are cut from the project's default branch unless a
   **Default branch** is set on the project's GitLab settings.
 - **Permissions.** Anyone who can see the project's GitLab content can use the
-  button; configuring the project mapping needs *Manage GitLab project settings*.
+  button; configuring the project mapping needs *Edit project* (project admin).
   The real write permission is enforced by GitLab against your token.
 - **Security.** Your token is encrypted at rest and never sent back to the
   browser. Branches are attributed to you in GitLab because they're created with

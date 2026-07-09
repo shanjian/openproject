@@ -74,8 +74,12 @@ Good news: there is an established pattern for outbound calls — `OpenProject.h
   `default_branch` at runtime.
 - Storage: table `gitlab_project_settings`, `belongs_to :project`
   ([model](modules/gitlab_integration/app/models/gitlab_project_settings.rb)).
-- UI: a project-settings page guarded by the `manage_gitlab_settings`
-  permission ([controller](modules/gitlab_integration/app/controllers/projects/settings/gitlab_controller.rb)).
+- UI: a project-settings page guarded by the existing `edit_project` permission
+  — the same gate as every other Project settings page, so project admins reach
+  it with no extra role configuration
+  ([controller](modules/gitlab_integration/app/controllers/projects/settings/gitlab_controller.rb)).
+  (A bespoke permission was intentionally avoided: a new permission is granted to
+  no role by default, which would hide the page until an admin assigned it.)
 
 ### 2.3 Per user (My account → GitLab token)
 - Each user enters their own GitLab PAT with the **`api`** scope.
@@ -182,7 +186,9 @@ POST /api/v3/work_packages/:id/gitlab/branches
 - **OpenProject-side permissions**:
   - Create action: reuses `show_gitlab_content`
     ([engine.rb](modules/gitlab_integration/lib/open_project/gitlab_integration/engine.rb)).
-  - Settings page: new `manage_gitlab_settings` (project members/admins).
+  - Settings page: existing `edit_project` (project admins), same as other
+    project settings pages — no bespoke permission that would need manual
+    assignment.
 - **Actual write permission is enforced by the GitLab PAT**: OpenProject only
   relays the request; anything unauthorised is rejected by GitLab (401/403).
 - **SSRF**: the host comes only from the global admin setting (§2.1); no
@@ -221,7 +227,7 @@ and the front-end component. Mitigations:
    the required scope.
 4. **Reuse `show_gitlab_content`** for the create action; no dedicated
    `create_gitlab_branch` permission. Real write permission is enforced by the
-   GitLab PAT. The settings page uses the separate `manage_gitlab_settings`.
+   GitLab PAT. The settings page reuses `edit_project` (project admin).
 
 ---
 
