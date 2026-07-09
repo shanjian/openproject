@@ -84,11 +84,17 @@ module OpenProject::GitlabIntegration
       # permission, same gate as the other settings pages), when the GitLab
       # module is enabled. We deliberately reuse `edit_project` rather than a
       # bespoke permission, which no role would hold by default.
+      #
+      # skip_permissions_check: the page isn't mapped to a permission in
+      # AccessControl (the controller authorizes `edit_project` explicitly), so
+      # the menu can't derive one from the URL — visibility is governed by the
+      # `if:` below, and access is enforced by the controller.
       menu :project_menu,
            :settings_gitlab,
            { controller: "/projects/settings/gitlab", action: :show },
            caption: :"gitlab_integration.settings.menu",
            parent: :settings,
+           skip_permissions_check: true,
            if: ->(project) {
              project.module_enabled?(:gitlab) &&
                User.current.allowed_in_project?(:edit_project, project)
