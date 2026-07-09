@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 #  OpenProject is an open source project management software.
 #  Copyright (C) the OpenProject GmbH
 #
@@ -95,35 +97,35 @@ module API
 
         associated_user_link :responsible
 
-        # Epic link for board cards. epic_id is nullable, so render a null href when
-        # there is no epic (mirrors the optional priority/assignee links above).
+        # Epic link for board cards. epic_id is nullable -> null href when unset.
         #
-        # The epic's subject is joined from a DERIVED TABLE that exposes only
-        # (id, subject) rather than joining work_packages to itself directly. A bare
-        # self-join would add a second full work_packages instance, making every
-        # UNqualified work_packages column in the sibling user links (assigned_to_id,
-        # author_id, responsible_id, ...) ambiguous and 500-ing the whole collection.
-        # Restricting the join target to (id, subject) keeps it a single indexed
-        # primary-key join (epic_id -> id) with no overlapping column names, and it
-        # only runs when the client selects `epic`, so the SQL fast-path stays cheap.
-        #
-        # NOTE: unlike WorkPackageRepresenter this does not filter on epic
-        # visibility - acceptable because boards only render this for work packages
-        # the user can already see, and epic links are project-scoped.
+        # Joined from the `visible_work_packages` CTE (see .ctes) rather than
+        # work_packages directly, which buys two things:
+        #   * the CTE projects only (id, subject), so this self-join can't collide
+        #     with the sibling user-link columns (assigned_to_id, author_id, ...) and
+        #     500 the whole collection with an ambiguous-column error;
+        #   * it is restricted to work packages the current user may see, so an
+        #     invisible cross-project epic nulls out (href AND title) exactly like
+        #     WorkPackageRepresenter, instead of leaking the subject/id of a work
+        #     package the user has no access to.
+        # href keys off the joined alias id (exposed as epic_visible_id), not the
+        # base epic_id column, so it nulls together with the title when the epic is
+        # unset or not visible. The alias must be selected into the projection --
+        # the join alias itself is not visible in the outer json_build_object.
         link :epic,
              href: ->(*) {
                <<~SQL.squish
-                 CASE WHEN epic_id IS NULL THEN NULL
-                 ELSE format('#{api_v3_paths.work_package('%s')}', epic_id)
+                 CASE WHEN epic_visible_id IS NULL THEN NULL
+                 ELSE format('#{api_v3_paths.work_package('%s')}', epic_visible_id)
                  END
                SQL
              },
              title: -> { "epic_subject" },
              join: {
-               table: "(SELECT id, subject FROM work_packages)",
+               table: "visible_work_packages",
                alias: :epics,
                condition: "epics.id = work_packages.epic_id",
-               select: ["epics.subject epic_subject"]
+               select: ["epics.subject epic_subject", "epics.id epic_visible_id"]
              }
 
         # Version (sprint/release) link for backlog cards. version_id is nullable,
@@ -147,26 +149,26 @@ module API
 
         # Parent link for backlog cards (the client renders the parent as the
         # "Epic" field). parent_id is nullable -> null href when unset. Uses the
-        # same derived-table self-join trick as the epic link above: a bare
-        # work_packages self-join would make the unqualified user-link columns
-        # (assigned_to_id, author_id, responsible_id) ambiguous and 500 the whole
-        # collection, so the join target is restricted to (id, subject). Like epic
-        # this does NOT filter parent visibility - acceptable because the backlog
-        # only renders work packages the user can already see.
+        # same `visible_work_packages` CTE join as epic above: the (id, subject)-only
+        # projection avoids the ambiguous-column 500 from a bare self-join, and the
+        # visibility filter means an invisible cross-project parent nulls out (href
+        # AND title) like WorkPackageRepresenter rather than leaking its subject/id.
+        # href keys off the selected parent_visible_id alias so it nulls together
+        # with the title (the join alias is not visible in the outer projection).
         link :parent,
              href: ->(*) {
                <<~SQL.squish
-                 CASE WHEN parent_id IS NULL THEN NULL
-                 ELSE format('#{api_v3_paths.work_package('%s')}', parent_id)
+                 CASE WHEN parent_visible_id IS NULL THEN NULL
+                 ELSE format('#{api_v3_paths.work_package('%s')}', parent_visible_id)
                  END
                SQL
              },
              title: -> { "parent_subject" },
              join: {
-               table: "(SELECT id, subject FROM work_packages)",
+               table: "visible_work_packages",
                alias: :parents,
                condition: "parents.id = work_packages.parent_id",
-               select: ["parents.subject parent_subject"]
+               select: ["parents.subject parent_subject", "parents.id parent_visible_id"]
              }
 
         property :_type,
@@ -206,6 +208,17 @@ module API
         # Optimistic-locking token. The client needs it to PATCH a card (e.g. move
         # it to a sprint) without a stale-lock 409. Bare column, like storyPoints.
         property :lockVersion, column: :lock_version
+
+        # Visible-only work-package set backing the parent/epic self-joins so they
+        # never disclose the subject/id of a work package the current user cannot
+        # see (e.g. a cross-project ancestor); an invisible target then renders
+        # { href: null } like WorkPackageRepresenter. Exposed as a CTE because a
+        # join `table:` is a static string evaluated at class load, before
+        # User.current exists. Postgres prunes an unreferenced CTE, so a select that
+        # touches neither parent nor epic pays nothing for it.
+        def self.ctes(_walker_result)
+          super.merge(visible_work_packages: WorkPackage.visible.reselect(:id, :subject).to_sql)
+        end
       end
     end
   end

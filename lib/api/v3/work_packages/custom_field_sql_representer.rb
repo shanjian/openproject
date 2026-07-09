@@ -34,11 +34,21 @@ module API
       # `link`/`property` declarations: instead any `customFieldN` naming an
       # existing WorkPackageCustomField becomes selectable and its SQL is
       # generated on demand. They render ONLY when explicitly selected (never via
-      # `*`), matching the object representer's JSON shape:
+      # `*`), mirroring the object representer's JSON shape:
       #
       #   linked single (version/list/user, multi=false) -> _links.customFieldN = { href, title }
       #   linked multi                                    -> _links.customFieldN = [ { href, title }, ... ]
-      #   primitive (string/text/int/float/bool/date)     -> customFieldN = <typed value>
+      #   primitive (string/int/float/bool/date)          -> customFieldN = <typed value>
+      #
+      # Two deliberate divergences from the object representer (see below), both
+      # accepted because closing them is either impossible or disproportionate on
+      # a SQL-only path:
+      #   * text CFs render as the raw string, not a Formattable { format, raw,
+      #     html } object -- `html` is the markdown pipeline, unreachable in SQL.
+      #     See custom_field_primitive_cast.
+      #   * every WorkPackageCustomField is selectable regardless of whether it is
+      #     applicable to a given WP's project/type; a non-applicable field renders
+      #     an empty value instead of being omitted. See work_package_custom_fields.
       #
       # Each selected CF adds a LEFT JOIN to a derived table that aggregates
       # custom_values, keyed on work_packages.id (like the version/epic joins), so
@@ -87,6 +97,13 @@ module API
           # { id => { format:, multi: } } for every work-package custom field.
           # Memoized per request (CFs change rarely; a new one is picked up on the
           # next request since RequestStore resets per request).
+          #
+          # ponytail: intentionally NOT filtered by project/type applicability.
+          # Applicability is per-work-package (WorkPackage.available_custom_fields),
+          # but this representer is one instance shared across the whole collection,
+          # so a non-applicable CF just renders an empty value rather than being
+          # omitted (an empty cell, not wrong data). Add a per-row applicability
+          # join if a client ever needs the object representer's omit-the-key shape.
           def work_package_custom_fields
             RequestStore.fetch(:wp_sql_custom_fields) do
               WorkPackageCustomField
@@ -178,9 +195,16 @@ module API
             end
           end
 
+          # LEFT JOIN so a value pointing at a deleted version/option/user is kept
+          # (title NULL) rather than dropped from the aggregate. A dead target then
+          # renders { href, title: null } instead of vanishing (multi) or looking
+          # unset (single). Exact parity with the object representer for
+          # version/user; for list it omits the object representer's localized
+          # "<id> (not found)" title, which is the accepted trade for not dropping
+          # the row.
           def custom_field_title_join(field)
             table = TITLE_JOIN_TABLES[field[:format]]
-            "JOIN #{table} t ON t.id = cv.value::integer" if table
+            "LEFT JOIN #{table} t ON t.id = cv.value::integer" if table
           end
 
           # Mirrors HalAssociatedResource's user-title logic (respects the
@@ -200,6 +224,11 @@ module API
             when "bool"
               "CASE WHEN #{col} IN ('1','t','true') THEN true " \
               "WHEN #{col} IN ('0','f','false') THEN false ELSE NULL END"
+            # ponytail: text CFs fall through to raw string here. The object
+            # representer wraps them in a Formattable { format, raw, html }, but
+            # `html` is the rendered-markdown pipeline (format_text) which has no
+            # SQL equivalent. Raw string is the closest honest degradation; the
+            # only correct alternative is routing text CFs to the object path.
             else col # string / text / anything else -> raw text
             end
           end

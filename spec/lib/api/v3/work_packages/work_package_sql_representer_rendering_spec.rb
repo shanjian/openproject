@@ -63,7 +63,7 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
   let(:select) { { "*" => {} } }
 
   current_user do
-    create(:user)
+    create(:user, member_with_permissions: { project => %i[view_work_packages] })
   end
 
   context "when rendering all supported properties" do
@@ -365,6 +365,17 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
       end
     end
 
+    context "when the epic is not visible to the user" do
+      let(:hidden_epic) { create(:work_package, project: create(:project), subject: "Secret epic") }
+      let(:expected) { { _links: { epic: { href: nil } } } }
+
+      before { rendered_work_package.update_column(:epic_id, hidden_epic.id) }
+
+      it "nulls the link instead of leaking the unseen epic's subject" do
+        expect(json).to be_json_eql(expected.to_json)
+      end
+    end
+
     # Regression: the epic subject is joined from a derived table exposing only
     # (id, subject). A bare work_packages self-join would add a second
     # work_packages instance and make the unqualified assigned_to_id / author_id /
@@ -386,12 +397,11 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
 
     context "with a version" do
       let(:version) { create(:version, project:, name: "Sprint 1") }
-
-      before { rendered_work_package.update_column(:version_id, version.id) }
-
       let(:expected) do
         { _links: { version: { href: api_v3_paths.version(version.id), title: "Sprint 1" } } }
       end
+
+      before { rendered_work_package.update_column(:version_id, version.id) }
 
       it "renders the version link with the version's name" do
         expect(json).to be_json_eql(expected.to_json)
@@ -412,12 +422,11 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
 
     context "with a parent" do
       let(:parent) { create(:work_package, project:, subject: "Parent story") }
-
-      before { rendered_work_package.update_column(:parent_id, parent.id) }
-
       let(:expected) do
         { _links: { parent: { href: api_v3_paths.work_package(parent.id), title: "Parent story" } } }
       end
+
+      before { rendered_work_package.update_column(:parent_id, parent.id) }
 
       it "renders the parent link with the parent's subject" do
         expect(json).to be_json_eql(expected.to_json)
@@ -428,6 +437,17 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
       let(:expected) { { _links: { parent: { href: nil } } } }
 
       it "renders a null parent link" do
+        expect(json).to be_json_eql(expected.to_json)
+      end
+    end
+
+    context "when the parent is not visible to the user" do
+      let(:hidden_parent) { create(:work_package, project: create(:project), subject: "Secret parent") }
+      let(:expected) { { _links: { parent: { href: nil } } } }
+
+      before { rendered_work_package.update_column(:parent_id, hidden_parent.id) }
+
+      it "nulls the link instead of leaking the unseen parent's subject" do
         expect(json).to be_json_eql(expected.to_json)
       end
     end
@@ -496,6 +516,26 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
 
       it "renders the raw value as a top-level property" do
         expect(json).to be_json_eql({ "customField#{string_cf.id}" => "hello" }.to_json)
+      end
+    end
+
+    context "with a linked value whose target was deleted" do
+      let(:select) { { "customField#{version_cf.id}" => {} } }
+      let(:expected) do
+        {
+          _links: {
+            "customField#{version_cf.id}" => [
+              { href: api_v3_paths.version(version_a.id), title: "V-A" },
+              { href: api_v3_paths.version(version_b.id), title: nil }
+            ]
+          }
+        }
+      end
+
+      before { Version.where(id: version_b.id).delete_all }
+
+      it "keeps the element with a null title instead of dropping it" do
+        expect(json).to be_json_eql(expected.to_json)
       end
     end
 
