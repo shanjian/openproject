@@ -1,0 +1,81 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<% html_title t(:label_my_account), t("gitlab_integration.my_token.title") %>
+
+<%=
+  render(Primer::OpenProject::PageHeader.new) do |header|
+    header.with_title { t("gitlab_integration.my_token.title") }
+    header.with_breadcrumbs(
+      [{ href: my_account_path, text: t(:label_my_account) },
+       t("gitlab_integration.my_token.title")]
+    )
+  end
+%>
+
+<%= render Primer::Beta::Flash.new(scheme: :default, mb: 3) do %>
+  <%= t("gitlab_integration.my_token.help_html") %>
+<% end %>
+
+<%= styled_form_tag(
+      my_gitlab_token_path,
+      { method: :patch, autocomplete: "off", class: "form -wide-labels" }
+    ) do %>
+  <section class="form--section">
+    <div class="form--field">
+      <%= label_tag "gitlab_user_token_token",
+                    t("gitlab_integration.my_token.field"),
+                    class: "form--label" %>
+      <div class="form--field-container">
+        <%= password_field_tag "gitlab_user_token[token]",
+                               nil,
+                               class: "form--text-field",
+                               autocomplete: "new-password",
+                               placeholder: @token_record.persisted? ? "••••••••" : nil %>
+      </div>
+      <div class="form--field-instructions">
+        <% if @token_record.persisted? %>
+          <%= t("gitlab_integration.my_token.configured_hint") %>
+        <% else %>
+          <%= t("gitlab_integration.my_token.not_configured_hint") %>
+        <% end %>
+      </div>
+    </div>
+  </section>
+
+  <%= styled_button_tag t(:button_save), class: "-primary -with-icon icon-checkmark" %>
+<% end %>
+
+<% if @token_record.persisted? %>
+  <%= styled_form_tag(my_gitlab_token_path, { method: :delete, class: "form" }) do %>
+    <%= styled_button_tag t("gitlab_integration.my_token.remove"),
+                          class: "-with-icon icon-delete",
+                          data: { confirm: t(:text_are_you_sure) } %>
+  <% end %>
+<% end %>

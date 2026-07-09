@@ -49,6 +49,9 @@ en:
           title: Quick snippets for Git
           copy_success: ✅ Copied!
           copy_error: ❌ Copy failed!
+          create_branch: Create branch in GitLab
+          create_branch_success: "Branch created in GitLab:"
+          create_branch_exists: "Branch already exists in GitLab:"
       tab_issue:
         empty: There are no issues linked yet. Link an existing issue by using the code <code>OP#%{wp_id}</code> (or <code>PP#%{wp_id}</code> for private links) in the issue title/description or create a new issue.
       tab_mrs:

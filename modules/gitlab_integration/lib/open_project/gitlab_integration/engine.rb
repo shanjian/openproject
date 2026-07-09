@@ -40,13 +40,38 @@ module OpenProject::GitlabIntegration
 
     include OpenProject::Plugins::ActsAsOpEngine
 
-    register "openproject-gitlab_integration",
-             author_url: "https://github.com/btey/openproject",
-             bundled: true do
+    # Global (instance-wide) settings for the GitLab integration.
+    # `gitlab_base_url` is the single GitLab instance every outbound request is
+    # allowed to target. Keeping the host here (and NOT in per-project or
+    # per-user config) bounds the SSRF surface: requests can only ever hit this
+    # host. See GITLAB_CREATE_BRANCH_DESIGN.md §2.1.
+    def self.settings
+      {
+        default: {
+          "gitlab_base_url" => nil
+        },
+        partial: "settings/gitlab_integration"
+      }
+    end
+
+    register(
+      "openproject-gitlab_integration",
+      author_url: "https://github.com/btey/openproject",
+      bundled: true,
+      settings:
+    ) do
       project_module(:gitlab, dependencies: :work_package_tracking) do
         permission(:show_gitlab_content,
                    {},
                    permissible_on: %i[work_package project])
+
+        # Managing the per-project GitLab connection (which GitLab project to
+        # create branches in) is an administrative action, gated separately
+        # from merely viewing GitLab content.
+        permission(:manage_gitlab_settings,
+                   { "projects/settings/gitlab": %i[show update] },
+                   permissible_on: :project,
+                   require: :member)
       end
 
       menu :work_package_split_view,
@@ -62,6 +87,24 @@ module OpenProject::GitlabIntegration
            },
            before: :watchers,
            caption: :project_module_github
+
+      menu :project_menu,
+           :settings_gitlab,
+           { controller: "/projects/settings/gitlab", action: :show },
+           caption: :"gitlab_integration.settings.menu",
+           parent: :settings,
+           if: ->(project) {
+             User.current.allowed_in_project?(:manage_gitlab_settings, project)
+           }
+
+      # Per-user GitLab Personal Access Token, kept in a self-contained "My
+      # account" page (mirrors the avatars module) to minimise coupling to the
+      # upstream access-tokens page. See GITLAB_CREATE_BRANCH_DESIGN.md §2.3.
+      add_menu_item :my_menu,
+                    :gitlab_token,
+                    { controller: "/gitlab_integration/my_gitlab_token", action: :show },
+                    caption: :"gitlab_integration.my_token.menu",
+                    icon: "git-branch"
     end
 
     patches %w[WorkPackage]
@@ -112,6 +155,10 @@ module OpenProject::GitlabIntegration
 
     add_api_endpoint "API::V3::WorkPackages::WorkPackagesAPI", :id do
       mount ::API::V3::GitlabIssues::GitlabIssuesByWorkPackageAPI
+    end
+
+    add_api_endpoint "API::V3::WorkPackages::WorkPackagesAPI", :id do
+      mount ::API::V3::GitlabBranches::GitlabBranchesByWorkPackageAPI
     end
 
     add_cron_jobs do

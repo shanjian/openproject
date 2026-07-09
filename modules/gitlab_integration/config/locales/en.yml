@@ -45,6 +45,9 @@ en:
         ci_details: "CI Details"
       gitlab_merge_request:
         labels: "Labels"
+      gitlab_project_settings:
+        gitlab_project_id: "GitLab project ID or path"
+        default_ref: "Default branch to create branches from"
     errors:
       models:
         gitlab_issue:
@@ -58,8 +61,64 @@ en:
 
   project_module_gitlab: "GitLab"
   permission_show_gitlab_content: "Show GitLab content"
+  permission_manage_gitlab_settings: "Manage GitLab project settings"
 
   gitlab_integration:
+    settings:
+      menu: "GitLab"
+      title: "GitLab integration"
+      gitlab_project_id_hint: >
+        The numeric GitLab project ID, or the "namespace/project" path
+        (e.g. "my-group/my-repo"). Branches will be created in this project.
+      default_ref_hint: >
+        Optional. The branch new branches are created from. When left blank,
+        the GitLab project's default branch is used.
+      base_url_missing: >
+        No GitLab instance URL is configured yet. An administrator must set it
+        in the GitLab integration plugin settings before branches can be created.
+      admin:
+        title: "GitLab integration"
+        base_url: "GitLab instance URL"
+        base_url_hint: >
+          The base URL of your GitLab instance (e.g. https://gitlab.example.com).
+          All requests to create branches are sent to this host only.
+    my_token:
+      menu: "GitLab token"
+      title: "GitLab access token"
+      field: "Personal access token"
+      help_html: >
+        To create branches in GitLab from a work package, provide a GitLab
+        Personal Access Token with the <code>write_repository</code> scope. See
+        <a href="https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html" target="_blank" rel="noopener">the GitLab documentation</a>
+        for how to create one.
+      configured_hint: "A token is currently stored. Enter a new value to replace it."
+      not_configured_hint: "No token stored yet."
+      removed: "Your GitLab token has been removed."
+      remove: "Remove token"
+    create_branch:
+      errors:
+        not_configured: >
+          This project is not linked to a GitLab project yet. An administrator
+          must configure it in the project's GitLab settings.
+        missing_token: >
+          You have not configured a GitLab personal access token yet. Add one
+          with the write_repository scope under My account → GitLab token.
+        base_url_missing: >
+          No GitLab instance URL is configured. An administrator must set it in
+          the GitLab integration plugin settings.
+        no_ref: >
+          Could not determine which branch to create from. Set a default branch
+          in the project's GitLab settings.
+        network_error: "Could not reach GitLab. Please try again later."
+        unauthorized: >
+          GitLab rejected the request. Make sure your personal access token is
+          valid and has the write_repository scope
+          (https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html).
+        not_found: >
+          The configured GitLab project could not be found, or your token has no
+          access to it.
+        bad_request: "GitLab could not create the branch:"
+        unexpected: "GitLab returned an unexpected error:"
     merge_request_opened_comment: >
       **MR Opened:** Merge request %{mr_number} [%{mr_title}](%{mr_url}) for [%{repository}](%{repository_url})
       has been opened by [%{gitlab_user}](%{gitlab_user_url}).
