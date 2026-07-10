@@ -37,8 +37,11 @@ RSpec.describe GitlabIntegration::CreateBranchService do
   shared_let(:type) { create(:type, name: "Feature") }
   shared_let(:work_package) { create(:work_package, project:, type:, subject: "My cool WP") }
 
-  subject(:result) { described_class.new(user:, work_package:).call }
+  subject(:result) { described_class.new(user:, work_package:, mapping:).call }
 
+  let(:mapping) do
+    GitlabProjectMapping.create!(project:, name: "Backend", gitlab_project_id: "42", default_ref: "main")
+  end
   let(:api_client) { instance_double(GitlabIntegration::APIClient) }
   let(:expected_branch) { "feature/#{work_package.id}-my-cool-wp" }
 
@@ -50,25 +53,22 @@ RSpec.describe GitlabIntegration::CreateBranchService do
     allow(GitlabIntegration::APIClient).to receive(:new).and_return(api_client)
   end
 
-  context "when the project is not linked to a GitLab project" do
-    it "fails" do
-      expect(result).to be_failure
-    end
-  end
-
-  context "when the project is linked but the user has no token" do
-    before { GitlabProjectSettings.create!(project:, gitlab_project_id: "42", default_ref: "main") }
+  context "when no mapping is given" do
+    let(:mapping) { nil }
 
     it "fails" do
       expect(result).to be_failure
     end
   end
 
-  context "when project and token are configured" do
-    before do
-      GitlabProjectSettings.create!(project:, gitlab_project_id: "42", default_ref: "main")
-      GitlabUserToken.create!(user:, token: "glpat-secret")
+  context "when a mapping is given but the user has no token" do
+    it "fails" do
+      expect(result).to be_failure
     end
+  end
+
+  context "when mapping and token are configured" do
+    before { GitlabUserToken.create!(user:, token: "glpat-secret") }
 
     it "creates the branch and returns its details on 201" do
       allow(api_client)
@@ -80,6 +80,8 @@ RSpec.describe GitlabIntegration::CreateBranchService do
       expect(result.result[:branch]).to eq(expected_branch)
       expect(result.result[:web_url]).to eq("https://gitlab.example.com/x/-/tree/#{expected_branch}")
       expect(result.result[:already_existed]).to be(false)
+      expect(result.result[:repository]).to eq("Backend")
+      expect(result.result[:mapping_id]).to eq(mapping.id)
     end
 
     it "treats a 400 'already exists' as a success" do
@@ -109,8 +111,10 @@ RSpec.describe GitlabIntegration::CreateBranchService do
       expect(result).to be_failure
     end
 
-    context "when no default_ref is configured" do
-      before { GitlabProjectSettings.find_by(project:).update!(default_ref: nil) }
+    context "when the mapping has no default_ref" do
+      let(:mapping) do
+        GitlabProjectMapping.create!(project:, gitlab_project_id: "42", default_ref: nil)
+      end
 
       it "resolves the GitLab project's default_branch" do
         allow(api_client)

@@ -45,7 +45,8 @@ en:
         ci_details: "CI Details"
       gitlab_merge_request:
         labels: "Labels"
-      gitlab_project_settings:
+      gitlab_project_mapping:
+        name: "Name (optional)"
         gitlab_project_id: "GitLab project ID or path"
         default_ref: "Default branch to create branches from"
     errors:
@@ -66,6 +67,15 @@ en:
     settings:
       menu: "GitLab"
       title: "GitLab integration"
+      intro: >
+        Link this project to one or more GitLab projects. Each linked project
+        becomes a target when creating a branch from a work package.
+      empty: "No GitLab projects are linked yet. Add one below."
+      add: "Add GitLab project"
+      remove: "Remove"
+      name_hint: >
+        Optional label shown when choosing where to create a branch
+        (e.g. "Backend API"). Defaults to the GitLab project ID/path.
       gitlab_project_id_hint: >
         The numeric GitLab project ID, or the "namespace/project" path
         (e.g. "my-group/my-repo"). Branches will be created in this project.

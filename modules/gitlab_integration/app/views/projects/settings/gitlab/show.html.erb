@@ -44,43 +44,14 @@ See COPYRIGHT and LICENSE files for more details.
   <% end %>
 <% end %>
 
-<%= styled_form_tag(
-      project_settings_gitlab_path(@project),
-      method: :patch,
-      id: "edit_project_gitlab_settings"
-    ) do %>
-  <section class="form--section">
-    <div class="form--field">
-      <%= label_tag "gitlab_project_settings_gitlab_project_id",
-                    t("activerecord.attributes.gitlab_project_settings.gitlab_project_id"),
-                    class: "form--label" %>
-      <div class="form--field-container">
-        <%= text_field_tag "gitlab_project_settings[gitlab_project_id]",
-                           @gitlab_project_settings.gitlab_project_id,
-                           class: "form--text-field",
-                           autocomplete: "off",
-                           required: true %>
-      </div>
-      <div class="form--field-instructions">
-        <%= t("gitlab_integration.settings.gitlab_project_id_hint") %>
-      </div>
-    </div>
+<p><%= t("gitlab_integration.settings.intro") %></p>
 
-    <div class="form--field">
-      <%= label_tag "gitlab_project_settings_default_ref",
-                    t("activerecord.attributes.gitlab_project_settings.default_ref"),
-                    class: "form--label" %>
-      <div class="form--field-container">
-        <%= text_field_tag "gitlab_project_settings[default_ref]",
-                           @gitlab_project_settings.default_ref,
-                           class: "form--text-field",
-                           autocomplete: "off" %>
-      </div>
-      <div class="form--field-instructions">
-        <%= t("gitlab_integration.settings.default_ref_hint") %>
-      </div>
-    </div>
-  </section>
-
-  <%= styled_button_tag t(:button_save), class: "-highlight -with-icon icon-checkmark" %>
+<% if @mappings.empty? %>
+  <%= render Primer::Beta::Flash.new(scheme: :default, mb: 3) do %>
+    <%= t("gitlab_integration.settings.empty") %>
+  <% end %>
+<% else %>
+  <%= render partial: "form", collection: @mappings, as: :mapping %>
 <% end %>
+
+<%= render partial: "form", locals: { mapping: @new_mapping } %>

@@ -37,11 +37,39 @@ module API
             authorize_in_work_package(:show_gitlab_content, work_package: @work_package)
           end
 
+          helpers do
+            def gitlab_project_mappings
+              GitlabProjectMapping.where(project_id: @work_package.project_id).order(:id)
+            end
+          end
+
+          resources :branch_targets do
+            desc "List the GitLab projects a branch can be created in for this work package"
+            get do
+              {
+                targets: gitlab_project_mappings.map do |mapping|
+                  { id: mapping.id, name: mapping.display_name, gitlabProjectId: mapping.gitlab_project_id }
+                end
+              }
+            end
+          end
+
           resources :branches do
-            desc "Create a branch in the mapped GitLab project for this work package"
+            desc "Create a branch in a mapped GitLab project for this work package"
+            params do
+              optional :mappingId, type: Integer, desc: "Which GitLab project mapping to create the branch in"
+            end
             post do
+              mappings = gitlab_project_mappings
+              mapping =
+                if params[:mappingId].present?
+                  mappings.find_by(id: params[:mappingId]) || raise(::API::Errors::NotFound.new)
+                elsif mappings.one?
+                  mappings.first
+                end
+
               result = ::GitlabIntegration::CreateBranchService
-                         .new(user: current_user, work_package: @work_package)
+                         .new(user: current_user, work_package: @work_package, mapping:)
                          .call
 
               unless result.success?
@@ -52,7 +80,8 @@ module API
               {
                 branch: result.result[:branch],
                 webUrl: result.result[:web_url],
-                alreadyExisted: result.result[:already_existed]
+                alreadyExisted: result.result[:already_existed],
+                repository: result.result[:repository]
               }
             end
           end

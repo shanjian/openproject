@@ -46,6 +46,17 @@ interface ICreateBranchResponse {
   branch:string;
   webUrl:string|null;
   alreadyExisted:boolean;
+  repository:string;
+}
+
+interface IBranchTarget {
+  id:number;
+  name:string;
+  gitlabProjectId:string;
+}
+
+interface IBranchTargetsResponse {
+  targets:IBranchTarget[];
 }
 
 
@@ -68,18 +79,26 @@ export class GitActionsMenuComponent extends OPContextMenuComponent {
       error: this.I18n.t('js.gitlab_integration.tab_header_mr.git_actions.copy_error')
     },
     createBranch: this.I18n.t('js.gitlab_integration.tab_header_mr.git_actions.create_branch'),
+    createBranchAll: this.I18n.t('js.gitlab_integration.tab_header_mr.git_actions.create_branch_all'),
     createBranchSuccess: this.I18n.t('js.gitlab_integration.tab_header_mr.git_actions.create_branch_success'),
     createBranchExists: this.I18n.t('js.gitlab_integration.tab_header_mr.git_actions.create_branch_exists'),
+    noTargets: this.I18n.t('js.gitlab_integration.tab_header_mr.git_actions.create_branch_no_targets'),
   };
 
   public lastCopyResult:string = this.text.copyResult.success;
   public showCopyResult:boolean = false;
   public copiedSnippetId:string = '';
-  public creatingBranch = false;
+  public branchTargets:IBranchTarget[] = [];
+  public targetsLoaded = false;
+  public inFlight = 0;
 
   private readonly apiV3Service = inject(ApiV3Service);
   private readonly toastService = inject(ToastService);
   private readonly http = inject(HttpClient);
+
+  public get creatingBranch():boolean {
+    return this.inFlight > 0;
+  }
 
   public snippets:ISnippet[] = [
     {
@@ -108,26 +127,46 @@ export class GitActionsMenuComponent extends OPContextMenuComponent {
               readonly gitActions:GitActionsService) {
     super(locals);
     this.workPackage = this.locals.workPackage;
+    this.loadBranchTargets();
   }
 
-  public createBranch():void {
-    if (this.creatingBranch) {
-      return;
-    }
+  private get branchesBasePath():string {
+    return `${this.apiV3Service.work_packages.id(this.workPackage.id!).path}/gitlab`;
+  }
 
-    this.creatingBranch = true;
-    const path = `${this.apiV3Service.work_packages.id(this.workPackage.id!).path}/gitlab/branches`;
-
+  private loadBranchTargets():void {
     this.http
-      .post<ICreateBranchResponse>(path, {}, { withCredentials: true })
+      .get<IBranchTargetsResponse>(`${this.branchesBasePath}/branch_targets`, { withCredentials: true })
       .subscribe({
         next: (response) => {
-          this.creatingBranch = false;
-          const message = response.alreadyExisted ? this.text.createBranchExists : this.text.createBranchSuccess;
-          this.toastService.addSuccess(`${message} ${response.branch}`);
+          this.branchTargets = response.targets;
+          this.targetsLoaded = true;
+        },
+        error: () => {
+          // Leave the picker hidden; the button falls back to a single request.
+          this.targetsLoaded = true;
+        },
+      });
+  }
+
+  public createInAllTargets():void {
+    this.branchTargets.forEach((target) => this.createBranch(target));
+  }
+
+  public createBranch(target?:IBranchTarget):void {
+    this.inFlight += 1;
+    const body = target ? { mappingId: target.id } : {};
+
+    this.http
+      .post<ICreateBranchResponse>(`${this.branchesBasePath}/branches`, body, { withCredentials: true })
+      .subscribe({
+        next: (response) => {
+          this.inFlight -= 1;
+          const prefix = response.alreadyExisted ? this.text.createBranchExists : this.text.createBranchSuccess;
+          this.toastService.addSuccess(`${prefix} ${response.repository} — ${response.branch}`);
         },
         error: (error:HttpErrorResponse) => {
-          this.creatingBranch = false;
+          this.inFlight -= 1;
           this.toastService.addError(error);
         },
       });
