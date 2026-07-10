@@ -63,7 +63,7 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
   let(:select) { { "*" => {} } }
 
   current_user do
-    create(:user)
+    create(:user, member_with_permissions: { project => %i[view_work_packages] })
   end
 
   context "when rendering all supported properties" do
@@ -77,6 +77,7 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
           startDate: rendered_work_package.start_date,
           storyPoints: nil,
           estimatedHours: nil,
+          lockVersion: rendered_work_package.lock_version,
           _links: {
             self: {
               href: api_v3_paths.work_package(rendered_work_package.id),
@@ -109,6 +110,12 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
               title: rendered_work_package.priority.name
             },
             epic: {
+              href: nil
+            },
+            version: {
+              href: nil
+            },
+            parent: {
               href: nil
             }
           }
@@ -131,6 +138,7 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
           date: rendered_work_package.start_date,
           storyPoints: nil,
           estimatedHours: nil,
+          lockVersion: rendered_work_package.lock_version,
           _links: {
             self: {
               href: api_v3_paths.work_package(rendered_work_package.id),
@@ -163,6 +171,12 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
               title: rendered_work_package.priority.name
             },
             epic: {
+              href: nil
+            },
+            version: {
+              href: nil
+            },
+            parent: {
               href: nil
             }
           }
@@ -351,6 +365,17 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
       end
     end
 
+    context "when the epic is not visible to the user" do
+      let(:hidden_epic) { create(:work_package, project: create(:project), subject: "Secret epic") }
+      let(:expected) { { _links: { epic: { href: nil } } } }
+
+      before { rendered_work_package.update_column(:epic_id, hidden_epic.id) }
+
+      it "nulls the link instead of leaking the unseen epic's subject" do
+        expect(json).to be_json_eql(expected.to_json)
+      end
+    end
+
     # Regression: the epic subject is joined from a derived table exposing only
     # (id, subject). A bare work_packages self-join would add a second
     # work_packages instance and make the unqualified assigned_to_id / author_id /
@@ -363,6 +388,173 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
 
       it "renders without raising an ambiguous-column error" do
         expect { json }.not_to raise_error
+      end
+    end
+  end
+
+  describe "version link" do
+    let(:select) { { "version" => {} } }
+
+    context "with a version" do
+      let(:version) { create(:version, project:, name: "Sprint 1") }
+      let(:expected) do
+        { _links: { version: { href: api_v3_paths.version(version.id), title: "Sprint 1" } } }
+      end
+
+      before { rendered_work_package.update_column(:version_id, version.id) }
+
+      it "renders the version link with the version's name" do
+        expect(json).to be_json_eql(expected.to_json)
+      end
+    end
+
+    context "without a version" do
+      let(:expected) { { _links: { version: { href: nil } } } }
+
+      it "renders a null version link" do
+        expect(json).to be_json_eql(expected.to_json)
+      end
+    end
+  end
+
+  describe "parent link" do
+    let(:select) { { "parent" => {} } }
+
+    context "with a parent" do
+      let(:parent) { create(:work_package, project:, subject: "Parent story") }
+      let(:expected) do
+        { _links: { parent: { href: api_v3_paths.work_package(parent.id), title: "Parent story" } } }
+      end
+
+      before { rendered_work_package.update_column(:parent_id, parent.id) }
+
+      it "renders the parent link with the parent's subject" do
+        expect(json).to be_json_eql(expected.to_json)
+      end
+    end
+
+    context "without a parent" do
+      let(:expected) { { _links: { parent: { href: nil } } } }
+
+      it "renders a null parent link" do
+        expect(json).to be_json_eql(expected.to_json)
+      end
+    end
+
+    context "when the parent is not visible to the user" do
+      let(:hidden_parent) { create(:work_package, project: create(:project), subject: "Secret parent") }
+      let(:expected) { { _links: { parent: { href: nil } } } }
+
+      before { rendered_work_package.update_column(:parent_id, hidden_parent.id) }
+
+      it "nulls the link instead of leaking the unseen parent's subject" do
+        expect(json).to be_json_eql(expected.to_json)
+      end
+    end
+
+    # Same derived-table reasoning as the epic link: selecting parent (a
+    # work_packages self-join) alongside epic and the user links must not raise
+    # PG::AmbiguousColumn.
+    context "when selected together with epic and the user links" do
+      let(:select) do
+        { "parent" => {}, "epic" => {}, "assignee" => {}, "author" => {}, "responsible" => {} }
+      end
+      let(:assignee) { create(:user) }
+      let(:responsible) { create(:user) }
+
+      it "renders without raising an ambiguous-column error" do
+        expect { json }.not_to raise_error
+      end
+    end
+  end
+
+  describe "lockVersion property" do
+    let(:select) { { "lockVersion" => {} } }
+
+    it "renders the raw lock_version" do
+      rendered_work_package.update_column(:lock_version, 3)
+      expect(json).to be_json_eql({ lockVersion: 3 }.to_json)
+    end
+  end
+
+  describe "custom field selects" do
+    let(:version_cf) { create(:wp_custom_field, field_format: "version", multi_value: true) }
+    let(:string_cf) { create(:wp_custom_field, field_format: "string") }
+    let(:type) { create(:type, custom_fields: [version_cf, string_cf]) }
+    let(:project) { create(:project, types: [type], work_package_custom_fields: [version_cf, string_cf]) }
+    let(:version_a) { create(:version, project:, name: "V-A") }
+    let(:version_b) { create(:version, project:, name: "V-B") }
+
+    before do
+      rendered_work_package.custom_field_values = {
+        version_cf.id => [version_a.id, version_b.id],
+        string_cf.id => "hello"
+      }
+      rendered_work_package.save!
+    end
+
+    context "with a multi-value version custom field" do
+      let(:select) { { "customField#{version_cf.id}" => {} } }
+      let(:expected) do
+        {
+          _links: {
+            "customField#{version_cf.id}" => [
+              { href: api_v3_paths.version(version_a.id), title: "V-A" },
+              { href: api_v3_paths.version(version_b.id), title: "V-B" }
+            ]
+          }
+        }
+      end
+
+      it "renders the linked values as an array of href/title under _links" do
+        expect(json).to be_json_eql(expected.to_json)
+      end
+    end
+
+    context "with a primitive (string) custom field" do
+      let(:select) { { "customField#{string_cf.id}" => {} } }
+
+      it "renders the raw value as a top-level property" do
+        expect(json).to be_json_eql({ "customField#{string_cf.id}" => "hello" }.to_json)
+      end
+    end
+
+    context "with a linked value whose target was deleted" do
+      let(:select) { { "customField#{version_cf.id}" => {} } }
+      let(:expected) do
+        {
+          _links: {
+            "customField#{version_cf.id}" => [
+              { href: api_v3_paths.version(version_a.id), title: "V-A" },
+              { href: api_v3_paths.version(version_b.id), title: nil }
+            ]
+          }
+        }
+      end
+
+      before { Version.where(id: version_b.id).delete_all }
+
+      it "keeps the element with a null title instead of dropping it" do
+        expect(json).to be_json_eql(expected.to_json)
+      end
+    end
+
+    context "for a work package without a value" do
+      let(:empty_wp) { create(:work_package, project:, type:) }
+      let(:scope) { WorkPackage.where(id: empty_wp.id) }
+      let(:select) { { "customField#{version_cf.id}" => {} } }
+
+      it "renders an empty array for a multi-value linked field" do
+        expect(json).to be_json_eql({ _links: { "customField#{version_cf.id}" => [] } }.to_json)
+      end
+    end
+
+    context "when selecting * — custom fields must NOT be included" do
+      let(:select) { { "*" => {} } }
+
+      it "omits custom fields from the wildcard select" do
+        expect(json).not_to have_json_path("_links/customField#{version_cf.id}")
+        expect(json).not_to have_json_path("customField#{string_cf.id}")
       end
     end
   end
