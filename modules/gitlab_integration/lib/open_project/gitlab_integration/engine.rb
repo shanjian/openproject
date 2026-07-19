@@ -144,6 +144,10 @@ module OpenProject::GitlabIntegration
       "#{work_package(id)}/gitlab_issues"
     end
 
+    add_api_path :gitlab_branches_by_work_package do |id|
+      "#{work_package(id)}/gitlab/branches"
+    end
+
     add_api_path :gitlab_user do |id|
       "gitlab_users/#{id}"
     end

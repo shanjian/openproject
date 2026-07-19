@@ -61,6 +61,15 @@ module OpenProject::GitlabIntegration
                 title: "Gitlab Issues"
               }
             end
+
+            link :gitlab_branches do
+              next if represented.new_record?
+
+              {
+                href: api_v3_paths.gitlab_branches_by_work_package(represented.id),
+                title: "Gitlab branches"
+              }
+            end
           end
         end
       end
