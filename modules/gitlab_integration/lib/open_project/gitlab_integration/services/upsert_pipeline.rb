@@ -35,7 +35,14 @@ module OpenProject
         include ParamsHelper
 
         def call(payload, merge_request:)
-          GitlabPipeline.find_or_initialize_by(gitlab_id: payload.object_attributes.iid)
+          # A pipeline iid is only unique within a single GitLab project. With
+          # several GitLab projects mapped to one OpenProject project, pipelines
+          # from different repositories routinely share an iid, so keying only on
+          # gitlab_id would reassign another repo's pipeline row. Scope the lookup
+          # by project_id + gitlab_id, matching the identity used by
+          # GitlabMergeRequest#latest_pipelines.
+          GitlabPipeline.find_or_initialize_by(project_id: payload.project.id,
+                                               gitlab_id: payload.object_attributes.iid)
                         .tap do |pipeline|
                           pipeline.update!(gitlab_merge_request: merge_request, **extract_params(payload))
                         end
