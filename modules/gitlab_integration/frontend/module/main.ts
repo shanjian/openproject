@@ -51,8 +51,8 @@ import { MergeRequestComponent } from './merge-request/merge-request.component';
 import { IssueComponent } from './issue/issue.component';
 import { BranchComponent } from './branch/branch.component';
 import { WorkPackageResource } from 'core-app/features/hal/resources/work-package-resource';
-import { Observable, combineLatest } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Observable, combineLatest, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 
 export function workPackageGitlabCount(
   workPackage:WorkPackageResource,
@@ -62,16 +62,21 @@ export function workPackageGitlabCount(
   const gitlabIssueService = injector.get(WorkPackagesGitlabIssueService);
   const gitlabBranchesService = injector.get(WorkPackagesGitlabBranchesService);
 
+  // A failure fetching one linked-resource kind must not blank the whole tab
+  // badge, so each stream falls back to a count of 0 on error.
   const mrsObservable = gitlabMrsService.requireAndStream(workPackage).pipe(
     map((mrs) => mrs.length),
+    catchError(() => of(0)),
   );
 
   const issuesObservable = gitlabIssueService.requireAndStream(workPackage).pipe(
     map((issues) => issues.length),
+    catchError(() => of(0)),
   );
 
   const branchesObservable = gitlabBranchesService.requireAndStream(workPackage).pipe(
     map((branches) => branches.length),
+    catchError(() => of(0)),
   );
 
   return combineLatest([mrsObservable, issuesObservable, branchesObservable]).pipe(
