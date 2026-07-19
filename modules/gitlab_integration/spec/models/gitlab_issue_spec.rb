@@ -139,18 +139,38 @@ RSpec.describe GitlabIssue do
     end
 
     context "when the provided gitlab_html_url does not match but the gitlab_id does" do
-      it "is nil" do
+      it "is nil, because the url is authoritative once provided" do
         expect(described_class.find_by_gitlab_identifiers(id: issue.gitlab_id,
                                                           url: "#{issue.gitlab_html_url}zzzz"))
-          .to eql issue
+          .to be_nil
       end
     end
 
     context "when the provided gitlab_html_url does match but the gitlab_id does not" do
-      it "is nil" do
+      it "finds by gitlab_html_url" do
         expect(described_class.find_by_gitlab_identifiers(id: issue.gitlab_id + 1,
                                                           url: issue.gitlab_html_url))
           .to eql issue
+      end
+    end
+
+    context "when another issue in a different repository shares the same gitlab_id (iid)" do
+      # GitLab iids are only unique within a single project. With several GitLab
+      # projects mapped to one OpenProject project, issues from different
+      # repositories routinely collide on gitlab_id; the url must disambiguate them.
+      shared_let(:other_issue) do
+        create(:gitlab_issue,
+               gitlab_id: issue.gitlab_id,
+               gitlab_html_url: "https://gitlab.com/other_user/other_repo/issues/#{issue.number}")
+      end
+
+      it "finds each issue by its own url instead of collapsing them" do
+        expect(described_class.find_by_gitlab_identifiers(id: issue.gitlab_id,
+                                                          url: issue.gitlab_html_url))
+          .to eql issue
+        expect(described_class.find_by_gitlab_identifiers(id: other_issue.gitlab_id,
+                                                          url: other_issue.gitlab_html_url))
+          .to eql other_issue
       end
     end
 

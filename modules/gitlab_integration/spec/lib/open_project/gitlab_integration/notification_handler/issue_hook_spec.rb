@@ -164,7 +164,12 @@ RSpec.describe OpenProject::GitlabIntegration::NotificationHandler::IssueHook do
     it_behaves_like "calls the issue upsert service"
 
     context "when the work package is already known to the GitlabIssue" do
-      let!(:gitlab_issue) { create(:gitlab_issue, gitlab_id: 5, work_packages: [work_package]) }
+      let!(:gitlab_issue) do
+        create(:gitlab_issue,
+               gitlab_id: 5,
+               gitlab_html_url: "http://79dfcd98b723/root/hot_do/-/issues/4",
+               work_packages: [work_package])
+      end
 
       it_behaves_like "adding a comment"
 
@@ -178,7 +183,12 @@ RSpec.describe OpenProject::GitlabIntegration::NotificationHandler::IssueHook do
   end
 
   context "with a labeled action" do
-    let!(:gitlab_issue) { create(:gitlab_issue, gitlab_id: 5, work_packages: [work_package]) }
+    let!(:gitlab_issue) do
+      create(:gitlab_issue,
+             gitlab_id: 5,
+             gitlab_html_url: "http://79dfcd98b723/root/hot_do/-/issues/4",
+             work_packages: [work_package])
+    end
     let(:gitlab_action) { "update" }
     let(:issue_state) { "opened" }
 

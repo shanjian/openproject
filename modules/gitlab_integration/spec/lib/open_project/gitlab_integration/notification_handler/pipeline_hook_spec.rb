@@ -142,4 +142,21 @@ RSpec.describe OpenProject::GitlabIntegration::NotificationHandler::PipelineHook
               merge_request: gitlab_merge_request)
     end
   end
+
+  context "when a pipeline with the same iid already exists in a different project" do
+    # GitLab pipeline iids are only unique within a single project. A pipeline
+    # from another mapped repository that happens to share the incoming iid must
+    # not be reassigned to this project's merge request.
+    let!(:other_pipeline) do
+      create(:gitlab_pipeline,
+             gitlab_id: payload["object_attributes"]["iid"],
+             project_id: payload["project"]["id"] + 1)
+    end
+
+    it "creates a separate pipeline row instead of overwriting the other project's" do
+      expect { process }.to change(GitlabPipeline, :count).by(1)
+      expect(other_pipeline.reload.project_id).to eq(payload["project"]["id"] + 1)
+      expect(other_pipeline.gitlab_merge_request).not_to eq(gitlab_merge_request)
+    end
+  end
 end

@@ -144,18 +144,38 @@ RSpec.describe GitlabMergeRequest do
     end
 
     context "when the provided gitlab_html_url does not match but the gitlab_id does" do
-      it "is nil" do
+      it "is nil, because the url is authoritative once provided" do
         expect(described_class.find_by_gitlab_identifiers(id: merge_request.gitlab_id,
                                                           url: "#{merge_request.gitlab_html_url}zzzz"))
-          .to eql merge_request
+          .to be_nil
       end
     end
 
     context "when the provided gitlab_html_url does match but the gitlab_id does not" do
-      it "is nil" do
+      it "finds by gitlab_html_url" do
         expect(described_class.find_by_gitlab_identifiers(id: merge_request.gitlab_id + 1,
                                                           url: merge_request.gitlab_html_url))
           .to eql merge_request
+      end
+    end
+
+    context "when another merge request in a different repository shares the same gitlab_id (iid)" do
+      # GitLab iids are only unique within a single project. With several GitLab
+      # projects mapped to one OpenProject project, merge requests from different
+      # repositories routinely collide on gitlab_id; the url must disambiguate them.
+      shared_let(:other_merge_request) do
+        create(:gitlab_merge_request,
+               gitlab_id: merge_request.gitlab_id,
+               gitlab_html_url: "https://gitlab.com/other_user/other_repo/merge/#{merge_request.number}")
+      end
+
+      it "finds each merge request by its own url instead of collapsing them" do
+        expect(described_class.find_by_gitlab_identifiers(id: merge_request.gitlab_id,
+                                                          url: merge_request.gitlab_html_url))
+          .to eql merge_request
+        expect(described_class.find_by_gitlab_identifiers(id: other_merge_request.gitlab_id,
+                                                          url: other_merge_request.gitlab_html_url))
+          .to eql other_merge_request
       end
     end
 

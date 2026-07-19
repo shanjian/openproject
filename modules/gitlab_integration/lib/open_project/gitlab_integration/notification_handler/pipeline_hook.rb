@@ -59,8 +59,13 @@ module OpenProject::GitlabIntegration
       end
 
       def find_merge_request
-        gitlab_id = payload.merge_request.iid
-        GitlabMergeRequest.find_by(gitlab_id:)
+        # +iid+ is only unique within a single GitLab project, so scope the
+        # lookup by the globally-unique merge request URL when the payload
+        # carries it, falling back to +iid+ otherwise.
+        GitlabMergeRequest.find_by_gitlab_identifiers(
+          id: payload.merge_request.iid,
+          url: payload.merge_request.url?
+        )
       end
     end
   end

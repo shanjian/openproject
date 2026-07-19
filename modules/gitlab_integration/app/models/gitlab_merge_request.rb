@@ -58,7 +58,18 @@ class GitlabMergeRequest < ApplicationRecord
   def self.find_by_gitlab_identifiers(id: nil, url: nil, initialize: false)
     raise ArgumentError, "needs an id or an url" if id.nil? && url.blank?
 
-    found = where(gitlab_id: id).or(where(gitlab_html_url: url)).take
+    # The GitLab +iid+ (stored as +gitlab_id+) is only unique *within* a single
+    # GitLab project. When several GitLab projects are mapped to one OpenProject
+    # project, merge requests from different repositories routinely share an iid,
+    # so matching on +gitlab_id+ alone collapses them into a single record.
+    # The web URL is globally unique and stable, so prefer it whenever present
+    # and only fall back to +gitlab_id+ when no URL is available.
+    found =
+      if url.present?
+        find_by(gitlab_html_url: url)
+      else
+        find_by(gitlab_id: id)
+      end
 
     if found
       found

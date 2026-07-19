@@ -16,7 +16,8 @@ RSpec.describe "Work Package Activity Tab",
 
   shared_let(:issue) do
     create(:gitlab_issue,
-           gitlab_user: issue_author)
+           gitlab_user: issue_author,
+           gitlab_html_url: "http://79dfcd98b723/root/hot_do/-/issues/4")
   end
 
   def trigger_issue_action
