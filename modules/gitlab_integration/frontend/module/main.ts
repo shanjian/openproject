@@ -38,17 +38,21 @@ import {
 import { GitlabTabComponent } from './gitlab-tab/gitlab-tab.component';
 import { TabHeaderMrsComponent } from './tab-header-mr/tab-header-mr.component';
 import { TabHeaderIssueComponent } from './tab-header-issue/tab-header-issue.component';
+import { TabHeaderBranchComponent } from './tab-header-branch/tab-header-branch.component';
 import { TabMrsComponent } from './tab-mrs/tab-mrs.component';
 import { TabIssueComponent } from './tab-issue/tab-issue.component';
+import { TabBranchesComponent } from './tab-branches/tab-branches.component';
 import { GitActionsMenuDirective } from './git-actions-menu/git-actions-menu.directive';
 import { GitActionsMenuComponent } from './git-actions-menu/git-actions-menu.component';
 import { WorkPackagesGitlabMrsService } from './tab-mrs/wp-gitlab-mrs.service';
 import { WorkPackagesGitlabIssueService } from './tab-issue/wp-gitlab-issue.service';
+import { WorkPackagesGitlabBranchesService } from './tab-branches/wp-gitlab-branches.service';
 import { MergeRequestComponent } from './merge-request/merge-request.component';
 import { IssueComponent } from './issue/issue.component';
+import { BranchComponent } from './branch/branch.component';
 import { WorkPackageResource } from 'core-app/features/hal/resources/work-package-resource';
-import { Observable, combineLatest } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Observable, combineLatest, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 
 export function workPackageGitlabCount(
   workPackage:WorkPackageResource,
@@ -56,17 +60,27 @@ export function workPackageGitlabCount(
 ):Observable<number> {
   const gitlabMrsService = injector.get(WorkPackagesGitlabMrsService);
   const gitlabIssueService = injector.get(WorkPackagesGitlabIssueService);
+  const gitlabBranchesService = injector.get(WorkPackagesGitlabBranchesService);
 
+  // A failure fetching one linked-resource kind must not blank the whole tab
+  // badge, so each stream falls back to a count of 0 on error.
   const mrsObservable = gitlabMrsService.requireAndStream(workPackage).pipe(
     map((mrs) => mrs.length),
+    catchError(() => of(0)),
   );
 
   const issuesObservable = gitlabIssueService.requireAndStream(workPackage).pipe(
     map((issues) => issues.length),
+    catchError(() => of(0)),
   );
 
-  return combineLatest([mrsObservable, issuesObservable]).pipe(
-    map(([mrsCount, issuesCount]) => mrsCount + issuesCount),
+  const branchesObservable = gitlabBranchesService.requireAndStream(workPackage).pipe(
+    map((branches) => branches.length),
+    catchError(() => of(0)),
+  );
+
+  return combineLatest([mrsObservable, issuesObservable, branchesObservable]).pipe(
+    map(([mrsCount, issuesCount, branchesCount]) => mrsCount + issuesCount + branchesCount),
   );
 }
 
@@ -93,24 +107,30 @@ export function initializeGitlabIntegrationPlugin(injector:Injector) {
   providers: [
     WorkPackagesGitlabMrsService,
     WorkPackagesGitlabIssueService,
+    WorkPackagesGitlabBranchesService,
   ],
   declarations: [
     GitlabTabComponent,
     TabHeaderMrsComponent,
     TabHeaderIssueComponent,
+    TabHeaderBranchComponent,
     TabMrsComponent,
     TabIssueComponent,
+    TabBranchesComponent,
     GitActionsMenuDirective,
     GitActionsMenuComponent,
     MergeRequestComponent,
     IssueComponent,
+    BranchComponent,
   ],
   exports: [
     GitlabTabComponent,
     TabHeaderMrsComponent,
     TabHeaderIssueComponent,
+    TabHeaderBranchComponent,
     TabMrsComponent,
     TabIssueComponent,
+    TabBranchesComponent,
     GitActionsMenuDirective,
     GitActionsMenuComponent,
   ],

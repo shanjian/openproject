@@ -1,0 +1,10 @@
+@if (gitlabBranches.length === 0) {
+  <p
+    class="op-tab-content--text-box"
+    [innerHTML]="getEmptyText()"
+  ></p>
+}
+
+@for (gitlabBranch of gitlabBranches; track gitlabBranch) {
+  <gitlab-branch [gitlabBranch]="gitlabBranch" />
+}

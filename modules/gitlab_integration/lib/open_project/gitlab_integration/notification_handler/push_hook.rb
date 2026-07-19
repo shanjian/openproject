@@ -34,12 +34,21 @@ module OpenProject::GitlabIntegration
     class PushHook
       include OpenProject::GitlabIntegration::NotificationHandler::Helper
 
-      def process(payload_params) # rubocop:disable Metrics/AbcSize
+      def process(payload_params)
         @payload = wrap_payload(payload_params)
         return nil unless payload.object_kind == "push"
 
+        user = User.find_by(id: payload.open_project_user_id)
+        comment_on_commits(user)
+        track_branch(user)
+      end
+
+      private
+
+      attr_reader :payload
+
+      def comment_on_commits(user)
         payload.commits.each do |commit|
-          user = User.find_by_id(payload.open_project_user_id)
           text = [commit["title"], commit["message"]]
             .select(&:present?)
             .join(" - ")
@@ -49,9 +58,34 @@ module OpenProject::GitlabIntegration
         end
       end
 
-      private
+      # Persists (or removes) the pushed branch so it can be listed on the work
+      # packages it references. Tags and other non-branch refs are ignored.
+      def track_branch(user)
+        return unless payload.ref.to_s.start_with?("refs/heads/")
 
-      attr_reader :payload
+        branch_name = payload.ref.sub("refs/heads/", "")
+
+        if deleted_branch?
+          existing_branch(branch_name)&.destroy!
+        else
+          upsert_branch(branch_name, user)
+        end
+      end
+
+      def upsert_branch(branch_name, user)
+        work_packages = find_branch_work_packages(branch_name, user)
+        return if work_packages.empty? && existing_branch(branch_name).nil?
+
+        OpenProject::GitlabIntegration::Services::UpsertBranch.new.call(payload, work_packages:)
+      end
+
+      def existing_branch(branch_name)
+        GitlabBranch.find_by(gitlab_html_url: GitlabBranch.build_html_url(payload.project.web_url, branch_name))
+      end
+
+      def deleted_branch?
+        payload.after.blank? || payload.after.match?(/\A0+\z/)
+      end
 
       def generate_notes(commit, payload)
         commit_id = commit["id"]

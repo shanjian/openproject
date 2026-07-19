@@ -1,0 +1,41 @@
+<div class='op-branch--title'>
+  <svg git-branch-icon size="small" class="op-branch--icon"></svg>
+  <a
+    class='op-branch--link'
+    [href]="gitlabBranch.htmlUrl"
+    target="blank"
+    [textContent]="gitlabBranch.name"
+  ></a>
+</div>
+
+<div class="op-branch--info">
+  <span class='op-branch--repository' [textContent]="gitlabBranch.repository"></span>
+
+  @if (gitlabBranch.lastCommitSha) {
+    <span class='op-branch--commit'>
+      @if (gitlabBranch.lastCommitHtmlUrl) {
+        <a
+          class='op-branch--commit_link'
+          [href]="gitlabBranch.lastCommitHtmlUrl"
+          target="blank"
+          [textContent]="shortSha"
+        ></a>
+      } @else {
+        <span [textContent]="shortSha"></span>
+      }
+      @if (gitlabBranch.lastCommitMessage) {
+        <span class='op-branch--commit_message' [textContent]="gitlabBranch.lastCommitMessage"></span>
+      }
+    </span>
+  }
+</div>
+
+<div class="op-branch--info_updated">
+  @if (gitlabBranch.lastCommitAuthor) {
+    <span class='op-branch--author' [textContent]="gitlabBranch.lastCommitAuthor"></span> &middot;
+  }
+  <span class='op-branch--date'>
+    {{ text.label_last_updated_on }}
+    <op-date-time [dateTimeValue]="gitlabBranch.gitlabUpdatedAt" />
+  </span>
+</div>

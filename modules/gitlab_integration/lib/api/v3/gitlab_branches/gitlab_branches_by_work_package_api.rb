@@ -55,6 +55,16 @@ module API
           end
 
           resources :branches do
+            desc "List the branches referencing this work package"
+            get do
+              branches = @work_package.gitlab_branches.order(gitlab_updated_at: :desc)
+              path = api_v3_paths.gitlab_branches_by_work_package(@work_package.id)
+              GitlabBranchCollectionRepresenter.new(branches,
+                                                    branches.count,
+                                                    self_link: path,
+                                                    current_user:)
+            end
+
             desc "Create a branch in a mapped GitLab project for this work package"
             params do
               optional :mappingId, type: Integer, desc: "Which GitLab project mapping to create the branch in"
