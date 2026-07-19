@@ -46,6 +46,7 @@ import { GitActionsMenuDirective } from './git-actions-menu/git-actions-menu.dir
 import { GitActionsMenuComponent } from './git-actions-menu/git-actions-menu.component';
 import { WorkPackagesGitlabMrsService } from './tab-mrs/wp-gitlab-mrs.service';
 import { WorkPackagesGitlabIssueService } from './tab-issue/wp-gitlab-issue.service';
+import { WorkPackagesGitlabBranchesService } from './tab-branches/wp-gitlab-branches.service';
 import { MergeRequestComponent } from './merge-request/merge-request.component';
 import { IssueComponent } from './issue/issue.component';
 import { BranchComponent } from './branch/branch.component';
@@ -59,6 +60,7 @@ export function workPackageGitlabCount(
 ):Observable<number> {
   const gitlabMrsService = injector.get(WorkPackagesGitlabMrsService);
   const gitlabIssueService = injector.get(WorkPackagesGitlabIssueService);
+  const gitlabBranchesService = injector.get(WorkPackagesGitlabBranchesService);
 
   const mrsObservable = gitlabMrsService.requireAndStream(workPackage).pipe(
     map((mrs) => mrs.length),
@@ -68,8 +70,12 @@ export function workPackageGitlabCount(
     map((issues) => issues.length),
   );
 
-  return combineLatest([mrsObservable, issuesObservable]).pipe(
-    map(([mrsCount, issuesCount]) => mrsCount + issuesCount),
+  const branchesObservable = gitlabBranchesService.requireAndStream(workPackage).pipe(
+    map((branches) => branches.length),
+  );
+
+  return combineLatest([mrsObservable, issuesObservable, branchesObservable]).pipe(
+    map(([mrsCount, issuesCount, branchesCount]) => mrsCount + issuesCount + branchesCount),
   );
 }
 
@@ -96,6 +102,7 @@ export function initializeGitlabIntegrationPlugin(injector:Injector) {
   providers: [
     WorkPackagesGitlabMrsService,
     WorkPackagesGitlabIssueService,
+    WorkPackagesGitlabBranchesService,
   ],
   declarations: [
     GitlabTabComponent,
