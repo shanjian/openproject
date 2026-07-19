@@ -56,6 +56,20 @@ export interface IGitlabIssueResource extends HalResourceClass {
   gitlabUser?:IGitlabUserResource;
 }
 
+export interface IGitlabBranchResource extends HalResourceClass {
+  createdAt?:string;
+  gitlabUpdatedAt?:string;
+  htmlUrl?:string;
+  id?:number;
+  name?:string;
+  repository?:string;
+  lastCommitSha?:string;
+  lastCommitMessage?:string;
+  lastCommitHtmlUrl?:string;
+  lastCommitAuthor?:string;
+  updatedAt?:string;
+}
+
 export interface IGitlabMergeRequestResource extends HalResourceClass {
   body?:{
     format?:string;

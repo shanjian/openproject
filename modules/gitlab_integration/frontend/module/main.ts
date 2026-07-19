@@ -38,14 +38,17 @@ import {
 import { GitlabTabComponent } from './gitlab-tab/gitlab-tab.component';
 import { TabHeaderMrsComponent } from './tab-header-mr/tab-header-mr.component';
 import { TabHeaderIssueComponent } from './tab-header-issue/tab-header-issue.component';
+import { TabHeaderBranchComponent } from './tab-header-branch/tab-header-branch.component';
 import { TabMrsComponent } from './tab-mrs/tab-mrs.component';
 import { TabIssueComponent } from './tab-issue/tab-issue.component';
+import { TabBranchesComponent } from './tab-branches/tab-branches.component';
 import { GitActionsMenuDirective } from './git-actions-menu/git-actions-menu.directive';
 import { GitActionsMenuComponent } from './git-actions-menu/git-actions-menu.component';
 import { WorkPackagesGitlabMrsService } from './tab-mrs/wp-gitlab-mrs.service';
 import { WorkPackagesGitlabIssueService } from './tab-issue/wp-gitlab-issue.service';
 import { MergeRequestComponent } from './merge-request/merge-request.component';
 import { IssueComponent } from './issue/issue.component';
+import { BranchComponent } from './branch/branch.component';
 import { WorkPackageResource } from 'core-app/features/hal/resources/work-package-resource';
 import { Observable, combineLatest } from 'rxjs';
 import { map } from 'rxjs/operators';
@@ -98,19 +101,24 @@ export function initializeGitlabIntegrationPlugin(injector:Injector) {
     GitlabTabComponent,
     TabHeaderMrsComponent,
     TabHeaderIssueComponent,
+    TabHeaderBranchComponent,
     TabMrsComponent,
     TabIssueComponent,
+    TabBranchesComponent,
     GitActionsMenuDirective,
     GitActionsMenuComponent,
     MergeRequestComponent,
     IssueComponent,
+    BranchComponent,
   ],
   exports: [
     GitlabTabComponent,
     TabHeaderMrsComponent,
     TabHeaderIssueComponent,
+    TabHeaderBranchComponent,
     TabMrsComponent,
     TabIssueComponent,
+    TabBranchesComponent,
     GitActionsMenuDirective,
     GitActionsMenuComponent,
   ],
