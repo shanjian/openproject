@@ -96,10 +96,10 @@ module OpenProject::GitlabIntegration
       end
 
       def merge_request
-        @merge_request ||= GitlabMergeRequest
-                            .where(gitlab_id: payload.object_attributes.iid)
-                            .or(GitlabMergeRequest.where(gitlab_html_url: payload.object_attributes.url))
-                            .take
+        @merge_request ||= GitlabMergeRequest.find_by_gitlab_identifiers(
+          id: payload.object_attributes.iid,
+          url: payload.object_attributes.url
+        )
       end
 
       def upsert_merge_request(work_packages)

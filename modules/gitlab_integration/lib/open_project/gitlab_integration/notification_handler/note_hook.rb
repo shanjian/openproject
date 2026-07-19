@@ -148,10 +148,10 @@ module OpenProject::GitlabIntegration
       end
 
       def gitlab_issue
-        @gitlab_issue ||= GitlabIssue
-                            .where(gitlab_id: payload.issue.iid)
-                            .or(GitlabIssue.where(gitlab_html_url: payload.issue.url))
-                            .take
+        @gitlab_issue ||= GitlabIssue.find_by_gitlab_identifiers(
+          id: payload.issue.iid,
+          url: payload.issue.url
+        )
       end
 
       def upsert_issue(work_packages)

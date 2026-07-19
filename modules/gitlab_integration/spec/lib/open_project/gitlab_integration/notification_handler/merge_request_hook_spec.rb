@@ -178,7 +178,12 @@ RSpec.describe OpenProject::GitlabIntegration::NotificationHandler::MergeRequest
     it_behaves_like "calls the merge request upsert service"
 
     context "when the work package is already known to the GitlabMergeRequest" do
-      let!(:gitlab_merge_request) { create(:gitlab_merge_request, gitlab_id: 4, work_packages: [work_package]) }
+      let!(:gitlab_merge_request) do
+        create(:gitlab_merge_request,
+               gitlab_id: 4,
+               gitlab_html_url: "http://79dfcd98b723/root/hot_do/-/merge_requests/4",
+               work_packages: [work_package])
+      end
 
       it_behaves_like "adding a comment"
 
@@ -258,7 +263,12 @@ RSpec.describe OpenProject::GitlabIntegration::NotificationHandler::MergeRequest
         "[Administrator](https://www.gravatar.com/avatar/258d8dc916db8cea2cafb6c3cd0cb0246efe061421dbd83ec3a350428cabda4f?s=80&d=identicon).\n"
     end
 
-    before { create(:gitlab_merge_request, gitlab_id: 4, work_packages: [work_package]) }
+    before do
+      create(:gitlab_merge_request,
+             gitlab_id: 4,
+             gitlab_html_url: "http://79dfcd98b723/root/hot_do/-/merge_requests/4",
+             work_packages: [work_package])
+    end
 
     it_behaves_like "not adding a comment"
 

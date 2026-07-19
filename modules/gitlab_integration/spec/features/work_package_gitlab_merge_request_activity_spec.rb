@@ -15,7 +15,8 @@ RSpec.describe "Work Package Activity Tab",
   shared_let(:merge_request_merging_user) { create(:gitlab_user, gitlab_username: "i_merged") }
   shared_let(:merge_request) do
     create(:gitlab_merge_request,
-           gitlab_user: merge_request_author)
+           gitlab_user: merge_request_author,
+           gitlab_html_url: "http://79dfcd98b723/root/hot_do/-/merge_requests/4")
   end
 
   def trigger_merge_request_action
