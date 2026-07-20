@@ -44,6 +44,9 @@ RSpec.describe OpenProject::GitlabIntegration::NotificationHandler::MergeRequest
   let(:mr_state) { "opened" }
   let(:mr_draft) { false }
   let(:labels) { [] }
+  # Defaults to a branch that references no work package, so the existing
+  # examples don't incidentally create branch records.
+  let(:source_branch) { "feature/no-work-package-reference" }
 
   let(:payload) do
     {
@@ -71,7 +74,19 @@ RSpec.describe OpenProject::GitlabIntegration::NotificationHandler::MergeRequest
         "id" => 4,
         "iid" => 4,
         "url" => "http://79dfcd98b723/root/hot_do/-/merge_requests/4",
-        "updated_at" => Time.current.iso8601
+        "updated_at" => Time.current.iso8601,
+        "source_branch" => source_branch,
+        "source" => {
+          "name" => "Hot Do",
+          "web_url" => "http://79dfcd98b723/root/hot_do"
+        },
+        "last_commit" => {
+          "id" => "a265d6b7bcf836b77ed9e32f824b231585c6a355",
+          "message" => "Implement the thing\n",
+          "timestamp" => "2024-03-04T16:00:00Z",
+          "url" => "http://79dfcd98b723/root/hot_do/-/commit/a265d6b7",
+          "author" => { "name" => "Jane Dev", "email" => "jane@example.com" }
+        }
       },
       "labels" => labels,
       "repository" => {
@@ -291,5 +306,43 @@ RSpec.describe OpenProject::GitlabIntegration::NotificationHandler::MergeRequest
 
     it_behaves_like "adding a comment"
     it_behaves_like "calls the merge request upsert service"
+  end
+
+  describe "source branch tracking" do
+    shared_let(:branch_type) { create(:type, name: "Task") }
+    shared_let(:branch_work_package) { create(:work_package, type: branch_type) }
+
+    let(:source_branch) { "task/#{branch_work_package.id}-a-mr-title" }
+
+    context "when the source branch name references a work package" do
+      it "records the branch and links it to that work package" do
+        expect { process }.to change(GitlabBranch, :count).by(1)
+
+        branch = GitlabBranch.last
+        expect(branch.name).to eq(source_branch)
+        expect(branch.gitlab_html_url).to eq("http://79dfcd98b723/root/hot_do/-/tree/#{source_branch}")
+        expect(branch.repository).to eq("Hot Do")
+        expect(branch.last_commit_sha).to eq("a265d6b7bcf836b77ed9e32f824b231585c6a355")
+        expect(branch.last_commit_author).to eq("Jane Dev")
+        expect(branch.work_packages).to contain_exactly(branch_work_package)
+      end
+    end
+
+    context "when the source branch name references no work package" do
+      let(:source_branch) { "feature/no-work-package-reference" }
+
+      it "does not record a branch" do
+        expect { process }.not_to change(GitlabBranch, :count)
+      end
+    end
+
+    context "when the merge request is not open" do
+      let(:gitlab_action) { "merge" }
+      let(:mr_state) { "merged" }
+
+      it "does not record a branch, avoiding resurrecting a deleted source branch" do
+        expect { process }.not_to change(GitlabBranch, :count)
+      end
+    end
   end
 end
