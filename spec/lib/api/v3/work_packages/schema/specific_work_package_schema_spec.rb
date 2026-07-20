@@ -169,6 +169,57 @@ RSpec.describe API::V3::WorkPackages::Schema::SpecificWorkPackageSchema do
 
       expect(subject.assignable_custom_field_values(version_cf)).to eql result
     end
+
+    it "retains versions already assigned to the field even when no longer assignable (e.g. closed)" do
+      open_version = build_stubbed(:version, status: "open")
+      closed_version = build_stubbed(:version, status: "closed")
+
+      allow(work_package)
+        .to receive(:assignable_versions)
+              .and_return([open_version])
+
+      assigned = instance_double(CustomValue, value: closed_version.id.to_s)
+      allow(work_package)
+        .to receive(:custom_values_for_custom_field)
+              .with(version_cf)
+              .and_return([assigned])
+      allow(Version)
+        .to receive(:where)
+              .with(id: [closed_version.id.to_s])
+              .and_return([closed_version])
+
+      expect(subject.assignable_custom_field_values(version_cf))
+        .to contain_exactly(open_version, closed_version)
+    end
+
+    it "does not retain an assigned version whose kind mismatches the field's version_kind" do
+      version_cf = build_stubbed(:version_wp_custom_field, version_kind: "release")
+      open_release = build_stubbed(:version, status: "open")
+      stale_sprint = build_stubbed(:version, status: "closed")
+      relation = instance_double(ActiveRecord::Relation, to_a: [])
+
+      allow(work_package)
+        .to receive(:assignable_versions)
+              .and_return([open_release])
+
+      assigned = instance_double(CustomValue, value: stale_sprint.id.to_s)
+      allow(work_package)
+        .to receive(:custom_values_for_custom_field)
+              .with(version_cf)
+              .and_return([assigned])
+      # A mismatched-kind version is filtered out by the kind-scoped query.
+      allow(Version)
+        .to receive(:where)
+              .with(id: [stale_sprint.id.to_s])
+              .and_return(relation)
+      allow(relation)
+        .to receive(:where)
+              .with(kind: "release")
+              .and_return(relation)
+
+      expect(subject.assignable_custom_field_values(version_cf))
+        .to contain_exactly(open_release)
+    end
   end
 
   describe "#assignable_project_phases" do
