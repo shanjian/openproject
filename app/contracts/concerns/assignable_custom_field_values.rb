@@ -37,8 +37,48 @@ module AssignableCustomFieldValues
       when "list"
         custom_field.possible_values
       when "version"
-        assignable_versions(only_open: !custom_field.allow_non_open_versions?,
-                            kind: custom_field.version_kind)
+        assignable_version_custom_field_values(custom_field)
+      end
+    end
+
+    private
+
+    def assignable_version_custom_field_values(custom_field)
+      assignable = assignable_versions(only_open: !custom_field.allow_non_open_versions?,
+                                       kind: custom_field.version_kind)
+
+      # Versions already stored on the custom field stay selectable even when they
+      # are no longer offered (e.g. a closed version while only open ones are
+      # assignable). Otherwise editing a multi-value version field would silently
+      # drop those values. Mirrors WorkPackage#retained_assignable_version, which
+      # does the same for the native version_id field.
+      retained = assigned_version_custom_field_values(custom_field)
+      return assignable if retained.empty?
+
+      (assignable.to_a + retained).uniq
+    end
+
+    def assigned_version_custom_field_values(custom_field)
+      customized = version_custom_field_customized
+      return [] unless customized
+
+      ids = customized
+              .custom_values_for_custom_field(custom_field)
+              .filter_map { |custom_value| custom_value.value.presence }
+      return [] if ids.empty?
+
+      scope = Version.where(id: ids)
+      # Keep retained versions within the field's kind so a stale mismatched value
+      # (e.g. a Sprint left over on a Release field) is not re-exposed as allowed.
+      scope = scope.where(kind: custom_field.version_kind) if custom_field.version_kind.present?
+      scope.to_a
+    end
+
+    def version_custom_field_customized
+      if defined?(@object) && @object.respond_to?(:custom_values_for_custom_field)
+        @object
+      elsif respond_to?(:model) && model.respond_to?(:custom_values_for_custom_field)
+        model
       end
     end
   end
