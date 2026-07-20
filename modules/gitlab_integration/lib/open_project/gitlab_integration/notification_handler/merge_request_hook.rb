@@ -62,12 +62,50 @@ module OpenProject::GitlabIntegration
             status_on_referenced_work_packages(work_packages, user, wp_status_id_on_merged)
           end
         end
-        upsert_merge_request(work_packages)
+        merge_request = upsert_merge_request(work_packages)
+        track_source_branch(user)
+        merge_request
       end
 
       private
 
       attr_reader :payload
+
+      # An open merge request carries its source branch and that branch's last
+      # commit, so record the branch here too. This surfaces branches that were
+      # pushed before branch tracking existed (their push webhook is never
+      # replayed) as soon as any merge request event fires for them. The branch
+      # is linked to the work packages its *name* references, matching the push
+      # hook, rather than to whatever the merge request mentions.
+      def track_source_branch(user)
+        return unless payload.object_attributes.state == "opened"
+
+        source_branch = payload.object_attributes.source_branch?
+        return if source_branch.blank?
+
+        branch_payload = source_branch_payload(source_branch)
+        work_packages = find_branch_work_packages(source_branch, user)
+        return if branch_payload.nil? || work_packages.empty?
+
+        OpenProject::GitlabIntegration::Services::UpsertBranch.new.call(branch_payload, work_packages:)
+      end
+
+      # Reshapes the merge request's source into the push-shaped payload that
+      # UpsertBranch consumes, so both capture paths share one code path.
+      # Returns nil when the payload lacks the source project or last commit.
+      def source_branch_payload(source_branch)
+        source = payload.object_attributes.source?&.to_h
+        commit = payload.object_attributes.last_commit?&.to_h
+        return if source.blank? || commit.blank?
+
+        wrap_payload(
+          "ref" => "refs/heads/#{source_branch}",
+          "after" => commit["id"],
+          "project" => { "web_url" => source["web_url"] },
+          "repository" => { "name" => source["name"] },
+          "commits" => [commit]
+        )
+      end
 
       def generate_notes(payload)
         key = {
