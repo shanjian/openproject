@@ -59,13 +59,16 @@ module OpenProject::GitlabIntegration
       end
 
       def find_merge_request
-        # +iid+ is only unique within a single GitLab project, so scope the
-        # lookup by the globally-unique merge request URL when the payload
-        # carries it, falling back to +iid+ otherwise.
-        GitlabMergeRequest.find_by_gitlab_identifiers(
-          id: payload.merge_request.iid,
-          url: payload.merge_request.url?
-        )
+        # +iid+ is only unique within a single GitLab project. The pipeline
+        # payload carries no merge request URL, so derive the globally-unique URL
+        # from the project web URL + iid (the same value UpsertMergeRequest
+        # stores) and match on that. Matching on iid alone would attach the
+        # pipeline to a same-iid merge request from another mapped repository.
+        GitlabMergeRequest.find_by_gitlab_identifiers(url: merge_request_url)
+      end
+
+      def merge_request_url
+        "#{payload.project.web_url}/-/merge_requests/#{payload.merge_request.iid}"
       end
     end
   end

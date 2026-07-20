@@ -33,7 +33,13 @@ RSpec.describe OpenProject::GitlabIntegration::NotificationHandler::PipelineHook
   subject(:process) { handler_instance.process(payload) }
 
   shared_let(:gitlab_system_user) { create(:admin) }
-  shared_let(:gitlab_merge_request) { create(:gitlab_merge_request) }
+  # URL matches what UpsertMergeRequest stores for this project + iid, so the
+  # pipeline hook (which derives the URL from project.web_url + iid) finds it.
+  shared_let(:gitlab_merge_request) do
+    create(:gitlab_merge_request,
+           gitlab_id: 5,
+           gitlab_html_url: "http://79dfcd98b723/root/hot_do/-/merge_requests/5")
+  end
 
   let(:handler_instance) { described_class.new }
   let(:upsert_service) { OpenProject::GitlabIntegration::Services::UpsertPipeline.new }
@@ -157,6 +163,23 @@ RSpec.describe OpenProject::GitlabIntegration::NotificationHandler::PipelineHook
       expect { process }.to change(GitlabPipeline, :count).by(1)
       expect(other_pipeline.reload.project_id).to eq(payload["project"]["id"] + 1)
       expect(other_pipeline.gitlab_merge_request).not_to eq(gitlab_merge_request)
+    end
+  end
+
+  context "when another repository has a merge request with the same iid" do
+    # The pipeline's merge_request payload has no URL, only an iid, which is not
+    # unique across GitLab projects. The hook must scope to the merge request in
+    # the pipeline's own project (by deriving its URL), not a same-iid one in a
+    # different repository.
+    let!(:other_repository_merge_request) do
+      create(:gitlab_merge_request,
+             gitlab_id: gitlab_merge_request.gitlab_id,
+             gitlab_html_url: "http://79dfcd98b723/root/other_repo/-/merge_requests/#{gitlab_merge_request.gitlab_id}")
+    end
+
+    it "attaches the pipeline to the merge request in the pipeline's project" do
+      expect { process }.to change(GitlabPipeline, :count).by(1)
+      expect(GitlabPipeline.last.gitlab_merge_request).to eq(gitlab_merge_request)
     end
   end
 end
