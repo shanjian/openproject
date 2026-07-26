@@ -129,14 +129,29 @@ module OpenProject::GitlabIntegration
 
       ##
       # Adds comments to the given WorkPackages.
-      def comment_on_referenced_work_packages(work_packages, user, notes)
+      #
+      # When +deduplicate+ is set, a work package is skipped if it already carries
+      # a journal with the exact same note. This keeps the activity clean when the
+      # same GitLab event is delivered twice -- e.g. a push or merge request that
+      # arrives via both a per-repository webhook and an instance-wide system hook.
+      # The generated notes embed stable identifiers (commit SHA, merge request
+      # number and URL), so an identical note always denotes the same event; only
+      # push and merge-request events are duplicated this way (system hooks do not
+      # send issue or note events), which is why callers opt in explicitly.
+      def comment_on_referenced_work_packages(work_packages, user, notes, deduplicate: false)
         return if notes.nil?
 
         work_packages.each do |work_package|
+          next if deduplicate && already_commented?(work_package, notes)
+
           ::WorkPackages::UpdateService
             .new(user:, model: work_package)
             .call(journal_notes: notes, send_notifications: false)
         end
+      end
+
+      def already_commented?(work_package, notes)
+        work_package.journals.exists?(notes:)
       end
 
       ##

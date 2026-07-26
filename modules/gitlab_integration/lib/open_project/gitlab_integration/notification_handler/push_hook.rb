@@ -54,7 +54,7 @@ module OpenProject::GitlabIntegration
             .join(" - ")
           work_packages = find_mentioned_work_packages(text, user)
           notes = generate_notes(commit, payload)
-          comment_on_referenced_work_packages(work_packages, user, notes)
+          comment_on_referenced_work_packages(work_packages, user, notes, deduplicate: true)
         end
       end
 
