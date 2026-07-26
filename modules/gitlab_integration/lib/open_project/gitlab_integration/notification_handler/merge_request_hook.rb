@@ -55,7 +55,7 @@ module OpenProject::GitlabIntegration
         notes = generate_notes(payload)
 
         if (accepted_actions_for_comments.include? payload.object_attributes.action) || (accepted_states.include? payload.object_attributes.state)
-          comment_on_referenced_work_packages(work_packages, user, notes)
+          comment_on_referenced_work_packages(work_packages, user, notes, deduplicate: true)
           if payload.object_attributes.state == "opened" && update_status_on_new_mr
             status_on_referenced_work_packages(work_packages, user, wp_status_id_on_new_mr)
           elsif payload.object_attributes.state == "merged" && update_status_on_merged

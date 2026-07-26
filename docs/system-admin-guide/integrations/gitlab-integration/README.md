@@ -114,7 +114,9 @@ OpenProject then records the branches and merge requests of any repository whose
 > [!TIP]
 > If your OpenProject server is on a local/private network, enable **Allow requests to the local network from system hooks** under **Admin area -> Settings -> Network -> Outbound requests**.
 
-A system hook covers *push* and *merge request* events only. If you also rely on issue or comment linking, keep the per-repository webhooks for those repositories, or use both in parallel — records are matched by their unique GitLab URL, so a repository covered by both a system hook and a project webhook is not duplicated.
+A system hook covers *push* and *merge request* events only. If you also rely on issue, comment or pipeline linking, keep the per-repository webhooks for those events (a system hook does not send them).
+
+Running a system hook **and** a per-repository webhook side by side is safe: the same push or merge request is then delivered twice, but branch and merge-request records are matched by their unique GitLab URL (so they are never duplicated), and the resulting work package comments are de-duplicated as well. If you prefer to avoid the redundant delivery entirely, edit each per-repository webhook and disable its **Push events** and **Merge request events** triggers, leaving the system hook to handle those while the webhook keeps handling *Issues*, *Comments* and *Pipeline* events.
 
 ### Updating from the user-generated GitLab Plugin
 

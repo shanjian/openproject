@@ -122,7 +122,8 @@ RSpec.describe OpenProject::GitlabIntegration::NotificationHandler::PushHook do
       expect(handler_instance).to have_received(:comment_on_referenced_work_packages).with(
         [work_package],
         gitlab_system_user,
-        comment
+        comment,
+        deduplicate: true
       )
     end
 
@@ -143,7 +144,8 @@ RSpec.describe OpenProject::GitlabIntegration::NotificationHandler::PushHook do
         expect(handler_instance).to have_received(:comment_on_referenced_work_packages).with(
           [work_package],
           gitlab_system_user,
-          comment
+          comment,
+          deduplicate: true
         )
       end
     end
