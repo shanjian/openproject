@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 #-- copyright
 # OpenProject is an open source project management software.
 # Copyright (C) 2023 Ben Tey
@@ -27,43 +29,54 @@
 # See docs/COPYRIGHT.rdoc for more details.
 #++
 
+require_relative "push_hook"
+require_relative "merge_request_hook"
+
 module OpenProject::GitlabIntegration
   module NotificationHandler
     ##
-    # Handles Gitlab commit notifications.
+    # Handles GitLab *system hook* notifications.
+    #
+    # A system hook is configured once, at the instance level (GitLab admin area),
+    # and fires for *every* repository on the instance -- unlike a project or group
+    # webhook, which has to be set up per repository. This lets a single hook drive
+    # branch and merge-request tracking across all repositories, including ones
+    # created in the future.
+    #
+    # Every system-hook delivery arrives with the same `X-Gitlab-Event: System Hook`
+    # header, so they are all routed here regardless of the underlying event. The
+    # concrete event is carried in the payload instead: merge request (and other
+    # newer) events expose `object_kind`, while the original push/tag events expose
+    # only `event_name`.
+    #
+    # We dispatch the events we care about to the very same handlers that process
+    # per-repository webhooks, so behaviour is identical whether tracking is driven
+    # by a per-repo webhook or by one instance-wide system hook.
     class SystemHook
-      include OpenProject::GitlabIntegration::NotificationHandler::Helper
-
-      def process(payload_params) # rubocop:disable Metrics/AbcSize
-        @payload = wrap_payload(payload_params)
-        return nil unless payload.object_kind == "push"
-
-        payload.commits.each do |commit|
-          user = User.find_by_id(payload.open_project_user_id)
-          text = [commit["title"], commit["message"]]
-            .select(&:present?)
-            .join(" - ")
-          work_packages = find_mentioned_work_packages(text, user)
-          notes = generate_notes(commit, payload)
-          comment_on_referenced_work_packages(work_packages, user, notes)
+      def process(payload_params)
+        case event_kind(payload_params)
+        when "push"
+          PushHook.new.process(normalize_push(payload_params))
+        when "merge_request"
+          MergeRequestHook.new.process(payload_params)
         end
       end
 
       private
 
-      attr_reader :payload
+      # The event discriminator. Merge-request system hooks carry `object_kind`;
+      # push system hooks carry only `event_name`. Preferring `object_kind` keeps
+      # us aligned with the per-repo webhook payloads where both are present.
+      def event_kind(payload_params)
+        payload_params["object_kind"].presence || payload_params["event_name"].presence
+      end
 
-      def generate_notes(commit, payload)
-        commit_id = commit["id"]
-        I18n.t("gitlab_integration.push_single_commit_comment",
-               commit_number: commit_id[0, 8],
-               commit_note: commit["message"].presence || commit["title"],
-               commit_url: commit["url"],
-               commit_timestamp: commit["timestamp"],
-               repository: payload.repository.name,
-               repository_url: payload.repository.homepage,
-               gitlab_user: payload.user_name,
-               gitlab_user_url: payload.user_avatar)
+      # A system-hook push identifies itself with `event_name: "push"` and carries
+      # no `object_kind`, whereas PushHook guards on `object_kind == "push"` (and
+      # the payload wrapper raises on a missing key). Stamp `object_kind` on so the
+      # push payload is indistinguishable from a per-repo push webhook downstream.
+      def normalize_push(payload_params)
+        payload_params.merge("object_kind" => "push")
       end
     end
   end
