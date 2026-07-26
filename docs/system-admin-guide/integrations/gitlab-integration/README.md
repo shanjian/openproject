@@ -97,6 +97,25 @@ We recommend that you enable the **SSL verification** before you **Add webhook**
 
 Now the integration is set up on both sides and you can use it.
 
+### One hook for all repositories (system hook)
+
+Setting up a webhook in every repository is tedious when you have many of them, and a single work package often spans several repositories (for example a frontend and a backend repo) whose branches and merge requests should all appear on it. Instead of a per-repository webhook you can configure a single **system hook**, which is defined once at the instance level and fires for **every repository on the GitLab instance, including ones created later**.
+
+> [!NOTE]
+> Group-level webhooks (which cover all repositories in a group) are a paid GitLab feature. A system hook achieves the "configure once for everything" result on any GitLab tier, but requires GitLab administrator access.
+
+As a GitLab administrator, navigate to **Admin area -> System hooks** and add a hook with:
+
+- the same **URL** as a project webhook, including the `key` parameter, e.g. `https://myopenproject.com/webhooks/gitlab?key=4221687468163843`
+- the **Push events** and **Merge request events** triggers enabled
+
+OpenProject then records the branches and merge requests of any repository whose branch name or merge-request text references a work package (via the `OP#<id>` convention), regardless of which repository the event came from.
+
+> [!TIP]
+> If your OpenProject server is on a local/private network, enable **Allow requests to the local network from system hooks** under **Admin area -> Settings -> Network -> Outbound requests**.
+
+A system hook covers *push* and *merge request* events only. If you also rely on issue or comment linking, keep the per-repository webhooks for those repositories, or use both in parallel — records are matched by their unique GitLab URL, so a repository covered by both a system hook and a project webhook is not duplicated.
+
 ### Updating from the user-generated GitLab Plugin
 
 With [OpenProject 13.4](../../../release-notes/13/13-4-0/), the user-generated plugin was replaced by this GitLab integration. If you were already using the user-generated GitLab plugin, we recommend removing the plugin module folder and bundler references before upgrading to OpenProject. Your historical dataset will remain unaffected within OpenProject as there were no changes to the data model.
