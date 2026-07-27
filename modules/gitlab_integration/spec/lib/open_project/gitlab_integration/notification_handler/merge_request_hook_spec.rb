@@ -347,4 +347,34 @@ RSpec.describe OpenProject::GitlabIntegration::NotificationHandler::MergeRequest
       end
     end
   end
+
+  describe "concurrent delivery of the same merge request (race)" do
+    # The same event delivered by both a per-repository webhook and an
+    # instance-wide system hook can race: each delivery's identity lookup misses
+    # the other's not-yet-committed row. The unique index on gitlab_html_url now
+    # rejects the second insert, and the upsert service re-finds the row.
+    let(:mr_url) { "http://79dfcd98b723/root/hot_do/-/merge_requests/4" }
+
+    before do
+      # The winning delivery has already committed the row.
+      create(:gitlab_merge_request, gitlab_id: 4, gitlab_html_url: mr_url)
+
+      # Simulate the losing delivery: its first identity lookup misses, so it
+      # builds a fresh record whose insert then collides on the unique index.
+      call_count = 0
+      allow(GitlabMergeRequest).to receive(:find_by_gitlab_identifiers).and_wrap_original do |original, **kwargs|
+        call_count += 1
+        if call_count == 1
+          GitlabMergeRequest.new(gitlab_id: kwargs[:id], gitlab_html_url: kwargs[:url])
+        else
+          original.call(**kwargs)
+        end
+      end
+    end
+
+    it "recovers without creating a duplicate or raising" do
+      expect { process }.not_to raise_error
+      expect(GitlabMergeRequest.where(gitlab_html_url: mr_url).count).to eq(1)
+    end
+  end
 end
