@@ -37,11 +37,22 @@ module OpenProject
       # different repositories never collapse into one record.
       class UpsertBranch
         def call(payload, work_packages: [])
+          attempts = 0
           branch_name = branch_name(payload)
 
-          find_or_initialize(payload, branch_name).tap do |branch|
-            branch.update!(work_packages: branch.work_packages | work_packages,
-                           **extract_params(payload, branch_name))
+          begin
+            find_or_initialize(payload, branch_name).tap do |branch|
+              branch.update!(work_packages: branch.work_packages | work_packages,
+                             **extract_params(payload, branch_name))
+            end
+          rescue ActiveRecord::RecordNotUnique
+            # A concurrent delivery of the same event (e.g. via both a per-repository
+            # webhook and an instance-wide system hook) inserted the row first. Re-find
+            # and update it instead of failing (the unique index on gitlab_html_url
+            # already prevents a duplicate branch).
+            raise if (attempts += 1) > 2
+
+            retry
           end
         end
 

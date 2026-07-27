@@ -74,6 +74,16 @@ RSpec.describe GitlabIssue do
     end
   end
 
+  describe "Database constraints" do
+    it "rejects a second issue with the same gitlab_html_url" do
+      url = "https://gitlab.example/group/repo/-/issues/1"
+      create(:gitlab_issue, gitlab_html_url: url)
+
+      expect { create(:gitlab_issue, gitlab_html_url: url) }
+        .to raise_error(ActiveRecord::RecordNotUnique)
+    end
+  end
+
   describe "Enums" do
     let(:gitlab_issue) { build(:gitlab_issue) }
 

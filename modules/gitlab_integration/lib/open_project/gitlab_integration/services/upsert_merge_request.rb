@@ -35,8 +35,18 @@ module OpenProject
         include ParamsHelper
 
         def call(payload, work_packages: [])
-          find_or_initialize(payload).tap do |mr|
-            mr.update!(work_packages: mr.work_packages | work_packages, **extract_params(payload))
+          attempts = 0
+          begin
+            find_or_initialize(payload).tap do |mr|
+              mr.update!(work_packages: mr.work_packages | work_packages, **extract_params(payload))
+            end
+          rescue ActiveRecord::RecordNotUnique
+            # A concurrent delivery of the same event (e.g. via both a per-repository
+            # webhook and an instance-wide system hook) inserted the row first. Re-find
+            # and update it instead of creating a duplicate.
+            raise if (attempts += 1) > 2
+
+            retry
           end
         end
 

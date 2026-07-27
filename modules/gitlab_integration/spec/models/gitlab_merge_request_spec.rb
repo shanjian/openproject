@@ -76,6 +76,16 @@ RSpec.describe GitlabMergeRequest do
     end
   end
 
+  describe "Database constraints" do
+    it "rejects a second merge request with the same gitlab_html_url" do
+      url = "https://gitlab.example/group/repo/-/merge_requests/1"
+      create(:gitlab_merge_request, gitlab_html_url: url)
+
+      expect { create(:gitlab_merge_request, gitlab_html_url: url) }
+        .to raise_error(ActiveRecord::RecordNotUnique)
+    end
+  end
+
   describe "Enums" do
     let(:gitlab_merge_request) { build(:gitlab_merge_request) }
 
