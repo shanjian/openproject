@@ -186,11 +186,10 @@ module Type::Attributes
     return filtered_attributes unless respond_to?(:reporter_type?) && reporter_type?
 
     filtered_attributes
-      .except("responsible")
       .tap do |attributes|
         # Author is required internally and therefore filtered from
-        # all_work_package_form_attributes. For reporter types we need it in
-        # form configuration instead of responsible.
+        # all_work_package_form_attributes. For reporter types we surface it in
+        # the form configuration alongside responsible (Accountable).
         attributes["author"] ||= available_attributes["author"] || { required: false, has_default: false }
       end
   end

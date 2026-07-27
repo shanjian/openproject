@@ -99,12 +99,11 @@ RSpec.describe Type do
                                                  [:details, %w[priority]]])
       end
 
-      it "shows reporter instead of accountable" do
+      it "shows reporter alongside accountable" do
         people_group = type.attribute_groups.find { |group| group.key.to_s.casecmp("people").zero? }
 
         expect(people_group).to be_present
-        expect(people_group.attributes).to include("assignee", "author")
-        expect(people_group.attributes).not_to include("responsible")
+        expect(people_group.attributes).to include("assignee", "author", "responsible")
       end
     end
 
@@ -195,68 +194,64 @@ RSpec.describe Type do
       expect(people_group.last).to include("assignee", "responsible")
     end
 
-    shared_examples "shows reporter instead of accountable" do
+    shared_examples "shows reporter alongside accountable" do
       it do
         people_group = subject.find { |group_key, _| group_key.to_sym == :people }
-        all_attributes = subject.flat_map(&:last)
 
         expect(people_group).to be_present
-        expect(people_group.last).to include("assignee", "author")
-        expect(people_group.last).not_to include("responsible")
-        expect(all_attributes).not_to include("responsible")
+        expect(people_group.last).to include("assignee", "author", "responsible")
       end
 
-      it "keeps reporter as an active member in attribute groups" do
+      it "keeps reporter and accountable as active members in attribute groups" do
         people_group = type.attribute_groups.find do |group|
           group.is_a?(Type::AttributeGroup) && group.key.to_sym == :people
         end
 
         expect(people_group).to be_present
-        expect(people_group.active_members(nil)).to include("author")
-        expect(people_group.active_members(nil)).not_to include("responsible")
+        expect(people_group.active_members(nil)).to include("author", "responsible")
       end
     end
 
     context "when the type is task" do
       let(:type) { build(:type_task) }
 
-      it_behaves_like "shows reporter instead of accountable"
+      it_behaves_like "shows reporter alongside accountable"
     end
 
     context "when the type is bug" do
       let(:type) { build(:type_bug) }
 
-      it_behaves_like "shows reporter instead of accountable"
+      it_behaves_like "shows reporter alongside accountable"
     end
 
     context "when the type is user story" do
       let(:type) { build(:type, name: "User story") }
 
-      it_behaves_like "shows reporter instead of accountable"
+      it_behaves_like "shows reporter alongside accountable"
     end
 
     context "when the type is epic" do
       let(:type) { build(:type, name: "Epic") }
 
-      it_behaves_like "shows reporter instead of accountable"
+      it_behaves_like "shows reporter alongside accountable"
     end
 
     context "when the type is feature" do
       let(:type) { build(:type_feature) }
 
-      it_behaves_like "shows reporter instead of accountable"
+      it_behaves_like "shows reporter alongside accountable"
     end
 
     context "when the type is summary task" do
       let(:type) { build(:type, name: "Summary task") }
 
-      it_behaves_like "shows reporter instead of accountable"
+      it_behaves_like "shows reporter alongside accountable"
     end
 
     context "when the type is milestone" do
       let(:type) { build(:type_milestone) }
 
-      it_behaves_like "shows reporter instead of accountable"
+      it_behaves_like "shows reporter alongside accountable"
     end
   end
 

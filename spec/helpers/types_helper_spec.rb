@@ -42,12 +42,12 @@ RSpec.describe TypesHelper do
     context "for reporter types" do
       let(:type) { build(:type_task) }
 
-      it "shows reporter in people and does not list accountable as inactive" do
+      it "shows reporter alongside accountable in people and lists neither as inactive" do
         groups = helper.form_configuration_groups(type)
         people_group = groups[:actives].find { |group| group[:key].to_s == "people" }
 
         expect(people_group).to be_present
-        expect(people_group[:attributes].pluck(:key)).to include("author")
+        expect(people_group[:attributes].pluck(:key)).to include("author", "responsible")
         expect(people_group[:attributes].find { |attribute| attribute[:key] == "author" }[:translation]).to eq("Reporter")
         expect(groups[:inactives].pluck(:key)).not_to include("responsible")
       end
