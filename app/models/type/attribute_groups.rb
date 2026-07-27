@@ -100,7 +100,7 @@ module Type::AttributeGroups
   def attribute_groups
     self.attribute_groups_objects ||= begin
       groups = custom_attribute_groups || default_attribute_groups
-      groups = replace_accountable_with_reporter(groups) if replace_accountable_with_reporter?
+      groups = add_reporter_to_people(groups) if add_reporter_to_people?
 
       to_attribute_group_class(groups)
     end
@@ -136,9 +136,9 @@ module Type::AttributeGroups
       array << [groupkey, members] if members.present?
     end
 
-    return groups unless replace_accountable_with_reporter?
+    return groups unless add_reporter_to_people?
 
-    replace_accountable_with_reporter(groups)
+    add_reporter_to_people(groups)
   end
 
   def reload(*args)
@@ -203,11 +203,13 @@ module Type::AttributeGroups
     !(CustomField.custom_field_attribute?(key) && !active_cfs.include?(key))
   end
 
-  def replace_accountable_with_reporter(groups)
+  # Reporter types surface the (otherwise internal) author attribute as
+  # "Reporter" in the People group, in addition to the regular assignee and
+  # responsible (Accountable) attributes.
+  def add_reporter_to_people(groups)
     normalized_groups = groups.map do |group_key, members|
       normalized_members = Array(members).map(&:to_s)
 
-      normalized_members.delete("responsible")
       normalized_members.delete("author") unless people_group?(group_key)
 
       [group_key, normalized_members]
@@ -229,7 +231,7 @@ module Type::AttributeGroups
     normalized_groups.reject { |_group_key, members| members.blank? }
   end
 
-  def replace_accountable_with_reporter?
+  def add_reporter_to_people?
     reporter_type?
   end
 
