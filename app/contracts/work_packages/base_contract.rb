@@ -87,9 +87,7 @@ module WorkPackages
 
     attribute :epic_id,
               permission: :edit_work_packages,
-              writable: ->(*) {
-                WorkPackage.epic_source_type?(model.type) || (model.epic_id_changed? && model.epic_id.nil?)
-              }
+              writable: ->(*) { epic_id_writable? }
 
     attribute :project_phase_definition_id,
               permission: :view_project_phases do
@@ -328,6 +326,13 @@ module WorkPackages
         # add our own error
         errors.add :parent, :cant_link_a_work_package_with_a_descendant
       end
+    end
+
+    # Only work packages of an epic source type (Task/Bug/Story) may carry an
+    # epic link; clearing an existing link is always permitted. Shared by the
+    # base and create contracts so both enforce the same source-type restriction.
+    def epic_id_writable?
+      WorkPackage.epic_source_type?(model.type) || (model.epic_id_changed? && model.epic_id.nil?)
     end
 
     def validate_epic_exists

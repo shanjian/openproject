@@ -198,6 +198,10 @@ module API
             "#{work_packages}/available_projects"
           end
 
+          def self.available_epic_candidates_on_create
+            "#{work_packages}/available_epic_candidates"
+          end
+
           def self.available_relation_candidates(work_package_id)
             "#{work_package(work_package_id)}/available_relation_candidates"
           end

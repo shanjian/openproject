@@ -139,6 +139,30 @@ RSpec.describe WorkPackages::CreateContract do
     end
   end
 
+  describe "epic_id writability" do
+    before do
+      work_package.type = source_type
+    end
+
+    context "for an epic source type with only the add_work_packages permission" do
+      let(:source_type) { create(:type_task) }
+      let(:permissions) { %i[add_work_packages] }
+
+      it "allows writing epic_id on create without edit_work_packages" do
+        expect(contract.writable_attributes).to include("epic_id")
+      end
+    end
+
+    context "for a non epic-source type" do
+      let(:source_type) { create(:type, name: "Feature") }
+      let(:permissions) { %i[add_work_packages edit_work_packages] }
+
+      it "does not allow writing epic_id (source-type restriction preserved)" do
+        expect(contract.writable_attributes).not_to include("epic_id")
+      end
+    end
+  end
+
   describe "#assignable_assignees" do
     context "with a project set" do
       it "returns the users assignable" do
