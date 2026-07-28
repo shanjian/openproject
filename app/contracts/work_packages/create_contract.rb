@@ -44,6 +44,15 @@ module WorkPackages
               # Note that nil would not override and [] would ignore the default permission, so we use the default here:
               permission: :add_work_packages
 
+    attribute :epic_id,
+              # Overriding permission from the WP base contract (:edit_work_packages): setting the
+              # initial Epic link is part of creating the work package, so it is gated by
+              # :add_work_packages, consistent with the create form's available_epic_candidates
+              # endpoint. The writable condition is re-declared so the source-type restriction from
+              # the base contract is preserved (re-declaring an attribute otherwise clears it).
+              permission: :add_work_packages,
+              writable: ->(*) { epic_id_writable? }
+
     attribute :schedule_manually do
       validate_has_predecessors_or_children if model.schedule_automatically?
     end
