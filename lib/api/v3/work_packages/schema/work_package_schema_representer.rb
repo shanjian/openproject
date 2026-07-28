@@ -261,6 +261,8 @@ module API
                                      work_package = represented.work_package
                                      if work_package&.persisted?
                                        api_v3_paths.work_package_available_relation_candidates(represented.id, type: :epic)
+                                     else
+                                       api_v3_paths.available_epic_candidates_on_create
                                      end
                                    }
 

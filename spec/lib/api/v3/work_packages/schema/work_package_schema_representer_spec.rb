@@ -931,8 +931,9 @@ RSpec.describe API::V3::WorkPackages::Schema::WorkPackageSchemaRepresenter do
           end
         end
 
-        it_behaves_like "does not link to allowed values" do
+        it_behaves_like "links to allowed values via collection link" do
           let(:path) { "epic" }
+          let(:href) { api_v3_paths.available_epic_candidates_on_create }
         end
       end
     end
