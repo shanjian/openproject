@@ -59,6 +59,9 @@ import {
   LinkedWorkPackageDisplayField,
 } from 'core-app/shared/components/fields/display/field-types/linked-work-package-display-field.module';
 import {
+  EpicDisplayField,
+} from 'core-app/shared/components/fields/display/field-types/epic-display-field.module';
+import {
   MultipleUserFieldModule,
 } from 'core-app/shared/components/fields/display/field-types/multiple-user-display-field.module';
 import {
@@ -130,6 +133,7 @@ export function initializeCoreDisplayFields(displayFieldService:DisplayFieldServ
       .addSpecificFieldType('WorkPackage', WorkPackageIdDisplayField, 'id', ['id'])
       .addSpecificFieldType('WorkPackage', WorkPackageSpentTimeDisplayField, 'spentTime', ['spentTime'])
       .addSpecificFieldType('WorkPackage', CombinedDateDisplayField, 'combinedDate', ['combinedDate'])
+      .addSpecificFieldType('WorkPackage', EpicDisplayField, 'epic', ['epic'])
       .addSpecificFieldType('TimeEntry', PlainFormattableDisplayField, 'comment', ['comment'])
       .addSpecificFieldType('Project', ProjectStatusDisplayField, 'status', ['status'])
       .addSpecificFieldType('TimeEntry', WorkPackageDisplayField, 'work_package', ['workPackage']);
