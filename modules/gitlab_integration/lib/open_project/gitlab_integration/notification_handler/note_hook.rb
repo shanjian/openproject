@@ -67,7 +67,7 @@ module OpenProject::GitlabIntegration
         else
           notes = generate_notes(payload, "reference")
         end
-        comment_on_referenced_work_packages(work_packages, user, notes)
+        comment_on_referenced_work_packages(work_packages, user, notes, event: :note)
         if payload.object_attributes.noteable_type == "Issue"
           upsert_issue(work_packages)
         end
@@ -85,7 +85,7 @@ module OpenProject::GitlabIntegration
           I18n.t("gitlab_integration.note_commit_referenced_comment",
                  commit_id: commit_id[0, 8],
                  commit_url: payload.object_attributes.url,
-                 commit_note: payload.object_attributes.note,
+                 commit_note: note_excerpt(payload.object_attributes.note),
                  repository: payload.repository.name,
                  repository_url: payload.repository.homepage,
                  gitlab_user: payload.user.name,
@@ -96,7 +96,7 @@ module OpenProject::GitlabIntegration
                    mr_number: payload.merge_request.iid,
                    mr_title: payload.merge_request.title,
                    mr_url: payload.object_attributes.url,
-                   mr_note: payload.object_attributes.note,
+                   mr_note: note_excerpt(payload.object_attributes.note),
                    repository: payload.repository.name,
                    repository_url: payload.repository.homepage,
                    gitlab_user: payload.user.name,
@@ -106,7 +106,7 @@ module OpenProject::GitlabIntegration
                    mr_number: payload.merge_request.iid,
                    mr_title: payload.merge_request.title,
                    mr_url: payload.object_attributes.url,
-                   mr_note: payload.object_attributes.note,
+                   mr_note: note_excerpt(payload.object_attributes.note),
                    repository: payload.repository.name,
                    repository_url: payload.repository.homepage,
                    gitlab_user: payload.user.name,
@@ -118,7 +118,7 @@ module OpenProject::GitlabIntegration
                    issue_number: payload.issue.iid,
                    issue_title: payload.issue.title,
                    issue_url: payload.object_attributes.url,
-                   issue_note: payload.object_attributes.note,
+                   issue_note: note_excerpt(payload.object_attributes.note),
                    repository: payload.repository.name,
                    repository_url: payload.repository.homepage,
                    gitlab_user: payload.user.name,
@@ -128,7 +128,7 @@ module OpenProject::GitlabIntegration
                    issue_number: payload.issue.iid,
                    issue_title: payload.issue.title,
                    issue_url: payload.object_attributes.url,
-                   issue_note: payload.object_attributes.note,
+                   issue_note: note_excerpt(payload.object_attributes.note),
                    repository: payload.repository.name,
                    repository_url: payload.repository.homepage,
                    gitlab_user: payload.user.name,
@@ -139,7 +139,7 @@ module OpenProject::GitlabIntegration
                  snippet_number: payload.snippet.id,
                  snippet_title: payload.snippet.title,
                  snippet_url: payload.object_attributes.url,
-                 snippet_note: payload.object_attributes.note,
+                 snippet_note: note_excerpt(payload.object_attributes.note),
                  repository: payload.repository.name,
                  repository_url: payload.repository.homepage,
                  gitlab_user: payload.user.name,

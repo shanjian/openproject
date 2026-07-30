@@ -88,6 +88,7 @@ class Journal < ApplicationRecord
                  prefix: true
   VALID_CAUSE_TYPES = %w[
     default_attribute_written
+    gitlab_event
     import
     progress_mode_changed_to_status_based
     status_changed
@@ -100,6 +101,12 @@ class Journal < ApplicationRecord
     work_package_duplicate_closed
     working_days_changed
   ].freeze
+
+  # Cause types that only record where a journal came from. Unlike the other
+  # causes they describe no change, so they render no "caused changes" line, and
+  # the journals carrying them are kept out of the comments-only view: they are
+  # notes an integration mirrored in, not part of the human conversation.
+  INTEGRATION_CAUSE_TYPES = %w[gitlab_event].freeze
 
   # Make sure each journaled model instance only has unique version ids
   validates :version, uniqueness: { scope: %i[journable_id journable_type] }
@@ -125,6 +132,13 @@ class Journal < ApplicationRecord
   # Scopes to all journals excluding the initial journal - useful for change
   # logs like the history on issue#show
   scope :changing, -> { where(["version > 1"]) }
+
+  # Notes that make up the conversation people have on a journable, i.e. every
+  # comment except the ones an integration mirrored in from an external system.
+  scope :user_comments, -> {
+    where.not(notes: [nil, ""])
+      .where("COALESCE(journals.cause->>'type', '') NOT IN (?)", INTEGRATION_CAUSE_TYPES)
+  }
 
   scope :for_wiki_page, -> { where(journable_type: "WikiPage") }
   scope :for_work_package, -> { where(journable_type: "WorkPackage") }

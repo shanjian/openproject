@@ -109,12 +109,14 @@ RSpec.describe OpenProject::GitlabIntegration::NotificationHandler::PushHook do
   end
 
   context "with a regular push" do
+    # Only the commit's subject line is quoted; the body would drag a merge
+    # commit's whole description into the activity.
     let(:comment) do
       "**Pushed in refs/heads/main:** [Administrator]" \
         "(https://www.gravatar.com/avatar/65a222b844ced567fe0ed2594c0b4abdf62efa1322a385c919c41e7bbc16d4fc?s=80&d=identicon) " \
         "pushed [a265d6b7](http://c7e7cd2d54c3/openprojecttest/test/-/commit/a265d6b7bcf836b77ed9e32f824b231585c6a355) " \
         "to [Test](http://c7e7cd2d54c3/openprojecttest/test) at 2024-07-22T11:18:29+02:00:" \
-        "\nMentioning OP##{work_package.id}\n\nSome commit message\n\n"
+        "\nMentioning OP##{work_package.id}\n"
     end
 
     it "adds a comment to the work packages" do
@@ -123,6 +125,7 @@ RSpec.describe OpenProject::GitlabIntegration::NotificationHandler::PushHook do
         [work_package],
         gitlab_system_user,
         comment,
+        event: :push,
         deduplicate: true
       )
     end
@@ -132,21 +135,63 @@ RSpec.describe OpenProject::GitlabIntegration::NotificationHandler::PushHook do
         payload["commits"][0]["message"] = nil
       end
 
-      let(:comment) do
-        "**Pushed in refs/heads/main:** [Administrator]" \
-          "(https://www.gravatar.com/avatar/65a222b844ced567fe0ed2594c0b4abdf62efa1322a385c919c41e7bbc16d4fc?s=80&d=identicon) " \
-          "pushed [a265d6b7](http://c7e7cd2d54c3/openprojecttest/test/-/commit/a265d6b7bcf836b77ed9e32f824b231585c6a355) " \
-          "to [Test](http://c7e7cd2d54c3/openprojecttest/test) at 2024-07-22T11:18:29+02:00:\nMentioning OP##{work_package.id}\n"
-      end
-
       it "does not raise (Bugfix)" do
         expect { process }.not_to raise_error
         expect(handler_instance).to have_received(:comment_on_referenced_work_packages).with(
           [work_package],
           gitlab_system_user,
           comment,
+          event: :push,
           deduplicate: true
         )
+      end
+    end
+  end
+
+  context "with several commits mentioning the same work package" do
+    let(:second_commit) do
+      {
+        "id" => "b12f4a9d0c8e1a2b3c4d5e6f708192a3b4c5d6e7",
+        "message" => "Also mentioning OP##{work_package.id}\n\nWith a body that is not quoted\n",
+        "title" => "Also mentioning OP##{work_package.id}",
+        "timestamp" => "2024-07-22T11:20:29+02:00",
+        "url" => "http://c7e7cd2d54c3/openprojecttest/test/-/commit/b12f4a9d0c8e1a2b3c4d5e6f708192a3b4c5d6e7",
+        "author" => { "name" => "Some committer", "email" => "some_committer@example.com" },
+        "added" => [],
+        "modified" => [],
+        "removed" => []
+      }
+    end
+
+    before do
+      payload["commits"] << second_commit
+      payload["total_commits_count"] = 2
+    end
+
+    it "posts a single comment listing the commits rather than one per commit" do
+      process
+
+      expect(handler_instance).to have_received(:comment_on_referenced_work_packages).once
+      expect(handler_instance).to have_received(:comment_on_referenced_work_packages).with(
+        [work_package],
+        gitlab_system_user,
+        a_string_including(
+          "pushed 2 commits",
+          "- [a265d6b7](http://c7e7cd2d54c3/openprojecttest/test/-/commit/a265d6b7bcf836b77ed9e32f824b231585c6a355) " \
+          "Mentioning OP##{work_package.id}",
+          "- [b12f4a9d](http://c7e7cd2d54c3/openprojecttest/test/-/commit/b12f4a9d0c8e1a2b3c4d5e6f708192a3b4c5d6e7) " \
+          "Also mentioning OP##{work_package.id}"
+        ),
+        event: :push,
+        deduplicate: true
+      )
+    end
+
+    it "does not quote the commit bodies" do
+      process
+
+      expect(handler_instance).to have_received(:comment_on_referenced_work_packages) do |_work_packages, _user, notes, **|
+        expect(notes).not_to include("With a body that is not quoted")
       end
     end
   end

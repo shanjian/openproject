@@ -49,6 +49,10 @@ module JournalChanges
 
   def get_cause_changes
     return if cause.blank?
+    # Integration markers record where a journal came from rather than what
+    # changed, and the note they accompany already says it. Rendering them would
+    # add a "caused changes" line with nothing to report.
+    return if Journal::INTEGRATION_CAUSE_TYPES.include?(cause["type"])
 
     { cause: [nil, cause] }
   end

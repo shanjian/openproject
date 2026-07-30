@@ -130,6 +130,12 @@ module OpenProject::GitlabIntegration
       ##
       # Adds comments to the given WorkPackages.
       #
+      # +event+ names the GitLab event family this comment reports (see
+      # Journal::CausedByGitlabEvent::EVENTS). It does double duty: projects can
+      # switch off individual families on their GitLab settings page, and the
+      # journal is tagged with it so the activity tab can tell integration
+      # chatter apart from what people wrote.
+      #
       # When +deduplicate+ is set, a work package is skipped if it already carries
       # a journal with the exact same note. This keeps the activity clean when the
       # same GitLab event is delivered twice -- e.g. a push or merge request that
@@ -138,20 +144,39 @@ module OpenProject::GitlabIntegration
       # number and URL), so an identical note always denotes the same event; only
       # push and merge-request events are duplicated this way (system hooks do not
       # send issue or note events), which is why callers opt in explicitly.
-      def comment_on_referenced_work_packages(work_packages, user, notes, deduplicate: false)
+      def comment_on_referenced_work_packages(work_packages, user, notes, event:, deduplicate: false)
         return if notes.nil?
 
+        cause = Journal::CausedByGitlabEvent.new(event:)
+
         work_packages.each do |work_package|
+          next unless commenting_enabled?(work_package, event)
           next if deduplicate && already_commented?(work_package, notes)
 
           ::WorkPackages::UpdateService
             .new(user:, model: work_package)
-            .call(journal_notes: notes, send_notifications: false)
+            .call(journal_notes: notes, journal_cause: cause, send_notifications: false)
         end
+      end
+
+      # The work package's own project decides, since that is the activity the
+      # comment would show up in.
+      def commenting_enabled?(work_package, event)
+        work_package.project&.gitlab_comments_on?(event)
       end
 
       def already_commented?(work_package, notes)
         work_package.journals.exists?(notes:)
+      end
+
+      # How much of a mirrored GitLab discussion note is reproduced in the
+      # activity. Copying whole bodies used to replay entire review threads --
+      # including bot output -- inside the work package, burying the comments
+      # people actually wrote. The link in the note leads to the full text.
+      NOTE_EXCERPT_LIMIT = 200
+
+      def note_excerpt(note)
+        String(note).squish.truncate(NOTE_EXCERPT_LIMIT, separator: " ")
       end
 
       ##

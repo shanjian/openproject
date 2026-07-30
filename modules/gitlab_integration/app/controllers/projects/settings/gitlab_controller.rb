@@ -67,6 +67,16 @@ class Projects::Settings::GitlabController < Projects::SettingsController
     redirect_to project_settings_gitlab_path(@project)
   end
 
+  def update_activity
+    if @project.update(activity_params)
+      flash[:notice] = I18n.t(:notice_successful_update)
+    else
+      flash[:error] = @project.errors.full_messages.join(", ")
+    end
+
+    redirect_to project_settings_gitlab_path(@project)
+  end
+
   private
 
   # This page is not mapped to a permission in AccessControl, so authorize it
@@ -88,4 +98,15 @@ class Projects::Settings::GitlabController < Projects::SettingsController
     params
       .expect(gitlab_project_mapping: %i[name gitlab_project_id default_ref])
   end
+
+  # The form submits every switch (each checkbox is paired with a hidden "0"),
+  # so an unchecked box arrives as "0" and the boolean store attributes cast it.
+  def activity_params
+    params.expect(gitlab_activity: activity_settings)
+  end
+
+  def activity_settings
+    OpenProject::GitlabIntegration::Patches::ProjectPatch::COMMENT_SETTINGS.keys
+  end
+  helper_method :activity_settings
 end

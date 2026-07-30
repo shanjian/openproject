@@ -96,7 +96,7 @@ module WorkPackages
         def journal_with_notes
           work_package
             .journals
-            .where.not(notes: "")
+            .user_comments
         end
       end
     end
