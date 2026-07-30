@@ -32,7 +32,8 @@
 #
 # Filter modes:
 # - :all - Shows all activities (default)
-# - :only_comments - Shows only journals with notes
+# - :only_comments - Shows only journals with notes written by people (integration
+#   comments, e.g. the ones GitLab webhooks mirror in, are left out)
 # - :only_changes - Shows only journals with detected changes using SQL heuristics
 #
 # Anchor format (filter is reset to :all when using anchors):
@@ -175,7 +176,7 @@ class WorkPackages::ActivitiesTab::Paginator
   end
 
   def apply_comments_only_filter(scope)
-    scope.where.not(notes: [nil, ""])
+    scope.user_comments
   end
 
   def apply_changes_only_filter(scope)

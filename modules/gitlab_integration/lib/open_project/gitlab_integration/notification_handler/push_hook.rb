@@ -48,13 +48,25 @@ module OpenProject::GitlabIntegration
       attr_reader :payload
 
       def comment_on_commits(user)
-        payload.commits.each do |commit|
+        commits_by_work_package(user).each do |work_package, commits|
+          comment_on_referenced_work_packages([work_package], user, generate_notes(commits),
+                                              event: :push, deduplicate: true)
+        end
+      end
+
+      # Groups the pushed commits by the work packages they reference, so that a
+      # push of several commits mentioning the same work package yields one
+      # activity entry rather than one per commit. Work packages compare by id,
+      # so the same one found through different commits collapses into one key.
+      def commits_by_work_package(user)
+        payload.commits.each_with_object({}) do |commit, grouped|
           text = [commit["title"], commit["message"]]
             .select(&:present?)
             .join(" - ")
-          work_packages = find_mentioned_work_packages(text, user)
-          notes = generate_notes(commit, payload)
-          comment_on_referenced_work_packages(work_packages, user, notes, deduplicate: true)
+
+          find_mentioned_work_packages(text, user).each do |work_package|
+            (grouped[work_package] ||= []) << commit
+          end
         end
       end
 
@@ -87,18 +99,47 @@ module OpenProject::GitlabIntegration
         payload.after.blank? || payload.after.match?(/\A0+\z/)
       end
 
-      def generate_notes(commit, payload)
-        commit_id = commit["id"]
+      def generate_notes(commits)
+        return single_commit_notes(commits.first) if commits.one?
+
+        I18n.t("gitlab_integration.push_commits_comment_with_ref",
+               commit_count: commits.size,
+               commit_list: commit_list(commits),
+               **push_attributes)
+      end
+
+      def single_commit_notes(commit)
         I18n.t("gitlab_integration.push_single_commit_comment_with_ref",
-               reference: payload.ref,
-               commit_number: commit_id[0, 8],
-               commit_note: commit["message"].presence || commit["title"],
+               commit_number: commit["id"][0, 8],
+               commit_note: commit_subject(commit),
                commit_url: commit["url"],
                commit_timestamp: commit["timestamp"],
-               repository: payload.repository.name,
-               repository_url: payload.repository.homepage,
-               gitlab_user: payload.user_name,
-               gitlab_user_url: payload.user_avatar)
+               **push_attributes)
+      end
+
+      # The parts of a note that describe the push rather than a single commit.
+      def push_attributes
+        {
+          reference: payload.ref,
+          repository: payload.repository.name,
+          repository_url: payload.repository.homepage,
+          gitlab_user: payload.user_name,
+          gitlab_user_url: payload.user_avatar
+        }
+      end
+
+      def commit_list(commits)
+        commits
+          .map { |commit| "- [#{commit['id'][0, 8]}](#{commit['url']}) #{commit_subject(commit)}" }
+          .join("\n")
+      end
+
+      # Only the subject line of the commit message. A merge commit carries the
+      # merged branch's full description, which would otherwise be pasted into
+      # the activity in its entirety.
+      def commit_subject(commit)
+        message = commit["message"].presence || commit["title"].to_s
+        message.split("\n").first.to_s.strip
       end
     end
   end

@@ -85,6 +85,25 @@ en:
       base_url_missing: >
         No GitLab instance URL is configured yet. An administrator must set it
         in the GitLab integration plugin settings before branches can be created.
+      activity:
+        title: "GitLab activity in work packages"
+        intro: >
+          Choose which GitLab events post a comment to the activity of this
+          project's work packages. Turning an event off does not affect the
+          GitLab tab, which keeps listing merge requests, branches and issues.
+        push: "Pushed commits"
+        push_hint: >
+          One comment per push, listing the commits that mention a work package.
+        merge_request: "Merge requests opened, merged, closed or reopened"
+        merge_request_hint: >
+          The GitLab tab already lists a work package's merge requests and their
+          state.
+        note: "Comments on merge requests, issues, commits and snippets"
+        note_hint: >
+          Mirrors GitLab discussion into the work package as a link plus a short
+          excerpt. This is usually the noisiest source, especially where bots
+          comment on merge requests.
+        issue: "Issues opened, closed or reopened"
       admin:
         title: "GitLab integration"
         base_url: "GitLab instance URL"
@@ -189,6 +208,11 @@ en:
       to [%{repository}](%{repository_url}) at %{commit_timestamp}:
 
       %{commit_note}
+    push_commits_comment_with_ref: >
+      **Pushed in %{reference}:** [%{gitlab_user}](%{gitlab_user_url}) pushed %{commit_count} commits
+      to [%{repository}](%{repository_url}):
+
+      %{commit_list}
     push_multiple_commits_comment: >
       **Pushed in MR:** [%{gitlab_user}](%{gitlab_user_url}) pushed multiple commits [%{commit_number}](%{commit_url})
       to [%{repository}](%{repository_url}) at %{commit_timestamp}:

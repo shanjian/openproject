@@ -362,7 +362,7 @@ class WorkPackages::ActivitiesTabController < ApplicationController
                  .with_sequence_version
 
     if @filter == :only_comments
-      journals = journals.where.not(notes: "")
+      journals = journals.user_comments
     end
 
     grouped_emoji_reactions = EmojiReactions::GroupedQueries.grouped_emoji_reactions_by_reactable(

@@ -10,6 +10,7 @@
 # OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
 # Copyright (C) 2006-2013 Jean-Philippe Lang
 # Copyright (C) 2010-2013 the ChiliProject Team
+# Copyright (C) the OpenProject GmbH
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -25,26 +26,29 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #
-# See COPYRIGHT and LICENSE files for more details.
+# See docs/COPYRIGHT.rdoc for more details.
 #++
 
-Rails.application.routes.draw do
-  scope "projects/:project_id", as: "project", module: "projects" do
-    namespace "settings" do
-      # The GitLab settings page lists the project's GitLab project mappings and
-      # lets project admins add / edit / remove them (many per project).
-      get "gitlab" => "gitlab#show", as: :gitlab
-      post "gitlab/mappings" => "gitlab#create", as: :gitlab_mappings
-      patch "gitlab/mappings/:id" => "gitlab#update", as: :gitlab_mapping
-      delete "gitlab/mappings/:id" => "gitlab#destroy"
-      # Which GitLab events may comment on this project's work packages.
-      patch "gitlab/activity" => "gitlab#update_activity", as: :gitlab_activity
-    end
-  end
+# Marks a journal the GitLab integration created in response to a webhook,
+# rather than one a person wrote in OpenProject. The mark is what lets the
+# activity tab keep integration chatter out of the comments-only view (see
+# Journal::INTEGRATION_CAUSE_TYPES); it renders nothing itself.
+class Journal::CausedByGitlabEvent < CauseOfChange::Base
+  TYPE = "gitlab_event"
 
-  # Per-user GitLab Personal Access Token, under "My account".
-  resource :my_gitlab_token,
-           only: %i[show update destroy],
-           controller: "gitlab_integration/my_gitlab_token",
-           path: "my/gitlab_token"
+  # The event families that can post a comment. Each one is separately
+  # switchable per project -- see Project#gitlab_comments_on?.
+  EVENTS = %i[push merge_request note issue].freeze
+
+  attr_reader :event
+
+  def initialize(event:)
+    @event = event.to_sym
+
+    unless EVENTS.include?(@event)
+      raise ArgumentError, "Unknown GitLab event #{event.inspect}, expected one of #{EVENTS.join(', ')}"
+    end
+
+    super(TYPE, { "event" => @event.to_s })
+  end
 end

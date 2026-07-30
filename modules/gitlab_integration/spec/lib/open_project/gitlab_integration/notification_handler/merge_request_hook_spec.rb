@@ -118,6 +118,7 @@ RSpec.describe OpenProject::GitlabIntegration::NotificationHandler::MergeRequest
         [work_package],
         gitlab_system_user,
         comment,
+        event: :merge_request,
         deduplicate: true
       )
     end
@@ -133,6 +134,7 @@ RSpec.describe OpenProject::GitlabIntegration::NotificationHandler::MergeRequest
           [],
           gitlab_system_user,
           comment,
+          event: :merge_request,
           deduplicate: true
         )
       end

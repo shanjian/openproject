@@ -38,6 +38,8 @@ RSpec.describe Projects::Settings::GitlabController do
   # NOT on a bespoke permission — so project admins reach it with no extra setup.
   describe "GET show" do
     context "as a project admin (edit_project)" do
+      render_views
+
       current_user { create(:user, member_with_permissions: { project => %i[edit_project] }) }
 
       it "renders the settings page" do
@@ -45,6 +47,15 @@ RSpec.describe Projects::Settings::GitlabController do
 
         expect(response).to have_http_status(:ok)
         expect(response).to render_template :show
+      end
+
+      it "renders a switch for every GitLab activity setting, checked by default" do
+        get :show, params: { project_id: project.id }
+
+        OpenProject::GitlabIntegration::Patches::ProjectPatch::COMMENT_SETTINGS.each_key do |setting|
+          expect(response.body).to have_css("input[type=checkbox][name='gitlab_activity[#{setting}]'][checked]",
+                                            visible: :all)
+        end
       end
     end
 
@@ -112,6 +123,47 @@ RSpec.describe Projects::Settings::GitlabController do
       end.to change(GitlabProjectMapping, :count).by(-1)
 
       expect(response).to redirect_to(project_settings_gitlab_path(project))
+    end
+  end
+
+  describe "PATCH update_activity" do
+    context "as a project admin (edit_project)" do
+      current_user { create(:user, member_with_permissions: { project => %i[edit_project] }) }
+
+      # Every checkbox is paired with a hidden "0", so an unchecked box arrives
+      # as "0" rather than not at all.
+      it "switches the named event families off and leaves the rest on" do
+        patch :update_activity, params: {
+          project_id: project.id,
+          gitlab_activity: {
+            gitlab_comment_on_push: "0",
+            gitlab_comment_on_merge_request: "1",
+            gitlab_comment_on_note: "0",
+            gitlab_comment_on_issue: "1"
+          }
+        }
+
+        expect(response).to redirect_to(project_settings_gitlab_path(project))
+
+        project.reload
+        expect(project.gitlab_comments_on?(:push)).to be(false)
+        expect(project.gitlab_comments_on?(:note)).to be(false)
+        expect(project.gitlab_comments_on?(:merge_request)).to be(true)
+        expect(project.gitlab_comments_on?(:issue)).to be(true)
+      end
+    end
+
+    context "as a member without edit_project" do
+      current_user { create(:user, member_with_permissions: { project => %i[view_project] }) }
+
+      it "is forbidden" do
+        patch :update_activity, params: {
+          project_id: project.id,
+          gitlab_activity: { gitlab_comment_on_push: "0" }
+        }
+
+        expect(response).to have_http_status(:forbidden)
+      end
     end
   end
 end

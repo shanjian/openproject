@@ -1,0 +1,63 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<fieldset class="form--fieldset">
+  <legend class="form--fieldset-legend">
+    <%= t("gitlab_integration.settings.activity.title") %>
+  </legend>
+
+  <p><%= t("gitlab_integration.settings.activity.intro") %></p>
+
+  <%= styled_form_tag(
+        project_settings_gitlab_activity_path(@project),
+        method: :patch,
+        id: "gitlab_activity"
+      ) do %>
+    <% activity_settings.each do |setting| %>
+      <% event = setting.to_s.delete_prefix("gitlab_comment_on_") %>
+      <div class="form--field">
+        <div class="form--field-container">
+          <label class="form--label-with-check-box">
+            <%= hidden_field_tag "gitlab_activity[#{setting}]", "0", id: nil %>
+            <%= styled_check_box_tag "gitlab_activity[#{setting}]",
+                                     "1",
+                                     @project.gitlab_comments_on?(event),
+                                     id: "gitlab_activity_#{setting}" %>
+            <%= t("gitlab_integration.settings.activity.#{event}") %>
+          </label>
+        </div>
+        <div class="form--field-instructions -labeled-checkbox">
+          <%= t("gitlab_integration.settings.activity.#{event}_hint", default: nil) %>
+        </div>
+      </div>
+    <% end %>
+
+    <%= styled_button_tag(t(:button_save), class: "-highlight -with-icon icon-checkmark") %>
+  <% end %>
+</fieldset>

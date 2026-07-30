@@ -111,7 +111,7 @@ module OpenProject::GitlabIntegration
                     icon: "git-branch"
     end
 
-    patches %w[WorkPackage]
+    patches %w[WorkPackage Project]
 
     initializer "gitlab.register_hook" do
       ::OpenProject::Webhooks.register_hook "gitlab" do |hook, environment, params, user|

@@ -42,7 +42,7 @@ module OpenProject::GitlabIntegration
           .join(" - ")
         work_packages = find_mentioned_work_packages(text, user)
         notes = generate_notes(payload)
-        comment_on_referenced_work_packages(work_packages, user, notes)
+        comment_on_referenced_work_packages(work_packages, user, notes, event: :issue)
         upsert_issue(work_packages)
       end
 
