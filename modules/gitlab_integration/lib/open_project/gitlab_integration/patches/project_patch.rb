@@ -16,10 +16,19 @@ module OpenProject::GitlabIntegration
     module ProjectPatch
       extend ActiveSupport::Concern
 
+      # The defaults draw one line: mirror *events*, not *conversations*.
+      #
+      # A push, a merge request or an issue changing state is something that
+      # happened and has no other timestamp in OpenProject, so recording it in
+      # the activity earns its place. A GitLab discussion note is a copy of a
+      # conversation that already lives in GitLab, one click away through the
+      # merge request the activity links to -- and it is by far the largest
+      # source of noise, since every review round and every bot posting is
+      # reproduced. Projects that want that copy can switch it back on.
       COMMENT_SETTINGS = {
         gitlab_comment_on_push: true,
         gitlab_comment_on_merge_request: true,
-        gitlab_comment_on_note: true,
+        gitlab_comment_on_note: false,
         gitlab_comment_on_issue: true
       }.freeze
 

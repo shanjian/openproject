@@ -71,11 +71,16 @@ RSpec.describe "GitLab activity settings" do # rubocop:disable RSpec/DescribeCla
   end
 
   describe "project defaults" do
-    it "comments on every event family" do
+    # Mirror events, not conversations: what happened in GitLab is recorded,
+    # the discussion itself is left where it already lives.
+    it "records events" do
       expect(project.gitlab_comments_on?(:push)).to be(true)
       expect(project.gitlab_comments_on?(:merge_request)).to be(true)
-      expect(project.gitlab_comments_on?(:note)).to be(true)
       expect(project.gitlab_comments_on?(:issue)).to be(true)
+    end
+
+    it "does not copy GitLab discussion in" do
+      expect(project.gitlab_comments_on?(:note)).to be(false)
     end
   end
 
@@ -106,6 +111,46 @@ RSpec.describe "GitLab activity settings" do # rubocop:disable RSpec/DescribeCla
       process_push
 
       expect(work_package.journals.user_comments.pluck(:notes)).to contain_exactly("A human comment")
+    end
+  end
+
+  describe "a comment on a merge request" do
+    def note_payload
+      {
+        "object_kind" => "note",
+        "user" => { "name" => "jira_git_bot", "avatar_url" => "https://example.com/bot.png" },
+        "object_attributes" => {
+          "note" => "Blocking: this changes the notFound-driving post fetch. " * 20,
+          "noteable_type" => "MergeRequest",
+          "url" => "http://gitlab.example/group/repo/-/merge_requests/3180#note_1"
+        },
+        "merge_request" => { "iid" => 3180, "title" => "Mentioning OP##{work_package.id}" },
+        "repository" => { "name" => "repo", "homepage" => "http://gitlab.example/group/repo" },
+        "open_project_user_id" => gitlab_system_user.id
+      }
+    end
+
+    def process_note
+      OpenProject::GitlabIntegration::NotificationHandler::NoteHook.new.process(note_payload)
+    end
+
+    it "is not copied into the activity by default" do
+      expect { process_note }.not_to change { work_package.journals.count }
+    end
+
+    context "when the project asks for it" do
+      before do
+        project.update!(gitlab_comment_on_note: true)
+      end
+
+      it "is copied in as a link plus a short excerpt, not the whole thread" do
+        expect { process_note }.to change { work_package.journals.count }.by(1)
+
+        journal = work_package.journals.last
+        expect(journal.notes).to include("**Commented in MR:**", "3180")
+        expect(journal.notes.length).to be < 600
+        expect(journal.cause).to eq("type" => "gitlab_event", "event" => "note")
+      end
     end
   end
 
