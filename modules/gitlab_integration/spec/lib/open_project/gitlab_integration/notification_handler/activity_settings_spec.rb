@@ -82,6 +82,37 @@ RSpec.describe "GitLab activity settings" do # rubocop:disable RSpec/DescribeCla
     it "does not copy GitLab discussion in" do
       expect(project.gitlab_comments_on?(:note)).to be(false)
     end
+
+    # A project that predates these settings has nothing stored for them. The
+    # defaults have to be applied when reading, not when a record is built,
+    # or every existing project would read nil and fall silent.
+    context "when the project predates the settings" do
+      before do
+        project.update_columns(settings: { "excluded_role_ids_on_copy" => [] })
+        project.reload
+      end
+
+      it "still records events" do
+        expect(project.gitlab_comments_on?(:push)).to be(true)
+        expect(project.gitlab_comments_on?(:merge_request)).to be(true)
+        expect(project.gitlab_comments_on?(:issue)).to be(true)
+      end
+
+      it "still leaves GitLab discussion out" do
+        expect(project.gitlab_comments_on?(:note)).to be(false)
+      end
+
+      it "comments on its work packages" do
+        expect { process_push }.to change { work_package.journals.count }.by(1)
+      end
+    end
+
+    it "honours an explicit choice over the default" do
+      project.update!(gitlab_comment_on_push: false, gitlab_comment_on_note: true)
+
+      expect(project.gitlab_comments_on?(:push)).to be(false)
+      expect(project.gitlab_comments_on?(:note)).to be(true)
+    end
   end
 
   describe "posting a comment" do
