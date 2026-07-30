@@ -16,24 +16,45 @@ module OpenProject::GitlabIntegration
     module ProjectPatch
       extend ActiveSupport::Concern
 
+      # The defaults draw one line: mirror *events*, not *conversations*.
+      #
+      # A push, a merge request or an issue changing state is something that
+      # happened and has no other timestamp in OpenProject, so recording it in
+      # the activity earns its place. A GitLab discussion note is a copy of a
+      # conversation that already lives in GitLab, one click away through the
+      # merge request the activity links to -- and it is by far the largest
+      # source of noise, since every review round and every bot posting is
+      # reproduced. Projects that want that copy can switch it back on.
       COMMENT_SETTINGS = {
         gitlab_comment_on_push: true,
         gitlab_comment_on_merge_request: true,
-        gitlab_comment_on_note: true,
+        gitlab_comment_on_note: false,
         gitlab_comment_on_issue: true
       }.freeze
 
+      # Deliberately declared without `default:`. Rails writes a store_attribute
+      # default into the store when a record is *initialized*, so it would only
+      # ever reach projects created after this shipped -- every project that
+      # already existed would read nil, and nil is falsy, which would silently
+      # switch every GitLab event off for them. The default is applied on read
+      # instead, in #gitlab_comments_on?, so it holds for every project no
+      # matter what its settings column happens to contain.
       included do
-        COMMENT_SETTINGS.each do |setting, default|
-          store_attribute :settings, setting, :boolean, default:
+        COMMENT_SETTINGS.each_key do |setting|
+          store_attribute :settings, setting, :boolean
         end
       end
 
       ##
       # Whether the given GitLab event family (see Journal::CausedByGitlabEvent)
-      # may post a comment to this project's work packages.
+      # may post a comment to this project's work packages. A project that never
+      # visited the settings page has nothing stored and falls back to the
+      # default; an explicit choice, true or false, always wins.
       def gitlab_comments_on?(event)
-        public_send(:"gitlab_comment_on_#{event}")
+        setting = :"gitlab_comment_on_#{event}"
+        stored = public_send(setting)
+
+        stored.nil? ? COMMENT_SETTINGS.fetch(setting) : stored
       end
     end
   end

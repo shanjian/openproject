@@ -49,12 +49,15 @@ RSpec.describe Projects::Settings::GitlabController do
         expect(response).to render_template :show
       end
 
-      it "renders a switch for every GitLab activity setting, checked by default" do
+      it "renders a switch per GitLab activity setting, reflecting its default" do
         get :show, params: { project_id: project.id }
 
-        OpenProject::GitlabIntegration::Patches::ProjectPatch::COMMENT_SETTINGS.each_key do |setting|
-          expect(response.body).to have_css("input[type=checkbox][name='gitlab_activity[#{setting}]'][checked]",
-                                            visible: :all)
+        OpenProject::GitlabIntegration::Patches::ProjectPatch::COMMENT_SETTINGS.each do |setting, default|
+          selector = "input[type=checkbox][name='gitlab_activity[#{setting}]']"
+          state = default ? "[checked]" : ":not([checked])"
+
+          expect(response.body).to have_css("#{selector}#{state}", visible: :all),
+                                   "expected #{setting} to render #{default ? 'checked' : 'unchecked'}"
         end
       end
     end
