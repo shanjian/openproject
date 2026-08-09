@@ -112,7 +112,9 @@ module OpenProject::GitlabIntegration
       end
 
       # Mirrors GitlabIntegration::CreateBranchService#branch_name so detection and
-      # creation agree on the convention.
+      # creation agree on the convention. Branches created via the git-actions panel
+      # may carry a trailing `-MMDD-HHmm` timestamp suffix (for follow-up branches);
+      # since this is a prefix (start_with?) check, that suffix doesn't affect it.
       def branch_follows_convention?(branch_name, work_package)
         prefix = "#{sanitize_branch_segment(work_package.type&.name)}/#{work_package.id}-"
         branch_name.to_s.downcase.start_with?(prefix.downcase)

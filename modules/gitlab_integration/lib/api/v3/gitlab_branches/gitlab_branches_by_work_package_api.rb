@@ -68,6 +68,7 @@ module API
             desc "Create a branch in a mapped GitLab project for this work package"
             params do
               optional :mappingId, type: Integer, desc: "Which GitLab project mapping to create the branch in"
+              optional :branchName, type: String, desc: "The exact branch name to create (validated server-side)"
             end
             post do
               mappings = gitlab_project_mappings
@@ -79,7 +80,8 @@ module API
                 end
 
               result = ::GitlabIntegration::CreateBranchService
-                         .new(user: current_user, work_package: @work_package, mapping:)
+                         .new(user: current_user, work_package: @work_package, mapping:,
+                              branch_name: params[:branchName])
                          .call
 
               unless result.success?

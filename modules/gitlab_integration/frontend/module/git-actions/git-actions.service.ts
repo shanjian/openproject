@@ -62,9 +62,21 @@ export class GitActionsService {
     return `${str.replace(/'/g, '\\\'')}`;
   }
 
-  public branchName(workPackage:WorkPackageResource):string {
+  // Lets follow-up branches for the same work package (continuing or patching
+  // prior work) get a distinct name instead of colliding with the first branch.
+  public timestampSuffix(date:Date = new Date()):string {
+    const pad = (value:number) => value.toString().padStart(2, '0');
+    const month = pad(date.getMonth() + 1);
+    const day = pad(date.getDate());
+    const hours = pad(date.getHours());
+    const minutes = pad(date.getMinutes());
+    return `${month}${day}-${hours}${minutes}`;
+  }
+
+  public branchName(workPackage:WorkPackageResource, suffix?:string):string {
     const { type, id, title } = this.formattingInput(workPackage);
-    return `${this.sanitizeBranchString(type)}/${id}-${this.sanitizeBranchString(title)}`.toLocaleLowerCase();
+    const base = `${this.sanitizeBranchString(type)}/${id}-${this.sanitizeBranchString(title)}`.toLocaleLowerCase();
+    return suffix ? `${base}-${suffix}` : base;
   }
 
   public commitMessage(workPackage:WorkPackageResource):string {
@@ -81,8 +93,21 @@ ${url}
     return this.commitMessage(workPackage).replace(/\n\n/g, ' ');
   }
 
-  public gitCommand(workPackage:WorkPackageResource):string {
-    const branch = this.branchName(workPackage);
+  // Markdown-formatted, meant for pasting into a GitLab merge request description
+  // (which renders Markdown) rather than for `git commit -m`, so it carries a
+  // clickable OP# link instead of the plain-text commit message's trailing URL line.
+  public mergeRequestMessage(workPackage:WorkPackageResource):string {
+    const { title, id, description, url } = this.formattingInput(workPackage);
+    const header = `[OP#${id}](${url}) ${title}`;
+    return description ? `${header}\n\n${description}` : header;
+  }
+
+  public mergeRequestMessageDisplayText(workPackage:WorkPackageResource):string {
+    return this.mergeRequestMessage(workPackage).replace(/\n\n/g, ' ');
+  }
+
+  public gitCommand(workPackage:WorkPackageResource, suffix?:string):string {
+    const branch = this.branchName(workPackage, suffix);
     const commit = this.commitMessage(workPackage);
     return `git checkout -b '${this.sanitizeShellInput(branch)}' && git commit --allow-empty -m '${this.sanitizeShellInput(commit)}'`;
   }

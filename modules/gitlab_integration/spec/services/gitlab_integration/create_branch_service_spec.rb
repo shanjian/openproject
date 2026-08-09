@@ -37,7 +37,9 @@ RSpec.describe GitlabIntegration::CreateBranchService do
   shared_let(:type) { create(:type, name: "Feature") }
   shared_let(:work_package) { create(:work_package, project:, type:, subject: "My cool WP") }
 
-  subject(:result) { described_class.new(user:, work_package:, mapping:).call }
+  subject(:result) { described_class.new(user:, work_package:, mapping:, branch_name: client_branch_name).call }
+
+  let(:client_branch_name) { nil }
 
   let(:mapping) do
     GitlabProjectMapping.create!(project:, name: "Backend", gitlab_project_id: "42", default_ref: "main")
@@ -127,6 +129,42 @@ RSpec.describe GitlabIntegration::CreateBranchService do
           .and_return(response(status: 201, body: {}))
 
         expect(result).to be_success
+      end
+    end
+
+    context "when a valid client-supplied branch name is given" do
+      let(:client_branch_name) { "feature/#{work_package.id}-my-cool-wp-0809-1430" }
+
+      it "creates the branch under that exact name instead of the default" do
+        allow(api_client)
+          .to receive(:create_branch)
+          .with(gitlab_project_id: "42", branch: client_branch_name, ref: "main")
+          .and_return(response(status: 201, body: {}))
+
+        expect(result).to be_success
+        expect(result.result[:branch]).to eq(client_branch_name)
+      end
+    end
+
+    context "when the client-supplied branch name has an invalid charset" do
+      let(:client_branch_name) { "feature/#{work_package.id}-../../etc/passwd" }
+
+      it "fails without contacting GitLab" do
+        allow(api_client).to receive(:create_branch)
+
+        expect(result).to be_failure
+        expect(api_client).not_to have_received(:create_branch)
+      end
+    end
+
+    context "when the client-supplied branch name does not reference this work package's id" do
+      let(:client_branch_name) { "feature/#{work_package.id + 1}-someone-elses-wp" }
+
+      it "fails without contacting GitLab" do
+        allow(api_client).to receive(:create_branch)
+
+        expect(result).to be_failure
+        expect(api_client).not_to have_received(:create_branch)
       end
     end
   end

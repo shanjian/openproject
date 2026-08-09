@@ -140,6 +140,7 @@ en:
         no_ref: >
           Could not determine which branch to create from. Set a default branch
           in the project's GitLab settings.
+        invalid_branch_name: "The requested branch name is not valid."
         network_error: "Could not reach GitLab. Please try again later."
         unauthorized: >
           GitLab rejected the request. Make sure your personal access token is
