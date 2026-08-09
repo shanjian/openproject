@@ -37,6 +37,7 @@ module Groups
     # hence we need to put "lastname" as an attribute here
     attribute :name
     attribute :lastname
+    attribute :parent_id
 
     validate :validate_unique_users
 

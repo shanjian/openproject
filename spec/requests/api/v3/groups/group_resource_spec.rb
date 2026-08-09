@@ -81,6 +81,35 @@ RSpec.describe "API v3 Group resource", content_type: :json do
       end
     end
 
+    context "when the group is a regular group" do
+      it "includes organizationalUnit as false and no parent link" do
+        expect(subject.body)
+          .to be_json_eql(false.to_json)
+          .at_path("organizationalUnit")
+
+        expect(subject.body)
+          .not_to have_json_path("_links/parent")
+      end
+    end
+
+    context "when the group is a department with a parent" do
+      let(:parent_department) { create(:department) }
+      let(:group) do
+        create(:department, parent_id: parent_department.id, member_with_roles: { project => role })
+      end
+      let(:members) { [] }
+
+      it "includes organizationalUnit as true and the parent link" do
+        expect(subject.body)
+          .to be_json_eql(true.to_json)
+          .at_path("organizationalUnit")
+
+        expect(subject.body)
+          .to be_json_eql(api_v3_paths.group(parent_department.id).to_json)
+          .at_path("_links/parent/href")
+      end
+    end
+
     context "requesting nonexistent group" do
       let(:get_path) { api_v3_paths.group 9999 }
 
@@ -145,6 +174,29 @@ RSpec.describe "API v3 Group resource", content_type: :json do
           expect(response.body)
             .to be_json_eql("The new group".to_json)
             .at_path("name")
+        end
+      end
+
+      context "when creating a department" do
+        let(:body) do
+          {
+            name: "New department",
+            organizationalUnit: true
+          }.to_json
+        end
+
+        it "responds with 201 and sets organizationalUnit" do
+          expect(response).to have_http_status(:created)
+
+          expect(response.body)
+            .to be_json_eql(true.to_json)
+            .at_path("organizationalUnit")
+        end
+
+        it "persists the organizational_unit flag" do
+          response
+          group = Group.find_by(name: "New department")
+          expect(group.organizational_unit?).to be true
         end
       end
 
@@ -522,6 +574,63 @@ RSpec.describe "API v3 Group resource", content_type: :json do
       let(:permissions) { [] }
 
       it_behaves_like "unauthorized access"
+    end
+  end
+
+  describe "PATCH api/v3/groups/:id (department properties)" do
+    current_user { admin }
+
+    context "when attempting to change organizational_unit" do
+      let(:department) { create(:department) }
+
+      let(:body) do
+        { organizationalUnit: false }.to_json
+      end
+
+      before do
+        perform_enqueued_jobs do
+          patch api_v3_paths.group(department.id), body
+        end
+      end
+
+      it "does not change organizational_unit" do
+        expect(department.reload.organizational_unit?).to be true
+      end
+
+      it "responds with 422 but ignores the change" do
+        expect(last_response).to have_http_status(:unprocessable_entity)
+      end
+    end
+
+    context "when setting a parent on a department" do
+      let(:parent_department) { create(:department) }
+      let(:department) { create(:department) }
+
+      let(:body) do
+        {
+          _links: {
+            parent: { href: api_v3_paths.group(parent_department.id) }
+          }
+        }.to_json
+      end
+
+      before do
+        perform_enqueued_jobs do
+          patch api_v3_paths.group(department.id), body
+        end
+      end
+
+      it "responds with 200" do
+        expect(last_response).to have_http_status(:ok)
+      end
+
+      it "sets the parent" do
+        expect(last_response.body)
+          .to be_json_eql(api_v3_paths.group(parent_department.id).to_json)
+          .at_path("_links/parent/href")
+
+        expect(department.reload.parent_id).to eq(parent_department.id)
+      end
     end
   end
 

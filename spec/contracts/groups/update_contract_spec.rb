@@ -51,6 +51,12 @@ RSpec.describe Groups::UpdateContract do
 
         it_behaves_like "contract is invalid", type: :error_readonly
       end
+
+      describe "organizational_unit" do
+        it "is not a writable attribute" do
+          expect(contract.writable_attributes).not_to include("organizational_unit")
+        end
+      end
     end
   end
 end
