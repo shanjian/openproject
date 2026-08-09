@@ -608,6 +608,31 @@ Rails.application.routes.draw do
       end
     end
 
+    resources :departments,
+              only: %i[index show edit update destroy] do
+      member do
+        get :new_user
+        post :add_user
+        delete "remove_user/:user_id" => "departments#remove_user", as: :remove_user
+        get :change_parent, action: :change_parent_dialog
+        post :change_parent
+
+        # old routes for old group style management, might remove when new interface
+        patch "/memberships:membership_id" => "departments#edit_membership", as: "membership_of"
+        put "/memberships:membership_id" => "departments#edit_membership"
+        delete "/memberships:membership_id" => "departments#destroy_membership"
+        post "/memberships" => "departments#create_memberships", as: "memberships_of"
+      end
+
+      collection do
+        get :new_department
+        post :add_department
+        get :edit_organization_name
+        patch :cancel_edit_organization_name
+        patch :update_organization_name
+      end
+    end
+
     resources :roles, except: %i[show] do
       collection do
         put "/" => "roles#bulk_update"

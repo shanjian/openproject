@@ -3580,6 +3580,10 @@ en:
   label_custom_pdf_export_settings: "Custom PDF export settings"
   label_custom_favicon: "Custom favicon"
   label_custom_touch_icon: "Custom touch icon"
+  label_departments: "Organization"
+  label_departments_description_html: >
+    Define your company's structure by creating departments and sub-departments in a hierarchical way. This allows you
+    to reflect reporting lines and maintain a clear, structured overview of your organization within OpenProject.
   label_logout: "Sign out"
   label_mapping_for: "Mapping for: %{attribute}"
   label_main_menu: "Side Menu"
@@ -4642,6 +4646,7 @@ en:
   setting_activity_days_default: "Days displayed on project activity"
   setting_app_subtitle: "Application subtitle"
   setting_app_title: "Application title"
+  setting_organization_name: "Organization name"
   setting_attachment_max_size: "Attachment max. size"
   setting_show_work_package_attachments: "Show attachments in the files tab by default"
   setting_antivirus_scan_mode: "Scan mode"
