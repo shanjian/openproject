@@ -20,14 +20,27 @@ backup destination.
 
 ## What gets backed up
 
-`openproject run backup` produces a complete disaster-restore set:
+The user already has a manually-copied helper script,
+`script/migration/openproject_db_backup_restore.sh`, in production use for
+one-off DB snapshots (`pg_dump --format=custom --no-owner`, plus a
+`.sha256` checksum alongside the dump, and a matching `restore` subcommand
+with a typed confirmation prompt). The nightly pipeline reuses this script
+verbatim for the database portion — no duplicated pg_dump/pg_restore logic —
+and extends its same checksum convention to the other artifacts:
 
-| Artifact | Contents |
-|---|---|
-| `postgresql-dump-<ts>.pgdump` | Full database dump (pg_dump custom format) |
-| `attachments-<ts>.tar.gz` | Uploaded files/attachments |
-| `conf-<ts>.tar.gz` | `/etc/openproject` configuration incl. secrets and `installer.dat` |
-| `repositories-<ts>.tar.gz` | Git/SVN repositories (only if any exist) |
+| Artifact | Produced by | Contents |
+|---|---|---|
+| `postgresql-dump-<ts>.pgdump` + `.sha256` | `openproject_db_backup_restore.sh backup` | Full database dump |
+| `attachments-<ts>.tar.gz` + `.sha256` | new logic in the wrapper | Uploaded files/attachments |
+| `conf-<ts>.tar.gz` + `.sha256` | new logic in the wrapper | `/etc/openproject` configuration incl. secrets and `installer.dat` |
+| `git-repositories-<ts>.tar.gz` / `svn-repositories-<ts>.tar.gz` + `.sha256` | new logic in the wrapper | Git/SVN repositories (only if either exists) |
+
+This replaces the earlier idea of shelling out to `openproject run backup`
+(the packaging-script wrapper): that command doesn't propagate failure (a
+failed `tar` just logs "failed" to stderr and the script still exits 0), and
+it duplicates DB-dump logic the team already has a trusted script for.
+Building each artifact directly means every step's exit code is meaningful
+and every artifact gets a checksum, matching the existing script's pattern.
 
 ## Components
 
@@ -41,16 +54,24 @@ Steps, in order — any failure exits non-zero:
 1. Abort unless `mountpoint -q /backup` succeeds (a missing mount must never
    silently write to the root disk).
 2. Take an exclusive `flock` so runs never overlap.
-3. Run `openproject run backup` (artifacts land in
-   `/var/db/openproject/backup/`).
-4. Move the new artifacts into `/backup/openproject/<YYYY-MM-DD>/`.
-5. Verify the dated folder contains a **non-empty** pgdump, attachments
-   archive, and conf archive — a "successful" but empty backup counts as a
-   failure.
+3. Build each artifact directly into a staging folder:
+   - Database: `openproject_db_backup_restore.sh backup` (deployed
+     alongside this script — see below), pointed at the staging folder via
+     its `BACKUP_DIR` env var. Produces the `.pgdump` + `.sha256`.
+   - Attachments, config, and repositories (if present): tar + gzip, each
+     immediately followed by a `sha256sum` checksum file, same convention
+     as the DB script.
+4. Verify every required artifact (pgdump, attachments, conf) is present,
+   **non-empty**, and its checksum verifies — a "successful" but empty or
+   corrupt backup counts as a failure.
+5. Rename the staging folder into place as
+   `/backup/openproject/<YYYY-MM-DD>/` (atomic — no partial folder is ever
+   visible under its final name).
 6. Prune `/backup/openproject/*` folders older than 30 days.
 
 Paths, retention days, and destination are config variables at the top of the
-script.
+script. `openproject_db_backup_restore.sh` must be present next to this
+script (or on `PATH`) — the installer deploys both together.
 
 ### 2. `openproject-backup.service` + `openproject-backup.timer`
 
@@ -77,8 +98,11 @@ alert email fires. No partial dated folder is left behind on failure
 
 Documented in `extra/backup/RESTORE.md`:
 
-1. Install the same-version OpenProject package on the replacement server.
-2. `pg_restore` the database dump.
+1. Install the same-version OpenProject package on the replacement server,
+   plus a copy of `openproject_db_backup_restore.sh`.
+2. `openproject_db_backup_restore.sh restore <dump>.pgdump --yes` — reuses
+   the existing, already-trusted restore path (stops the service,
+   `pg_restore --clean --if-exists --no-owner`, restarts the service).
 3. Untar `conf-*.tar.gz` to `/etc/openproject`, attachments archive to the
    attachments directory (and repositories archive if present).
 4. Run `openproject configure`.

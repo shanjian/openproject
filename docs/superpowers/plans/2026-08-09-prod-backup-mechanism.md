@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a systemd-driven nightly backup for the packaged (DEB/RPM) OpenProject production install that wraps the vendor `openproject run backup` tool, lands dated backup sets on the mounted `/backup` volume with 30-day retention, and emails on failure.
+**Goal:** Add a systemd-driven nightly backup for the packaged (DEB/RPM) OpenProject production install that reuses the team's existing `openproject_db_backup_restore.sh` for the database, extends its checksum convention to attachments/config/repositories, lands dated backup sets on the mounted `/backup` volume with 30-day retention, and emails on failure.
 
-**Architecture:** A bash wrapper (`openproject-backup.sh`) runs `openproject run backup` (which already writes a full disaster-restore set — DB dump, attachments, config, repositories — into `/var/db/openproject/backup`), moves the fresh artifacts into a dated folder under `/backup/openproject/`, verifies they're non-empty, and prunes folders older than the retention window. A systemd timer fires it nightly; on failure systemd runs a second unit that sends an alert email. All of it is plain bash + systemd unit files — no new language runtime or dependency.
+**Architecture:** A bash wrapper (`openproject-backup.sh`) builds each artifact directly into a staging folder: the database via the existing `openproject_db_backup_restore.sh backup` (deployed alongside it), and attachments/config/repositories via new tar+`sha256sum` logic matching that script's pattern. It verifies every required artifact is present, non-empty, and checksum-valid, then atomically renames the staging folder into place under `/backup/openproject/<date>/` and prunes folders older than the retention window. A systemd timer fires it nightly; on failure systemd runs a second unit that sends an alert email. All of it is plain bash + systemd unit files — no new language runtime or dependency.
 
-**Tech Stack:** bash, systemd (service + timer units), the existing `packaging/scripts/backup` tool shipped by the DEB/RPM package (invoked as `openproject run backup`).
+**Tech Stack:** bash, systemd (service + timer units), the existing `script/migration/openproject_db_backup_restore.sh` (reused, not modified).
 
 ## Global Constraints
 
@@ -15,38 +15,42 @@
 - Alerting: email on failure now, with a single well-defined seam (`openproject-backup-alert.sh`) to swap in a monitoring/alerting system later — do not hardcode email-sending logic anywhere else. (spec: "Alerting", "TODO")
 - Never write to `/backup` if it isn't actually mounted — abort instead. (spec: "Error handling")
 - Never leave a partially-written dated folder behind on failure. (spec: "Error handling")
-- Target deployment is the **packaged install** (`openproject` CLI available on the host as root), not Docker. (spec: "What gets backed up")
+- Database backup/restore must reuse `script/migration/openproject_db_backup_restore.sh` as-is — do not duplicate its `pg_dump`/`pg_restore` logic. (user instruction)
+- Every artifact (DB dump, attachments, config, repositories) gets a `sha256sum` checksum file alongside it, matching that script's existing convention. (user instruction, generalized)
+- Target deployment is the **packaged install** (`openproject` CLI available on the host as root), not Docker. `openproject_db_backup_restore.sh` and the new scripts are manually copied onto the box (confirmed with the user — there's no repo checkout or package-bundling step to rely on). (spec: "What gets backed up"; user clarification)
 - All new files live under `extra/backup/` in this repo, matching the existing `extra/Apache`, `extra/mail_handler` convention of shipping ops artifacts outside the Rails app tree.
 
 ## Codebase facts that shape this plan
 
-- `packaging/scripts/backup` (already in this repo, unmodified by this plan) is what `openproject run backup` runs. It writes into `/var/db/${APP_NAME}/backup` (`APP_NAME` defaults to `openproject`) and never cleans up after itself — every run adds new timestamped files on top of old ones.
-- It produces, depending on what's configured/present: `postgresql-dump-<ts>.pgdump`, `attachments-<ts>.tar.gz`, `conf-<ts>.tar.gz` (always, if `/etc/openproject` exists), and optionally `git-repositories-<ts>.tar.gz` / `svn-repositories-<ts>.tar.gz` (only if those directories exist). **Correction vs. the design doc's table:** there is no single `repositories-<ts>.tar.gz` — it's two separately-named, both-optional archives.
-- Critically, `packaging/scripts/backup` does **not** propagate failure: a failed `tar` for one artifact just prints `failed` to stderr and the script keeps going, exiting 0 regardless. Our wrapper must not trust its exit code — it must check the actual files on disk.
-- No `bats`/`shellcheck` are installed in this environment, so tasks below verify scripts with `bash -n` (syntax) and small fixture-driven scratch tests instead of a bash test framework. `systemd-analyze verify` is available for the unit files.
+- `script/migration/openproject_db_backup_restore.sh` (already in this repo, **not modified** by this plan) is the team's existing, trusted DB backup/restore tool. `backup_db()` writes `${BACKUP_DIR}/postgresql-dump-<UTC-ts>.pgdump` (via `sudo pg_dump --format=custom --no-owner --dbname "$(sudo openproject config:get DATABASE_URL)"`) plus a `.sha256` checksum next to it. `restore_db()` takes a dump path and an optional `--yes`, stops the `openproject` service, runs `sudo pg_restore --clean --if-exists --no-owner`, and restarts the service. `BACKUP_DIR` (default `/var/db/openproject/backup/manual-db`) and `SERVICE_NAME` (default `openproject`) are its only env overrides.
+- The packaging-shipped `packaging/scripts/backup` (what `openproject run backup` runs) was the basis of an earlier draft of this plan; it's **no longer used**. It doesn't propagate failure (a failed `tar` just logs "failed" and the script still exits 0), so this plan instead builds each artifact directly and checks the result itself.
+- Attachments live at `sudo openproject config:get OPENPROJECT_ATTACHMENTS__STORAGE__PATH` (falling back to the legacy key `ATTACHMENTS_STORAGE_PATH`). Config to back up is `/etc/openproject/installer.dat` and `/etc/openproject/conf.d/` (same two paths `packaging/scripts/backup` tars). Repositories, if configured, are at `sudo openproject config:get GIT_REPOSITORIES` / `SVN_REPOSITORIES` — both optional.
+- No `bats`/`shellcheck` are installed in this environment, so tasks below verify scripts with `bash -n` (syntax) and small fixture-driven scratch tests (using mock `sudo`/`openproject`/`openproject_db_backup_restore.sh` on `PATH`) instead of a bash test framework. `systemd-analyze verify` is available for the unit files.
 
 ## File Structure
 
 ```
 extra/backup/
-  openproject-backup.sh          # main wrapper: run backup, move to dated folder, verify, prune
+  openproject-backup.sh          # main wrapper: build each artifact, verify, prune
   openproject-backup-alert.sh    # failure alert (email today; the future monitoring seam)
   openproject-backup.service     # systemd oneshot unit, OnFailure=openproject-backup-alert.service
   openproject-backup.timer       # systemd timer, daily 02:30, Persistent=true
   openproject-backup-alert.service
-  install.sh                    # copies scripts+units into place, enables the timer
+  install.sh                    # copies scripts+units (incl. openproject_db_backup_restore.sh) into place, enables the timer
   RESTORE.md                    # disaster-restore steps
   README.md                     # what this is, config vars, how to install/test
 ```
+
+`script/migration/openproject_db_backup_restore.sh` stays where it is in the repo; `install.sh` is responsible for deploying a copy of it to the same installed location as the new scripts (`/usr/local/bin/`) so `openproject-backup.sh` can find it on `PATH` at runtime.
 
 Each script is self-contained (single responsibility: the wrapper backs up, the alert script alerts, `install.sh` installs). Config is via environment variables with defaults baked in, overridable through `/etc/openproject-backup.env` (loaded by the systemd units via `EnvironmentFile=-`).
 
 ## Interfaces between tasks
 
-- `openproject-backup.sh` exits `0` on a verified, complete backup; non-zero (with a message on stderr) on any failure. It takes no arguments; all configuration is via env vars `APP_NAME`, `SOURCE_DIR`, `DEST_ROOT`, `RETENTION_DAYS`, `LOCK_FILE`, `DRY_RUN`.
+- `openproject-backup.sh` exits `0` on a verified, complete backup; non-zero (with a message on stderr) on any failure. It takes no arguments; configuration is via env vars `APP_NAME`, `DEST_ROOT`, `RETENTION_DAYS`, `LOCK_FILE`, `BACKUP_MOUNT`, `CONF_DIR`, `DB_BACKUP_SCRIPT`. It requires `openproject_db_backup_restore.sh` (or whatever `DB_BACKUP_SCRIPT` points to) to be on `PATH` and to support a `backup` subcommand honoring the `BACKUP_DIR` env var — exactly `script/migration/openproject_db_backup_restore.sh`'s existing interface.
 - `openproject-backup-alert.sh` takes no arguments, exits `0` if it successfully sent an alert, non-zero otherwise. Configuration via `BACKUP_ALERT_EMAIL`, `APP_NAME`.
 - `openproject-backup.service` has `OnFailure=openproject-backup-alert.service` — this is the only wiring between the two; the alert unit doesn't know why the backup failed, only that it did.
-- `install.sh` assumes both scripts and both service units and the timer unit exist at fixed relative paths inside `extra/backup/` (the same directory it lives in).
+- `install.sh` assumes both new scripts, both service units, and the timer unit exist at fixed relative paths inside `extra/backup/` (the same directory it lives in), and that `script/migration/openproject_db_backup_restore.sh` exists two directories up from there (i.e. at the repo root's `script/migration/`).
 
 ---
 
@@ -54,10 +58,10 @@ Each script is self-contained (single responsibility: the wrapper backs up, the 
 
 **Files:**
 - Create: `extra/backup/openproject-backup.sh`
-- Test (scratch, not committed): a fixture harness run manually per the steps below
+- Test (scratch, not committed): a fixture harness with mocked `sudo`/`openproject`/DB-backup-script, run manually per the steps below
 
 **Interfaces:**
-- Produces: an executable `extra/backup/openproject-backup.sh`, invoked with no args, honoring env vars `APP_NAME` (default `openproject`), `SOURCE_DIR` (default `/var/db/${APP_NAME}/backup`), `DEST_ROOT` (default `/backup/openproject`), `RETENTION_DAYS` (default `30`), `LOCK_FILE` (default `/run/lock/openproject-backup.lock`), `DRY_RUN` (default `0`), `BACKUP_MOUNT` (default `/backup`, the mountpoint that must be present before anything runs). Exit code `0` = verified success.
+- Produces: an executable `extra/backup/openproject-backup.sh`, invoked with no args, honoring env vars `APP_NAME` (default `openproject`), `DEST_ROOT` (default `/backup/openproject`), `RETENTION_DAYS` (default `30`), `LOCK_FILE` (default `/run/lock/openproject-backup.lock`), `BACKUP_MOUNT` (default `/backup`), `CONF_DIR` (default `/etc/${APP_NAME}`), `DB_BACKUP_SCRIPT` (default `openproject_db_backup_restore.sh`, resolved via `PATH`). Exit code `0` = verified success.
 
 - [ ] **Step 1: Write the script**
 
@@ -66,15 +70,25 @@ Each script is self-contained (single responsibility: the wrapper backs up, the 
 set -euo pipefail
 
 APP_NAME="${APP_NAME:-openproject}"
-SOURCE_DIR="${SOURCE_DIR:-/var/db/${APP_NAME}/backup}"
 DEST_ROOT="${DEST_ROOT:-/backup/openproject}"
 RETENTION_DAYS="${RETENTION_DAYS:-30}"
 LOCK_FILE="${LOCK_FILE:-/run/lock/openproject-backup.lock}"
-DRY_RUN="${DRY_RUN:-0}"
 BACKUP_MOUNT="${BACKUP_MOUNT:-/backup}"
+CONF_DIR="${CONF_DIR:-/etc/${APP_NAME}}"
+DB_BACKUP_SCRIPT="${DB_BACKUP_SCRIPT:-openproject_db_backup_restore.sh}"
 
 log() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*" >&2; }
 die() { log "ERROR: $*"; exit 1; }
+
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
+}
+
+require_cmd "$DB_BACKUP_SCRIPT"
+require_cmd sudo
+require_cmd openproject
+require_cmd tar
+require_cmd sha256sum
 
 exec 9>"$LOCK_FILE"
 flock -n 9 || die "another backup run is already in progress (lock: $LOCK_FILE)"
@@ -85,27 +99,44 @@ DATE_DIR="$(date +%Y-%m-%d)"
 DEST_TMP="${DEST_ROOT}/.tmp-${DATE_DIR}"
 DEST_FINAL="${DEST_ROOT}/${DATE_DIR}"
 
-mkdir -p "$SOURCE_DIR" "$DEST_ROOT"
+mkdir -p "$DEST_ROOT"
 rm -rf "$DEST_TMP"
 mkdir -p "$DEST_TMP"
 
-if [ "$DRY_RUN" = "1" ]; then
-  log "DRY_RUN=1: skipping '${APP_NAME} run backup'"
+archive_with_checksum() {
+  local src_dir="$1" dst="$2" label="$3"
+  if [ -z "$src_dir" ] || [ ! -d "$src_dir" ]; then
+    log "no $label directory found; skipping"
+    return 0
+  fi
+  log "archiving $label from $src_dir"
+  tar czf "$dst" -C "$src_dir" .
+  sha256sum "$dst" | tee "${dst}.sha256" >/dev/null
+}
+
+log "backing up database via $DB_BACKUP_SCRIPT"
+BACKUP_DIR="$DEST_TMP" "$DB_BACKUP_SCRIPT" backup
+
+attachments_path="$(sudo openproject config:get OPENPROJECT_ATTACHMENTS__STORAGE__PATH 2>/dev/null || true)"
+[ -n "$attachments_path" ] || attachments_path="$(sudo openproject config:get ATTACHMENTS_STORAGE_PATH 2>/dev/null || true)"
+archive_with_checksum "$attachments_path" "${DEST_TMP}/attachments-${DATE_DIR}.tar.gz" attachments
+
+if [ -d "$CONF_DIR" ]; then
+  log "archiving configuration from $CONF_DIR"
+  conf_dst="${DEST_TMP}/conf-${DATE_DIR}.tar.gz"
+  tar czf "$conf_dst" -C "$CONF_DIR" installer.dat conf.d
+  sha256sum "$conf_dst" | tee "${conf_dst}.sha256" >/dev/null
 else
-  log "running '${APP_NAME} run backup'"
-  "$APP_NAME" run backup
+  die "no configuration directory $CONF_DIR found"
 fi
 
-shopt -s nullglob
-source_files=("$SOURCE_DIR"/*)
-shopt -u nullglob
-[ "${#source_files[@]}" -gt 0 ] || die "no backup artifacts found in $SOURCE_DIR"
+git_repos="$(sudo openproject config:get GIT_REPOSITORIES 2>/dev/null || true)"
+archive_with_checksum "$git_repos" "${DEST_TMP}/git-repositories-${DATE_DIR}.tar.gz" "git repositories"
 
-for f in "${source_files[@]}"; do
-  mv "$f" "$DEST_TMP/"
-done
+svn_repos="$(sudo openproject config:get SVN_REPOSITORIES 2>/dev/null || true)"
+archive_with_checksum "$svn_repos" "${DEST_TMP}/svn-repositories-${DATE_DIR}.tar.gz" "svn repositories"
 
-for pattern in 'postgresql-dump-*' 'attachments-*' 'conf-*'; do
+for pattern in 'postgresql-dump-*.pgdump' 'attachments-*.tar.gz' 'conf-*.tar.gz'; do
   shopt -s nullglob
   matches=("$DEST_TMP"/$pattern)
   shopt -u nullglob
@@ -114,6 +145,9 @@ for pattern in 'postgresql-dump-*' 'attachments-*' 'conf-*'; do
     [ -s "$m" ] || die "artifact $m is empty"
   done
 done
+
+log "verifying checksums"
+( cd "$DEST_TMP" && sha256sum -c ./*.sha256 >/dev/null )
 
 rm -rf "$DEST_FINAL"
 mv "$DEST_TMP" "$DEST_FINAL"
@@ -137,52 +171,96 @@ Expected: no output, exit code 0.
 
 Run: `chmod +x extra/backup/openproject-backup.sh`
 
-- [ ] **Step 4: Build a scratch fixture and confirm the happy path**
+- [ ] **Step 4: Build a scratch fixture with mocked dependencies**
 
-Run this from the repo root (uses only `/tmp`, no root needed, no real `openproject` CLI):
+This wrapper calls `sudo`, `openproject`, and `openproject_db_backup_restore.sh` — none of which should be exercised for real in a test. Build a scratch `PATH` with mocks for all three, plus fixture data directories:
 
 ```bash
 SCRATCH=$(mktemp -d)
-mkdir -p "$SCRATCH/backup_mount/openproject" "$SCRATCH/var_source"
-mount --bind "$SCRATCH/backup_mount" "$SCRATCH/backup_mount"   # makes it a real mountpoint
-echo fakedump   > "$SCRATCH/var_source/postgresql-dump-20260809010000.pgdump"
-echo fakeattach > "$SCRATCH/var_source/attachments-20260809010000.tar.gz"
-echo fakeconf   > "$SCRATCH/var_source/conf-20260809010000.tar.gz"
+mkdir -p "$SCRATCH/bin" "$SCRATCH/backup_mount/openproject" \
+         "$SCRATCH/attachments" "$SCRATCH/etc_openproject/conf.d"
+touch "$SCRATCH/etc_openproject/installer.dat"
+echo "some file" > "$SCRATCH/attachments/file1.txt"
 
+cat > "$SCRATCH/bin/sudo" <<'EOF'
+#!/usr/bin/env bash
+exec "$@"
+EOF
+
+cat > "$SCRATCH/bin/openproject" <<EOF
+#!/usr/bin/env bash
+case "\$1 \$2" in
+  "config:get OPENPROJECT_ATTACHMENTS__STORAGE__PATH") echo "$SCRATCH/attachments"; exit 0 ;;
+  *) exit 1 ;;
+esac
+EOF
+
+cat > "$SCRATCH/bin/openproject_db_backup_restore.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[ "${1:-}" = "backup" ] || { echo "mock only supports backup" >&2; exit 1; }
+ts="$(date -u +%Y%m%dT%H%M%SZ)"
+dump="${BACKUP_DIR}/postgresql-dump-${ts}.pgdump"
+echo "fake dump contents" > "$dump"
+sha256sum "$dump" > "${dump}.sha256"
+EOF
+
+chmod +x "$SCRATCH/bin/"*
+
+mount --bind "$SCRATCH/backup_mount" "$SCRATCH/backup_mount"   # makes it a real mountpoint
+```
+
+`mount --bind` requires root/sudo. If unavailable in this environment, use an already-mounted directory (e.g. `BACKUP_MOUNT=/tmp` with `DEST_ROOT=/tmp/openproject-backup-test-$$`) instead of creating one, and skip the `umount` in Step 5.
+
+- [ ] **Step 5: Run the happy path**
+
+```bash
+PATH="$SCRATCH/bin:$PATH" \
 BACKUP_MOUNT="$SCRATCH/backup_mount" \
-SOURCE_DIR="$SCRATCH/var_source" \
 DEST_ROOT="$SCRATCH/backup_mount/openproject" \
+CONF_DIR="$SCRATCH/etc_openproject" \
 LOCK_FILE="$SCRATCH/lock" \
-DRY_RUN=1 \
   extra/backup/openproject-backup.sh
 echo "exit=$?"
 ls "$SCRATCH/backup_mount/openproject"
-umount "$SCRATCH/backup_mount"
-rm -rf "$SCRATCH"
+find "$SCRATCH/backup_mount/openproject" -maxdepth 2
 ```
 
-Expected: `exit=0`, and `ls` shows one directory named like `2026-08-09` containing the three fixture files. `mount --bind` requires root/sudo — if unavailable in this environment, substitute `BACKUP_MOUNT=/tmp` for the fixture run (`/tmp` is virtually always its own mountpoint) instead of creating one.
+Expected: `exit=0`; one directory named like `2026-08-09` containing `postgresql-dump-*.pgdump` (+ `.sha256`), `attachments-*.tar.gz` (+ `.sha256`), `conf-*.tar.gz` (+ `.sha256`). No `git-repositories-*`/`svn-repositories-*` files (the mock `openproject` returns nonzero for those keys, so they're correctly skipped).
 
-- [ ] **Step 5: Confirm the failure paths**
+- [ ] **Step 6: Confirm the failure paths**
 
-Run three variants and confirm each exits non-zero with a clear message on stderr:
+Using the same `SCRATCH` setup, confirm each of these exits non-zero with a clear stderr message:
 
-1. Unmounted destination: point `BACKUP_MOUNT` at a plain (non-mountpoint) empty scratch directory instead of a bind mount — expect `"is not mounted, refusing to run"`.
-2. Empty artifact: repeat Step 4's fixture but make `attachments-*.tar.gz` a zero-byte file (`: > "$SCRATCH/var_source/attachments-....tar.gz"`) — expect `"artifact ... is empty"`.
-3. Missing artifact: repeat Step 4's fixture but omit `conf-*.tar.gz` entirely — expect `"missing expected artifact matching 'conf-*'"`.
+1. Unmounted destination: rerun with `BACKUP_MOUNT` pointing at a plain (non-bind-mounted) empty directory — expect `"is not mounted, refusing to run"`.
+2. Missing config dir: rerun with `CONF_DIR=$SCRATCH/does-not-exist` — expect `"no configuration directory ... found"`.
+3. Corrupted checksum: the wrapper's checksum check (`sha256sum -c ./*.sha256`) can't easily be forced to fail mid-script without editing the script, so verify that exact command's behavior in isolation instead, against the dated folder Step 5 already produced:
+   ```bash
+   cd "$SCRATCH/backup_mount/openproject/$(date +%Y-%m-%d)"
+   echo corrupted >> attachments-*.tar.gz
+   sha256sum -c ./*.sha256 ; echo "exit=$?"
+   ```
+   Expected: `exit` is non-zero and `sha256sum` reports the attachments file as `FAILED` — this confirms the same verification command the wrapper runs would have caught corruption, had it occurred before the rename.
 
-- [ ] **Step 6: Confirm retention pruning**
+- [ ] **Step 7: Confirm retention pruning**
 
-Reuse Step 4's fixture, but before running the script create an old dated folder and set its mtime beyond the retention window, then confirm it's removed after a successful run:
+Reuse the Step 4 fixture, but before running the script create an old dated folder and set its mtime beyond the retention window:
 
 ```bash
 mkdir -p "$SCRATCH/backup_mount/openproject/2020-01-01"
 touch -d '40 days ago' "$SCRATCH/backup_mount/openproject/2020-01-01"
-# ... run the script as in Step 4 ...
+# ... run the script exactly as in Step 5 ...
 ls "$SCRATCH/backup_mount/openproject"   # 2020-01-01 must be gone, today's dir must be present
 ```
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Clean up the scratch fixture**
+
+```bash
+umount "$SCRATCH/backup_mount" 2>/dev/null || true
+rm -rf "$SCRATCH"
+```
+
+- [ ] **Step 9: Commit**
 
 ```bash
 git add extra/backup/openproject-backup.sh
@@ -253,11 +331,14 @@ Expected: stderr shows `MOCK MAIL CALLED: -s [ALERT] openproject backup failed o
 - [ ] **Step 4: Confirm the failure path when no mail transport exists**
 
 ```bash
-env -i PATH=/nonexistent extra/backup/openproject-backup-alert.sh
+SCRATCH_EMPTY_BIN=$(mktemp -d)
+PATH="$SCRATCH_EMPTY_BIN:$(dirname "$(command -v hostname)"):$(dirname "$(command -v date)")" \
+  extra/backup/openproject-backup-alert.sh
 echo "exit=$?"
+rm -rf "$SCRATCH_EMPTY_BIN"
 ```
 
-Expected: `"no mail transport available"` on stderr, `exit=1` (nonzero — note `env -i PATH=/nonexistent` won't find `hostname`/`date` either in a real minimal PATH; run this check specifically for the mail-transport branch by temporarily hiding only `mail`/`sendmail` if your `hostname`/`date` aren't on `/nonexistent`, e.g. `PATH="$SCRATCH_EMPTY_BIN:$(dirname "$(command -v hostname)"):$(dirname "$(command -v date)")"` where `$SCRATCH_EMPTY_BIN` contains no mail/sendmail).
+Expected: `"no mail transport available"` on stderr, `exit=1`.
 
 - [ ] **Step 5: Commit**
 
@@ -342,7 +423,7 @@ git commit -m "feat(backup): add systemd service and timer units"
 - Create: `extra/backup/install.sh`
 
 **Interfaces:**
-- Consumes: all five files from Tasks 1–3, located in the same directory as `install.sh` itself (`extra/backup/`).
+- Consumes: all five files from Tasks 1–3, located in the same directory as `install.sh` itself (`extra/backup/`); and `script/migration/openproject_db_backup_restore.sh`, located two directories up (repo root's `script/migration/`).
 - Produces: an idempotent installer; running it twice is safe.
 
 - [ ] **Step 1: Write the script**
@@ -357,9 +438,11 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SRC_DIR/../.." && pwd)"
 
 install -m 0755 "$SRC_DIR/openproject-backup.sh" /usr/local/bin/openproject-backup.sh
 install -m 0755 "$SRC_DIR/openproject-backup-alert.sh" /usr/local/bin/openproject-backup-alert.sh
+install -m 0755 "$REPO_ROOT/script/migration/openproject_db_backup_restore.sh" /usr/local/bin/openproject_db_backup_restore.sh
 install -m 0644 "$SRC_DIR/openproject-backup.service" /etc/systemd/system/openproject-backup.service
 install -m 0644 "$SRC_DIR/openproject-backup.timer" /etc/systemd/system/openproject-backup.timer
 install -m 0644 "$SRC_DIR/openproject-backup-alert.service" /etc/systemd/system/openproject-backup-alert.service
@@ -390,7 +473,19 @@ Expected: no output, exit 0.
 Run (as a non-root user): `extra/backup/install.sh; echo "exit=$?"`
 Expected: `"install.sh must be run as root"` on stderr, `exit=1`.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Confirm it resolves `openproject_db_backup_restore.sh` correctly**
+
+Run (as any user, just checking path resolution logic, not the root guard):
+```bash
+bash -c '
+SRC_DIR="$(cd extra/backup && pwd)"
+REPO_ROOT="$(cd "$SRC_DIR/../.." && pwd)"
+test -f "$REPO_ROOT/script/migration/openproject_db_backup_restore.sh" && echo "resolved ok: $REPO_ROOT/script/migration/openproject_db_backup_restore.sh"
+'
+```
+Expected: prints `resolved ok: <repo-root>/script/migration/openproject_db_backup_restore.sh`.
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git add extra/backup/install.sh
@@ -406,7 +501,7 @@ git commit -m "feat(backup): add installer for backup scripts and systemd units"
 - Create: `extra/backup/README.md`
 
 **Interfaces:**
-- Consumes: the artifact naming and layout produced by Tasks 1–4 (dated folders under `/backup/openproject/<YYYY-MM-DD>/` containing `postgresql-dump-*.pgdump`, `attachments-*.tar.gz`, `conf-*.tar.gz`, and optionally `git-repositories-*.tar.gz` / `svn-repositories-*.tar.gz`).
+- Consumes: the artifact naming and layout produced by Tasks 1–4 (dated folders under `/backup/openproject/<YYYY-MM-DD>/` containing `postgresql-dump-*.pgdump` + `.sha256`, `attachments-*.tar.gz` + `.sha256`, `conf-*.tar.gz` + `.sha256`, and optionally `git-repositories-*.tar.gz` / `svn-repositories-*.tar.gz` + `.sha256`); and `openproject_db_backup_restore.sh`'s `restore` subcommand interface (`restore <dump_file> [--yes]`).
 - Produces: none (documentation only).
 
 - [ ] **Step 1: Write `extra/backup/RESTORE.md`**
@@ -418,20 +513,27 @@ Pick the dated folder to restore from, e.g. `/backup/openproject/2026-08-09/`.
 
 1. Install the **same version** of the OpenProject package on the
    replacement server that produced the backup (`openproject --version`
-   on the old host tells you which).
+   on the old host tells you which), plus a copy of
+   `openproject_db_backup_restore.sh` (see this repo's
+   `script/migration/openproject_db_backup_restore.sh` — `install.sh` puts
+   it at `/usr/local/bin/openproject_db_backup_restore.sh`).
 
-2. Stop the app before restoring data:
+2. Verify the dump's checksum before trusting it:
 
    ```bash
-   sudo openproject scale web=0 worker=0
+   cd /backup/openproject/2026-08-09
+   sha256sum -c postgresql-dump-*.pgdump.sha256
+   sha256sum -c attachments-*.tar.gz.sha256
+   sha256sum -c conf-*.tar.gz.sha256
    ```
 
-3. Restore the database:
+3. Restore the database using the existing tool (it stops the
+   `openproject` service, runs `pg_restore --clean --if-exists --no-owner`,
+   and restarts the service for you):
 
    ```bash
-   sudo -u postgres pg_restore --clean --if-exists \
-     -d "$(sudo openproject config:get DATABASE_URL)" \
-     /backup/openproject/2026-08-09/postgresql-dump-*.pgdump
+   sudo openproject_db_backup_restore.sh restore \
+     /backup/openproject/2026-08-09/postgresql-dump-*.pgdump --yes
    ```
 
 4. Restore configuration (do this before `openproject configure`, since it
@@ -462,7 +564,6 @@ Pick the dated folder to restore from, e.g. `/backup/openproject/2026-08-09/`.
 
    ```bash
    sudo openproject configure
-   sudo openproject scale web=1 worker=1
    ```
 
 8. Log in and spot-check: a recently modified work package, an attachment
@@ -481,16 +582,25 @@ major-version upgrade.
 # OpenProject production backup pipeline
 
 Nightly disaster-recovery backups for a packaged (DEB/RPM) OpenProject
-install, using the vendor `openproject run backup` tool under the hood.
+install. The database portion reuses the team's existing
+`openproject_db_backup_restore.sh`; attachments, configuration, and
+repositories are archived with the same tar + `sha256sum` convention.
 
 ## What it does
 
-`openproject-backup.sh` runs `openproject run backup`, moves the resulting
-artifacts from `/var/db/openproject/backup` into a dated folder under
-`/backup/openproject/<YYYY-MM-DD>/`, verifies the database dump, attachments
-archive, and config archive are all non-empty, and prunes dated folders older
-than `RETENTION_DAYS` (default 30). A systemd timer runs it nightly at
-02:30; on failure, `openproject-backup-alert.service` sends an email.
+`openproject-backup.sh`:
+
+1. Refuses to run unless `/backup` is actually mounted.
+2. Backs up the database via `openproject_db_backup_restore.sh backup`.
+3. Archives attachments, `/etc/openproject`, and any git/svn repositories,
+   each with a `.sha256` checksum alongside it.
+4. Verifies every required artifact (dump, attachments, config) is
+   present, non-empty, and checksum-valid.
+5. Atomically moves the result into `/backup/openproject/<YYYY-MM-DD>/`.
+6. Prunes dated folders older than `RETENTION_DAYS` (default 30).
+
+A systemd timer runs it nightly at 02:30; on failure,
+`openproject-backup-alert.service` sends an email.
 
 ## Install
 
@@ -500,9 +610,10 @@ Requires the `/backup` volume to already be mounted on this host.
 sudo extra/backup/install.sh
 ```
 
-This installs the scripts to `/usr/local/bin/`, the units to
-`/etc/systemd/system/`, creates `/etc/openproject-backup.env` for overrides,
-and enables + starts the timer.
+This installs the scripts (including a copy of
+`script/migration/openproject_db_backup_restore.sh`) to `/usr/local/bin/`,
+the units to `/etc/systemd/system/`, creates `/etc/openproject-backup.env`
+for overrides, and enables + starts the timer.
 
 ## Configuration
 
@@ -552,7 +663,7 @@ git commit -m "docs(backup): add restore procedure and pipeline README"
 
 ### Task 6: End-to-end verification on a real or staging host
 
-This task has no new files — it's the manual acceptance pass the earlier scratch tests couldn't cover (a real `openproject` CLI, real systemd, real `/backup` mount).
+This task has no new files — it's the manual acceptance pass the earlier scratch tests couldn't cover (a real `openproject` CLI, real systemd, real `/backup` mount, real database).
 
 **Interfaces:**
 - Consumes: everything from Tasks 1–5, installed via Task 4's `install.sh` on a host that has the `openproject` package installed and `/backup` mounted.
@@ -571,7 +682,7 @@ Expected: no errors; `systemctl list-timers openproject-backup.timer` shows a ne
 sudo systemctl start openproject-backup.service
 ```
 
-Expected: `systemctl status openproject-backup.service` shows `Active: inactive (dead)` with no failure, and `ls /backup/openproject/` shows today's dated folder with non-empty `postgresql-dump-*.pgdump`, `attachments-*.tar.gz`, `conf-*.tar.gz` (and repository archives if this instance has any).
+Expected: `systemctl status openproject-backup.service` shows `Active: inactive (dead)` with no failure, and `ls /backup/openproject/` shows today's dated folder with non-empty, checksum-valid `postgresql-dump-*.pgdump`, `attachments-*.tar.gz`, `conf-*.tar.gz` (and repository archives if this instance has any).
 
 - [ ] **Step 3: Confirm the alert fires on failure**
 
@@ -593,7 +704,7 @@ ls /backup/openproject/   # 2020-01-01 must be gone
 
 - [ ] **Step 5: Do a full restore rehearsal on a scratch VM**
 
-Follow `extra/backup/RESTORE.md` against a disposable VM using the artifacts from Step 2. Confirm the restored instance logs in and shows the expected data.
+Follow `extra/backup/RESTORE.md` against a disposable VM using the artifacts from Step 2, including the `openproject_db_backup_restore.sh restore ... --yes` step. Confirm the restored instance logs in and shows the expected data.
 
 - [ ] **Step 6: Record the verification outcome**
 
