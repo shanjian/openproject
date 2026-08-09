@@ -14,6 +14,19 @@
           end
         end
 
+        if department
+          details_container.with_row(mt: 2, font_weight: :bold) do
+            flex_layout(align_items: :center) do |label_row|
+              label_row.with_column(mr: 1) { render(Primer::Beta::Octicon.new(icon: :briefcase, color: :muted)) }
+              label_row.with_column { User.human_attribute_name(:department) }
+            end
+          end
+
+          details_container.with_row(test_selector: "user-department") do
+            department.name
+          end
+        end
+
         visible_custom_fields.each do |custom_field|
           details_container.with_row(mt: 2, font_weight: :bold, test_selector: "user-custom-field") do
             custom_field.name

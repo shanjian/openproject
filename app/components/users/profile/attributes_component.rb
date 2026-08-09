@@ -42,8 +42,11 @@ module Users
       end
 
       def render?
-        user_is_allowed_to_see_email || @user.visible_custom_field_values.any? { it.value.present? }
+        user_is_allowed_to_see_email || department.present? ||
+          @user.visible_custom_field_values.any? { it.value.present? }
       end
+
+      delegate :department, to: :@user
 
       def visible_custom_fields
         @user

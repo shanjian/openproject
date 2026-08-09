@@ -78,6 +78,38 @@ RSpec.describe Users::Profile::AttributesComponent, type: :component do
 
       it { is_expected.to be(false) }
     end
+
+    context "when user belongs to a department" do
+      let(:user) { create(:user) }
+
+      before { create(:department, members: [user]) }
+
+      it { is_expected.to be(true) }
+    end
+  end
+
+  describe "department" do
+    let(:user) { create(:user) }
+    let(:department) { nil }
+
+    before do
+      department
+      render_inline(component)
+    end
+
+    context "when the user belongs to no department" do
+      it "does not render a department row" do
+        expect(page).to have_no_text(User.human_attribute_name(:department))
+      end
+    end
+
+    context "when the user belongs to a department" do
+      let(:department) { create(:department, members: [user]) }
+
+      it "renders the department name" do
+        find_test_selector("user-department", text: department.name)
+      end
+    end
   end
 
   describe "Custom field" do

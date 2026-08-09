@@ -1573,6 +1573,7 @@ en:
       user:
         admin: "Administrator"
         auth_source: "Authentication source"
+        department: "Department"
         ldap_auth_source: "LDAP connection"
         identity_url: "Identity URL"
         current_password: "Current password"

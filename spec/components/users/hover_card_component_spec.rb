@@ -38,11 +38,13 @@ RSpec.describe Users::HoverCardComponent, type: :component do
   let(:current_user) { create(:user, member_with_permissions: { project => [:manage_members] }) }
 
   let(:groups) { [] }
+  let(:department) { nil }
 
   subject { described_class.new(id: user.id) }
 
   before do
     groups
+    department
     login_as(current_user)
     render_inline(subject)
   end
@@ -142,6 +144,20 @@ RSpec.describe Users::HoverCardComponent, type: :component do
 
         expect(g).to have_text("Member of #{groups.slice(0, 4).map(&:lastname).join(', ')} and 4 more.")
       end
+    end
+  end
+
+  context "when the user does not belong to a department" do
+    it "does not show a department row" do
+      expect(page).not_to have_test_selector("user-hover-card-department")
+    end
+  end
+
+  context "when the user belongs to a department" do
+    let(:department) { create(:department, members: [user]) }
+
+    it "shows the department name" do
+      find_test_selector("user-hover-card-department", text: department.name)
     end
   end
 
