@@ -28,35 +28,18 @@
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-FactoryBot.define do
-  factory :group, parent: :principal, class: "Group" do
-    # groups have lastnames? hmm...
-    sequence(:lastname) { |g| "Group #{g}" }
+module Groups::Scopes
+  module OrganizationalUnits
+    extend ActiveSupport::Concern
 
-    transient do
-      members { [] }
-    end
-
-    callback(:after_create) do |group, evaluator|
-      members = Array(evaluator.members)
-      next if members.empty?
-
-      User.system.run_given do |system_user|
-        Groups::AddUsersService
-          .new(group, current_user: system_user)
-          .call(ids: members.map(&:id), send_notifications: false)
-          .on_failure { |call| raise call.message }
+    class_methods do
+      def organizational_units
+        where_detail(organizational_unit: true)
       end
-    end
 
-    factory :group_marked_for_deletion do
-      lastname { "DeletedGroup" }
-      status { Group.statuses[:deleted] }
-    end
-
-    factory :department do
-      sequence(:lastname) { |n| "Department #{n}" }
-      organizational_unit { true }
+      def not_organizational_units
+        where_detail(organizational_unit: false)
+      end
     end
   end
 end

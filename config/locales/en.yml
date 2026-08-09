@@ -1556,6 +1556,12 @@ en:
         consented_at: "Consented at"
       group:
         identity_url: "Identity URL"
+        parent: "Parent group"
+        organizational_unit: "Organizational unit"
+        group_users: "Group users"
+      group_detail:
+        parent: "Parent group"
+        organizational_unit: "Organizational unit"
       user_preference:
         header_look_and_feel: "Look and feel"
         header_alerts: "Alerts"
@@ -1712,6 +1718,11 @@ en:
           is not providing a "Secure Context". Either use HTTPS or a loopback address, such as localhost.
         wrong_length: "is the wrong length (should be %{count} characters)."
       models:
+        group:
+          attributes:
+            parent_id:
+              circular_dependency: "would create a circular group hierarchy."
+              organizational_unit_mismatch: "must have the same organizational unit setting as the group."
         ldap_auth_source:
           attributes:
             tls_certificate_string:

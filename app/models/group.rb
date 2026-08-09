@@ -30,6 +30,19 @@
 
 class Group < Principal
   include ::Scopes::Scoped
+  include Groups::Hierarchy
+  include Groups::Scopes::OrganizationalUnits
+
+  attr_accessor :hierarchy_depth
+
+  has_details_table(foreign_key: :principal_id) do
+    belongs_to :parent, class_name: "Group", optional: true
+
+    validates :parent, presence: true, if: -> { parent_id.present? }
+  end
+
+  validate :no_circular_parent, if: -> { parent_id.present? }
+  validate :no_organizational_unit_mismatch, if: -> { parent_id.present? }
 
   # Register a partial to be rendered on the synchronized groups tab of the groups admin page
   #
@@ -138,13 +151,36 @@ class Group < Principal
   private
 
   def uniqueness_of_name
-    groups_with_name = Group.where("lastname = ? AND id <> ?", name, id || 0).count
-    if groups_with_name > 0
-      errors.add :name, :taken
-    end
+    scope = Group.where(lastname: name).where.not(id: id || 0)
+
+    # Regular groups must be globally unique. Organizational units (departments) only need to be
+    # unique among their siblings: LDAP directories routinely repeat the same OU name on different
+    # branches (e.g. OU=Support under both IT and HR), so we scope uniqueness to the parent.
+    scope = if organizational_unit?
+              scope.where_detail(organizational_unit: true, parent_id:)
+            else
+              scope.where_detail(organizational_unit: false)
+            end
+
+    errors.add(:name, :taken) if scope.exists?
   end
 
   def fail_add
     fail "Do not add users through association, use `Groups::AddUsersService` instead."
+  end
+
+  def no_circular_parent
+    if parent_id == id || descendant_ids.include?(parent_id)
+      errors.add(:parent_id, :circular_dependency)
+    end
+  end
+
+  def no_organizational_unit_mismatch
+    parent = self.class.find_by(id: parent_id)
+    return unless parent
+
+    if organizational_unit? != parent.organizational_unit?
+      errors.add(:parent_id, :organizational_unit_mismatch)
+    end
   end
 end
