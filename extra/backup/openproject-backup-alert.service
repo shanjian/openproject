@@ -1,0 +1,8 @@
+[Unit]
+Description=Send alert for a failed OpenProject backup
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=-/etc/openproject-backup.env
+ExecStart=/usr/local/bin/openproject-backup-alert.sh

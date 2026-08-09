@@ -1,0 +1,11 @@
+[Unit]
+Description=OpenProject disaster-recovery backup
+After=postgresql.service network-online.target
+Wants=network-online.target
+OnFailure=openproject-backup-alert.service
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=-/etc/openproject-backup.env
+ExecStart=/usr/local/bin/openproject-backup.sh
