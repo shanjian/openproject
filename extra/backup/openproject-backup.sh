@@ -21,6 +21,8 @@ require_cmd sudo
 require_cmd openproject
 require_cmd tar
 require_cmd sha256sum
+require_cmd mountpoint
+require_cmd flock
 
 exec 9>"$LOCK_FILE"
 flock -n 9 || die "another backup run is already in progress (lock: $LOCK_FILE)"
@@ -30,6 +32,8 @@ mountpoint -q "$BACKUP_MOUNT" || die "$BACKUP_MOUNT is not mounted, refusing to 
 DATE_DIR="$(date +%Y-%m-%d)"
 DEST_TMP="${DEST_ROOT}/.tmp-${DATE_DIR}"
 DEST_FINAL="${DEST_ROOT}/${DATE_DIR}"
+
+trap 'rm -rf "$DEST_TMP"' EXIT
 
 mkdir -p "$DEST_ROOT"
 rm -rf "$DEST_TMP"
