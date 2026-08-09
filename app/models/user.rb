@@ -532,6 +532,10 @@ class User < Principal
     !logged?
   end
 
+  def active_admin?
+    admin? && active?
+  end
+
   # The single organizational unit (department) the user belongs to, if any.
   def department
     departments.first

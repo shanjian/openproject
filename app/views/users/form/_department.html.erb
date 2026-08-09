@@ -1,0 +1,9 @@
+<%# locals: (f:) -%>
+
+<div class="form--field">
+  <%= f.select :department_id,
+               department_options_for_select,
+               { include_blank: "--- #{t(:actionview_instancetag_blank_option)} ---",
+                 selected: @user.department&.id },
+               container_class: "-middle" %>
+</div>
