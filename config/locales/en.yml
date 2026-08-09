@@ -440,6 +440,38 @@ en:
   concatenation:
     single: "or"
 
+  departments:
+    edit: "Edit department"
+    add_user: "Add user"
+    add_department: "Add department"
+    blankslate:
+      heading: "Your organization has no departments"
+      description: >
+        Start by adding departments or users to the organization. Each department can be used to create
+        a hierarchy below it, to navigate and create sub-department inside a hierarchy click on the created item.
+      add_button: "Add"
+    detail_blankslate:
+      add_button: "Add"
+      description: "Add departments or users to create sub-items inside another one."
+      heading: "This department doesn't have any hierarchy level below"
+    add_department_form:
+      name_label: "Department name"
+      name_placeholder: "Enter department name"
+    move_user_dialog:
+      title: "User already in a department"
+      heading: "Move user to this department?"
+      description: "%{user} is currently a member of %{from_department}. Moving them will remove them from that department."
+      confirm: "Move user"
+    context_menu:
+      add_sub_department: "Add sub-department"
+      add_user: "Add user"
+    flash:
+      user_added: "User was successfully added to the department."
+      user_removed: "User was successfully removed from the department."
+      department_created: "Department was successfully created."
+    errors:
+      move_user_failed: "Failed to move user between departments."
+
   danger_dialog:
     confirmation_live_message_checked: "The button to proceed is now active."
     confirmation_live_message_unchecked: "The button to proceed is now inactive. You need to tick the checkbox to continue."
