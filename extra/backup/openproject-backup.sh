@@ -63,8 +63,10 @@ BACKUP_DIR="$DEST_TMP" "$DB_BACKUP_SCRIPT" backup
 # Must happen here, inside $DEST_TMP, before the verification pass below and before the
 # rename to $DEST_FINAL — so the single verification pass covers the DB dump too, and the
 # rename remains the last mutation this script performs on the backup content.
+# Also explicitly chmod DB dumps to 0600 (owner read/write only) to counter any
+# world-readable permissions that may have been left by the sudo pg_dump process.
 log "recomputing database dump checksums with relative path"
-( cd "$DEST_TMP" && for f in postgresql-dump-*.pgdump; do [ -f "$f" ] && sha256sum "$f" > "${f}.sha256"; done )
+( cd "$DEST_TMP" && for f in postgresql-dump-*.pgdump; do [ -f "$f" ] && { chmod 0600 "$f"; sha256sum "$f" > "${f}.sha256"; }; done )
 
 attachments_path="$(sudo openproject config:get OPENPROJECT_ATTACHMENTS__STORAGE__PATH 2>/dev/null || true)"
 [ -n "$attachments_path" ] || attachments_path="$(sudo openproject config:get ATTACHMENTS_STORAGE_PATH 2>/dev/null || true)"
