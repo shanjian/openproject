@@ -37,7 +37,7 @@ Pick the dated folder to restore from, e.g. `/backup/openproject/2026-08-09/`.
 5. Restore attachments:
 
    ```bash
-   attachments_path=$(sudo openproject config:get OPENPROJECT_ATTACHMENTS__STORAGE__PATH)
+   attachments_path=$(sudo openproject config:get OPENPROJECT_ATTACHMENTS__STORAGE__PATH 2>/dev/null || sudo openproject config:get ATTACHMENTS_STORAGE_PATH)
    sudo mkdir -p "$attachments_path"
    sudo tar xzf /backup/openproject/2026-08-09/attachments-*.tar.gz -C "$attachments_path"
    ```

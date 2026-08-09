@@ -47,7 +47,8 @@ archive_with_checksum() {
   fi
   log "archiving $label from $src_dir"
   tar czf "$dst" -C "$src_dir" .
-  sha256sum "$dst" | tee "${dst}.sha256" >/dev/null
+  # Compute checksum with relative path (basename only) so it survives directory renames
+  ( cd "$(dirname "$dst")" && sha256sum "$(basename "$dst")" ) | tee "${dst}.sha256" >/dev/null
 }
 
 log "backing up database via $DB_BACKUP_SCRIPT"
@@ -61,7 +62,8 @@ if [ -d "$CONF_DIR" ]; then
   log "archiving configuration from $CONF_DIR"
   conf_dst="${DEST_TMP}/conf-${DATE_DIR}.tar.gz"
   tar czf "$conf_dst" -C "$CONF_DIR" installer.dat conf.d
-  sha256sum "$conf_dst" | tee "${conf_dst}.sha256" >/dev/null
+  # Compute checksum with relative path (basename only) so it survives directory renames
+  ( cd "$(dirname "$conf_dst")" && sha256sum "$(basename "$conf_dst")" ) | tee "${conf_dst}.sha256" >/dev/null
 else
   die "no configuration directory $CONF_DIR found"
 fi
@@ -88,6 +90,11 @@ log "verifying checksums"
 rm -rf "$DEST_FINAL"
 mv "$DEST_TMP" "$DEST_FINAL"
 log "backup stored at $DEST_FINAL"
+
+# Re-compute DB dump checksums with relative path (db backup script used absolute path)
+# Find all .pgdump files and recompute their checksums with relative paths
+log "recomputing database dump checksums with relative path"
+( cd "$DEST_FINAL" && for f in postgresql-dump-*.pgdump; do [ -f "$f" ] && sha256sum "$f" > "${f}.sha256"; done )
 
 find "$DEST_ROOT" -maxdepth 1 -mindepth 1 -type d -name '20*' -mtime "+${RETENTION_DAYS}" -print0 |
   while IFS= read -r -d '' old; do
