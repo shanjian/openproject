@@ -96,30 +96,16 @@ export class GitActionsMenuComponent extends OPContextMenuComponent {
   private readonly toastService = inject(ToastService);
   private readonly http = inject(HttpClient);
 
+  // Captured once per panel open so the displayed name, the copied name, the
+  // embedded name in the "create branch with empty commit" command, and the
+  // name actually created via "Create branch in GitLab" all agree exactly.
+  private branchNameValue = '';
+
   public get creatingBranch():boolean {
     return this.inFlight > 0;
   }
 
-  public snippets:ISnippet[] = [
-    {
-      id: 'branch',
-      name: this.I18n.t('js.gitlab_integration.tab_header_mr.git_actions.branch_name'),
-      textToDisplay: () => this.gitActions.branchName(this.workPackage),
-      textToCopy: () => this.gitActions.branchName(this.workPackage)
-    },
-    {
-      id: 'message',
-      name: this.I18n.t('js.gitlab_integration.tab_header_mr.git_actions.commit_message'),
-      textToDisplay: () => this.gitActions.commitMessageDisplayText(this.workPackage),
-      textToCopy: () => this.gitActions.commitMessage(this.workPackage)
-    },
-    {
-      id: 'command',
-      name: this.I18n.t('js.gitlab_integration.tab_header_mr.git_actions.cmd'),
-      textToDisplay: () => this.gitActions.gitCommand(this.workPackage),
-      textToCopy: () => this.gitActions.gitCommand(this.workPackage)
-    },
-  ];
+  public snippets:ISnippet[] = [];
 
   constructor(@Inject(OpContextMenuLocalsToken)
               public locals:OpContextMenuLocalsMap,
@@ -127,6 +113,31 @@ export class GitActionsMenuComponent extends OPContextMenuComponent {
               readonly gitActions:GitActionsService) {
     super(locals);
     this.workPackage = this.locals.workPackage;
+
+    const timestampSuffix = this.gitActions.timestampSuffix();
+    this.branchNameValue = this.gitActions.branchName(this.workPackage, timestampSuffix);
+
+    this.snippets = [
+      {
+        id: 'branch',
+        name: this.I18n.t('js.gitlab_integration.tab_header_mr.git_actions.branch_name'),
+        textToDisplay: () => this.branchNameValue,
+        textToCopy: () => this.branchNameValue
+      },
+      {
+        id: 'message',
+        name: this.I18n.t('js.gitlab_integration.tab_header_mr.git_actions.merge_request_message'),
+        textToDisplay: () => this.gitActions.mergeRequestMessageDisplayText(this.workPackage),
+        textToCopy: () => this.gitActions.mergeRequestMessage(this.workPackage)
+      },
+      {
+        id: 'command',
+        name: this.I18n.t('js.gitlab_integration.tab_header_mr.git_actions.cmd'),
+        textToDisplay: () => this.gitActions.gitCommand(this.workPackage, timestampSuffix),
+        textToCopy: () => this.gitActions.gitCommand(this.workPackage, timestampSuffix)
+      },
+    ];
+
     this.loadBranchTargets();
   }
 
@@ -155,7 +166,9 @@ export class GitActionsMenuComponent extends OPContextMenuComponent {
 
   public createBranch(target?:IBranchTarget):void {
     this.inFlight += 1;
-    const body = target ? { mappingId: target.id } : {};
+    const body = target
+      ? { mappingId: target.id, branchName: this.branchNameValue }
+      : { branchName: this.branchNameValue };
 
     this.http
       .post<ICreateBranchResponse>(`${this.branchesBasePath}/branches`, body, { withCredentials: true })

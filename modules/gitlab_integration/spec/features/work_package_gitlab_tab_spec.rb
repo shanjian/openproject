@@ -104,23 +104,24 @@ RSpec.describe "Open the Gitlab tab", :js do
         gitlab_tab.git_actions_copy_branch_name_button.click
 
         expect(page).to have_text("Copied!")
-        expect_clipboard_content("#{work_package.type.name.downcase}/#{work_package.id}-a-test-work_package")
+        expect_clipboard_content(/\A#{work_package.type.name.downcase}\/#{work_package.id}-a-test-work_package-\d{4}-\d{4}\z/)
       end
 
-      it "shows a commit message with space between title and link" do
+      it "shows a merge request message with a clickable OP# Markdown link" do
         gitlab_tab.git_actions_menu_button.click
 
-        commit_message_input_text = page.find_field("Commit message").value
-        expect(commit_message_input_text).to include("A test work_package http://")
+        message_input_text = page.find_field("Merge Request Message").value
+        expect(message_input_text).to match(%r{\[OP##{work_package.id}\]\(http://.*/work_packages/#{work_package.id}\)})
+        expect(message_input_text).to include("A test work_package")
       end
 
-      it "allows the user to copy a commit message with newlines between title and link to the clipboard" do
+      it "allows the user to copy a merge request message with a Markdown link to the clipboard" do
         pending "In headless mode, the clipboard content is not copied to the clipboard, how to fix?"
         gitlab_tab.git_actions_menu_button.click
-        gitlab_tab.git_actions_copy_commit_message_button.click
+        gitlab_tab.git_actions_copy_merge_request_message_button.click
 
         expect(page).to have_text("Copied!")
-        expect_clipboard_content("A test work_package\nhttp://")
+        expect_clipboard_content(%r{\A\[OP##{work_package.id}\]\(http://.*\) A test work_package\z})
       end
     end
 

@@ -229,7 +229,8 @@ module Components
       def expect_unsaved_content(text)
         page.within_test_selector("op-work-package-journal-form-element") do
           editor = get_editor_form_field_element
-          expect(editor.input_element.value).to eq(text)
+          matcher = text.is_a?(Regexp) ? match(text) : eq(text)
+          expect(editor.input_element.value).to matcher
         end
       end
 

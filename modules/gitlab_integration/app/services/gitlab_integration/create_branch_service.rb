@@ -33,14 +33,21 @@ module GitlabIntegration
   # named after the work package, using the acting user's Personal Access Token.
   # See GITLAB_CREATE_BRANCH_DESIGN.md §3.
   class CreateBranchService
-    def initialize(user:, work_package:, mapping:)
+    # Matches the shape GitActionsService#branchName / #sanitizeBranchString
+    # produce on the frontend: lowercase word segments joined by single dashes
+    # or slashes, optionally ending in a `-MMDD-HHmm` timestamp suffix.
+    BRANCH_NAME_PATTERN = %r{\A[a-z0-9][a-z0-9\-/]{0,199}\z}
+
+    def initialize(user:, work_package:, mapping:, branch_name: nil)
       @user = user
       @work_package = work_package
       @mapping = mapping
+      @client_branch_name = branch_name.presence
     end
 
     def call
       return failure(:not_configured) if @mapping.nil?
+      return failure(:invalid_branch_name) if @client_branch_name && !valid_client_branch_name?
 
       pat = GitlabUserToken.find_by(user_id: @user.id)&.token
       return failure(:missing_token) if pat.blank?
@@ -51,16 +58,34 @@ module GitlabIntegration
       failure(:base_url_missing)
     end
 
-    # Server-side branch name, kept identical to the frontend
-    # GitActionsService#branchName so both places agree. See
-    # git-actions.service.ts. Any change here must be mirrored there.
+    # The branch name actually used to create the branch: the caller-supplied
+    # name (the one shown/copied in the git-actions panel, so what's displayed
+    # matches what's created) when given and valid, otherwise a name computed
+    # the same way GitActionsService#branchName does without a timestamp
+    # suffix. Any change to the default here must be mirrored in
+    # git-actions.service.ts.
     def branch_name
+      @client_branch_name || default_branch_name
+    end
+
+    private
+
+    def default_branch_name
       type = sanitize(@work_package.type&.name)
       title = sanitize(@work_package.subject)
       "#{type}/#{@work_package.id}-#{title}".downcase
     end
 
-    private
+    # Guards against arbitrary/malicious ref names being created via this
+    # user's Personal Access Token, and keeps the branch matching the
+    # `<type>/<id>-<slug>` convention that
+    # NotificationHandler::Helper#branch_follows_convention? relies on to link
+    # branches back to work packages (a trailing timestamp suffix doesn't
+    # affect that prefix-based match).
+    def valid_client_branch_name?
+      @client_branch_name.match?(BRANCH_NAME_PATTERN) &&
+        @client_branch_name.match?(%r{(?:\A|/)#{Regexp.escape(@work_package.id.to_s)}-})
+    end
 
     def create_branch_in(client)
       ref = @mapping.default_ref.presence || resolve_default_branch(client)
