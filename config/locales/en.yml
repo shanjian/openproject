@@ -1659,6 +1659,7 @@ en:
         confirmation: "doesn't match %{attribute}."
         could_not_be_copied: "%{dependency} could not be (fully) copied."
         does_not_exist: "does not exist."
+        user_already_in_department: "User %{user_id} is already a member of department %{department_id}."
         error_enterprise_only: "%{action} is only available in the OpenProject Enterprise edition."
         error_unauthorized: "may not be accessed."
         error_readonly: "was attempted to be written but is not writable."
