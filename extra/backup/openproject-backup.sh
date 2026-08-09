@@ -9,6 +9,10 @@ BACKUP_MOUNT="${BACKUP_MOUNT:-/backup}"
 CONF_DIR="${CONF_DIR:-/etc/${APP_NAME}}"
 DB_BACKUP_SCRIPT="${DB_BACKUP_SCRIPT:-openproject_db_backup_restore.sh}"
 
+# Restrict all files/directories this script creates to owner-only permissions,
+# since backup artifacts contain the DB dump and secrets (conf-*.tar.gz).
+umask 077
+
 log() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*" >&2; }
 die() { log "ERROR: $*"; exit 1; }
 
@@ -36,6 +40,7 @@ DEST_FINAL="${DEST_ROOT}/${DATE_DIR}"
 trap 'rm -rf "$DEST_TMP"' EXIT
 
 mkdir -p "$DEST_ROOT"
+chmod 0700 "$DEST_ROOT"
 rm -rf "$DEST_TMP"
 mkdir -p "$DEST_TMP"
 
@@ -53,6 +58,13 @@ archive_with_checksum() {
 
 log "backing up database via $DB_BACKUP_SCRIPT"
 BACKUP_DIR="$DEST_TMP" "$DB_BACKUP_SCRIPT" backup
+
+# Re-compute DB dump checksums with relative path (db backup script used absolute path).
+# Must happen here, inside $DEST_TMP, before the verification pass below and before the
+# rename to $DEST_FINAL — so the single verification pass covers the DB dump too, and the
+# rename remains the last mutation this script performs on the backup content.
+log "recomputing database dump checksums with relative path"
+( cd "$DEST_TMP" && for f in postgresql-dump-*.pgdump; do [ -f "$f" ] && sha256sum "$f" > "${f}.sha256"; done )
 
 attachments_path="$(sudo openproject config:get OPENPROJECT_ATTACHMENTS__STORAGE__PATH 2>/dev/null || true)"
 [ -n "$attachments_path" ] || attachments_path="$(sudo openproject config:get ATTACHMENTS_STORAGE_PATH 2>/dev/null || true)"
@@ -90,11 +102,6 @@ log "verifying checksums"
 rm -rf "$DEST_FINAL"
 mv "$DEST_TMP" "$DEST_FINAL"
 log "backup stored at $DEST_FINAL"
-
-# Re-compute DB dump checksums with relative path (db backup script used absolute path)
-# Find all .pgdump files and recompute their checksums with relative paths
-log "recomputing database dump checksums with relative path"
-( cd "$DEST_FINAL" && for f in postgresql-dump-*.pgdump; do [ -f "$f" ] && sha256sum "$f" > "${f}.sha256"; done )
 
 find "$DEST_ROOT" -maxdepth 1 -mindepth 1 -type d -name '20*' -mtime "+${RETENTION_DAYS}" -print0 |
   while IFS= read -r -d '' old; do
