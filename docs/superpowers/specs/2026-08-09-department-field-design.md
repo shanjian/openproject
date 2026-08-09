@@ -31,11 +31,12 @@ LDAP/AD auto-sync engine. That module is ~2x the size of the core feature
 wants department hierarchy pulled automatically from an LDAP directory.
 Not needed now; can be a separate future port if that need arises.
 
-**Feature gating:** upstream ships this behind a rollout feature-decision
-flag (separate from the real Enterprise gate on LDAP sync, which doesn't
-apply here since LDAP sync is out of scope). This fork enables the core
-feature unconditionally — no flag, no EE-token check — consistent with how
-this fork treats its other custom features.
+**Feature gating:** the feature is enabled unconditionally — no flag, no
+EE-token check. Upstream initially hid it behind a `departments`
+feature-decision flag but removed that flag themselves before release
+(commit `4664b62bf3b`), so porting the full commit range nets out to no
+gating with no extra work. (The real Enterprise gate applies only to the
+LDAP sync module, which is out of scope.)
 
 ## Source of truth
 
@@ -74,16 +75,24 @@ rather than introducing a new top-level entity:
     parent pointer, walked recursively, unlike this codebase's existing
     `hierarchy` custom-field format.
   - `timestamps`
-  - Unique index backing name-uniqueness scoped to siblings (not global)
+  - Index on `organizational_unit` (migration `20260402094525`)
+- Name uniqueness is enforced in **application code**, not the database:
+  upstream migration `20260622144833_relax_group_lastname_uniqueness`
+  *removes* groups from the existing DB unique index on `users.lastname`
+  (restricting it to `PlaceholderUser` only) and replaces it with
+  `Group#uniqueness_of_name` — global uniqueness for regular groups,
+  sibling-scoped for departments (LDAP directories legitimately repeat the
+  same OU name across branches).
 - New `HasPrincipalDetails` concern mixed into `Group` (and referenced
   from `Principal`) exposing the `organizational_unit`/`parent`
   accessors and hierarchy helpers (move-to-new-parent, delete-and-reparent-
   children).
-- `User` gets `has_many :departments` (through group membership, scoped to
-  `organizational_unit: true` groups) and a `#department` convenience
-  method returning the single department a user belongs to (a user
-  belongs to **at most one** department — enforced at the service layer,
-  not a DB constraint, matching upstream).
+- `User` gets `has_many :departments, -> { Group.organizational_units },
+  through: :group_users, source: :group` (modeled as `has_many` only
+  because Rails forbids `has_one :through` a collection) and a
+  `#department` convenience method returning the single department a user
+  belongs to (a user belongs to **at most one** department — enforced at
+  the service layer, not a DB constraint, matching upstream).
 
 A one-time data migration backfills `group_details` rows for all existing
 `Group` records (`organizational_unit: false`), so existing groups are
@@ -136,8 +145,16 @@ Port upstream's spec coverage, adapted to this fork's conventions:
 
 ## Rollout / migration safety
 
-- Additive migration (`create_table :group_details` + backfill insert +
-  index) — no destructive changes to `users` or `groups`.
+- Mostly additive (`create_table :group_details` + backfill insert +
+  index). The one non-additive change is the uniqueness-index swap noted
+  above (`relax_group_lastname_uniqueness`) — it loosens, never tightens,
+  a constraint, so it cannot fail on existing data.
+- Upstream's four department migrations all use
+  `ActiveRecord::Migration[8.1]`, same as this fork's recent migrations —
+  no version adaptation needed. Their timestamps (2026-03 to 2026-06)
+  predate this fork's latest migration (2026-07-27); Rails runs pending
+  migrations regardless of ordering, but renumbering them to current
+  dates during the port keeps `db/migrate` chronology clean.
 - No existing feature in this fork touches `GroupDetail`/department
   concepts, so no conflicting in-flight work to reconcile beyond the
   `group.rb`/`user.rb`/`principal.rb` merge conflicts noted above.
