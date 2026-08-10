@@ -19,7 +19,9 @@ necessarily sending an email.
 ## Non-goals
 
 - The self-service "forgot password" flow (`account/lost_password`, no admin
-  involved) is untouched — it remains email-only, exactly as today.
+  involved) keeps its current behavior — it remains email-only and its
+  request/consumption UX is unchanged. One deliberate exception: the emailed
+  token's validity is extended from 1 to 3 days (see "Token validity").
 - No new UI for entering/typing a password on the admin's behalf — the
   existing "set a password directly as admin" flow in `UsersController#update`
   is untouched.
@@ -35,14 +37,26 @@ necessarily sending an email.
   and `show_page_header_component.html.erb`. Same visibility guard as today's
   button (`@current_user.allowed_globally?(:create_user) && @current_user.id != @user.id`).
 - New route `POST /users/:id/invitation_link` → `UsersController#invitation_link`.
-- Implementation: calls `UserInvitation.reinvite_user(@user.id, send_notification: false)`.
-  `UserInvitation.reinvite_user` gains a `send_notification: true` keyword
-  argument (default preserves the existing "Send invitation" button's
-  behavior, which calls it with no argument).
+- The action mirrors `resend_invitation` step for step, differing only in
+  delivery:
+  1. **Admin-target guard** (server-side, same as `resend_invitation`): if
+     `@user.admin? && !current_user.admin?`, abort with
+     `t("user.error_admin_change_on_non_admin")` — `reinvite_user` clears the
+     target's passwords and auth-provider links, so the UI visibility check
+     alone is not sufficient.
+  2. **Status transition**: set `@user` to `Principal.statuses[:invited]` if
+     not already invited. Without this, `AccountController#activate` rejects
+     the token for an active user whenever self-registration is disabled
+     (its dispatch is `invited?` → invite path, else self-registration path,
+     else invalid token).
+  3. Call `UserInvitation.reinvite_user(@user.id, send_notification: false)`.
+     `reinvite_user` gains a `send_notification: true` keyword argument
+     (default preserves the existing "Send invitation" button's behavior,
+     which calls it with no argument).
 - The action builds the URL the same way `UserMailer#user_signed_up` does
   (`url_for(controller: "/account", action: :activate, token: token.value)`),
-  then redirects back to the user edit page with the URL delivered via flash
-  (see "Clipboard delivery" below).
+  then redirects back to the user edit page with the URL delivered via a
+  flash-driven dialog (see "Clipboard delivery" below).
 
 ## Flow 2 — Admin-issued password-reset link
 
@@ -51,6 +65,11 @@ necessarily sending an email.
   LDAP/SSO-only accounts and instances with `disable_password_login?` set —
   see `User#change_password_allowed?`).
 - New route `POST /users/:id/password_reset_link` → `UsersController#password_reset_link`.
+- The action **re-checks eligibility server-side** — the same
+  `@user.active? && @user.change_password_allowed?` condition guards the POST,
+  not just the button. A direct request for an ineligible account (locked,
+  LDAP-backed, etc.) must not create a token; it redirects back with an error
+  flash.
 - Implementation: creates `Token::Recovery.create!(user_id: @user.id, data: { channel: Token::Recovery::CHANNEL_CHAT_LINK })`
   — the same call `AccountController#lost_password` makes for the self-service
   flow, just without invoking `UserMailer.password_lost`. The `data.channel`
@@ -61,14 +80,39 @@ necessarily sending an email.
 
 ## Clipboard delivery (both flows)
 
-The generating action redirects back to the user edit page with the
-generated URL stashed in a dedicated flash key (e.g. `flash[:copyable_link]`)
-alongside a plain confirmation message. A small Stimulus controller on the
-flash partial reads that value on `connect()` and calls
-`navigator.clipboard.writeText(url)`. The flash message itself also renders
-the raw URL as text, so if the clipboard write is blocked (permissions,
-non-HTTPS dev environment, etc.) the admin can still select and copy it
-manually — the JS copy is a convenience, not the only path to the link.
+The original idea of auto-copying on page load does not work: browsers
+require transient user activation for `navigator.clipboard.writeText`, and a
+write fired from a Stimulus `connect()` after a redirect has none — it would
+be blocked. Also, `FlashMessagesHelper#build_flash_components` renders every
+flash key not starting with `_` (except `op_modal`) as a banner, so an
+ad-hoc `flash[:copyable_link]` key would leak as a stray flash message with
+no DOM contract for a controller to find.
+
+Instead, both actions use the existing **modal flash** mechanism
+(`OpModalFlashable#flash_op_modal`, rendered by `render_flash_modal` in
+`app/views/layouts/_flashes.html.erb`), which is built precisely for
+"render this dialog component after a redirect":
+
+```ruby
+flash[:op_modal] = {
+  component: "Users::ShareableLinkDialogComponent",
+  parameters: { link: url, title: t(:label_invitation_link), ... }
+}
+```
+
+New ViewComponent `Users::ShareableLinkDialogComponent`: a Primer dialog
+containing
+
+- a short explanatory line (what the link does, when it expires),
+- the URL in a readonly text field, and
+- a copy button via the existing `OpPrimer::CopyToClipboardComponent`
+  (wrapping `Primer::Beta::ClipboardCopy`) — click-to-copy carries user
+  activation, so the clipboard write is permitted; the visible readonly URL
+  is the manual fallback when clipboard access is unavailable.
+
+DOM contract: the dialog is plain server-rendered Primer — `ClipboardCopy`
+is a self-contained custom element shipped by the Primer gem, so no new
+Stimulus controller is needed at all.
 
 ## Token validity
 
@@ -154,9 +198,18 @@ password auth is off system-wide — a reset link would be pointless.
 - Add `password_reset_link` to the `users:` action list under the
   `manage_user` permission (alongside `edit`, `update`).
 
+## Controller wiring
+
+Both new actions must be added to the `find_user` `before_action` list in
+`UsersController` (it currently covers only the existing member actions —
+without this `@user` is never set), and neither appears in any
+`no_authorization_required!`/skip list, so `authorize_global` continues to
+apply.
+
 ## Files touched (implementation-plan level, not exhaustive)
 
-- `app/controllers/users_controller.rb` — two new actions.
+- `app/controllers/users_controller.rb` — two new actions + `find_user`
+  before_action entries.
 - `config/routes.rb` — two new routes.
 - `config/initializers/permissions.rb` — permission grants.
 - `app/controllers/concerns/user_invitation.rb` — `send_notification:` kwarg
@@ -165,16 +218,28 @@ password auth is off system-wide — a reset link would be pointless.
 - `app/controllers/account_controller.rb` — guard fix.
 - `app/components/users/edit_page_header_component.html.erb` and
   `show_page_header_component.html.erb` — two new buttons.
-- New Stimulus controller for clipboard delivery.
-- `config/locales/en.yml` — new button labels / flash strings.
+- New `Users::ShareableLinkDialogComponent` (Ruby + ERB + Lookbook preview).
+- `config/locales/en.yml` — new button labels / dialog strings.
 
 ## Testing
 
 - Extend `spec/controllers/concerns/user_invitation_spec.rb` for the
   `send_notification:` kwarg.
 - New request specs for `UsersController#invitation_link` and
-  `#password_reset_link` (permission checks, token creation, no email sent,
-  guard conditions for `password_reset_link`).
+  `#password_reset_link`:
+  - permission checks (`create_user` / `manage_user`),
+  - token creation and that no email is enqueued,
+  - **invitation link for an already-active user**: status is transitioned to
+    invited and the resulting token is consumable with self-registration
+    disabled,
+  - **admin-target guard**: a non-admin with `create_user` POSTing for an
+    admin account gets the error and no token/status change,
+  - **eligibility enforcement**: direct POST to `password_reset_link` for a
+    locked or LDAP-backed user creates no token.
 - Model spec for `Token::Recovery` covering both validity branches.
 - Extend `spec/features/auth/lost_password_spec.rb` (or add a new feature
   spec) to cover consuming a token when `Setting.lost_password?` is false.
+- Feature spec for the dialog: generating a link shows the dialog with the
+  URL visible in the readonly field (clipboard write itself is exercised by
+  Primer's own component tests; ours asserts the URL is present and
+  selectable as the manual fallback).
