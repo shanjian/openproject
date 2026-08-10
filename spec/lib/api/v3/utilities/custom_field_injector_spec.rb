@@ -199,6 +199,44 @@ RSpec.describe API::V3::Utilities::CustomFieldInjector do
       end
     end
 
+    describe "department custom field" do
+      let(:custom_field) do
+        build(:department_wp_custom_field,
+              is_required: true)
+      end
+
+      let(:assignable_departments) { build_stubbed_list(:department, 3) }
+
+      before do
+        allow(schema)
+          .to receive(:assignable_custom_field_values)
+          .with(custom_field)
+          .and_return(assignable_departments)
+
+        allow(API::V3::Groups::GroupRepresenter).to receive(:create).and_return(double)
+      end
+
+      it_behaves_like "has basic schema properties" do
+        let(:path) { cf_path }
+        let(:type) { "Group" }
+        let(:name) { custom_field.name }
+        let(:required) { true }
+        let(:writable) { true }
+        let(:location) { "_links" }
+      end
+
+      it_behaves_like "links to allowed values directly" do
+        let(:path) { cf_path }
+        let(:hrefs) { assignable_departments.map { |department| api_v3_paths.group department.id } }
+      end
+
+      it "embeds allowed values" do
+        expect(subject)
+          .to have_json_size(assignable_departments.size)
+          .at_path("#{cf_path}/_embedded/allowedValues")
+      end
+    end
+
     describe "list custom field" do
       before do
         allow(schema)

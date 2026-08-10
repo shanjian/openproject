@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 #-- copyright
 # OpenProject is an open source project management software.
 # Copyright (C) the OpenProject GmbH
@@ -87,6 +89,8 @@ module API
                 :custom_option
               when "hierarchy", "weighted_item_list"
                 :custom_field_item
+              when "department"
+                :group
               else
                 custom_field.field_format
               end
@@ -97,10 +101,10 @@ module API
             end
 
             def link_value_title(custom_value, custom_field)
-              if custom_value.typed_value.respond_to?(:name)
-                custom_value.typed_value.name
-              elsif custom_field.hierarchical_list?
+              if custom_field.department? || custom_field.hierarchical_list?
                 custom_value.formatted_value
+              elsif custom_value.typed_value.respond_to?(:name)
+                custom_value.typed_value.name
               else
                 custom_value.typed_value
               end

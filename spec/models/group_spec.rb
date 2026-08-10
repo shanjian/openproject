@@ -231,6 +231,17 @@ RSpec.describe Group do
       end
     end
 
+    describe "#ancestry_path" do
+      it "is just its own name for a root group" do
+        expect(grandparent.ancestry_path).to eq(grandparent.name)
+      end
+
+      it "joins ancestor names root-to-leaf with a slash" do
+        expect(grandchild.ancestry_path)
+          .to eq("#{grandparent.name} / #{parent_group.name} / #{child.name} / #{grandchild.name}")
+      end
+    end
+
     describe "#descendants" do
       it "returns all groups below in the tree" do
         expect(grandparent.descendants).to contain_exactly(parent_group, child, grandchild)
@@ -378,13 +389,14 @@ RSpec.describe Group do
         expect(sibling).not_to be_valid
       end
 
-      it "allows the same name for departments under different parents" do
+      it "allows the same name for departments under different parents, including at the DB level" do
         parent_a = create(:department)
         parent_b = create(:department)
         create(:department, lastname: "Support", parent_id: parent_a.id)
         sibling_under_other_parent = build(:department, lastname: "Support", parent_id: parent_b.id)
 
         expect(sibling_under_other_parent).to be_valid
+        expect { sibling_under_other_parent.save! }.not_to raise_error
       end
 
       it "remains global for regular groups" do

@@ -674,6 +674,8 @@ RSpec.describe CustomField do
         allow(Principal).to receive(:find_by).with(id: 1).and_return(build(:user))
         allow(Version).to receive(:find_by).with(id: 1).and_return(build(:version))
         allow(CustomField::Hierarchy::Item).to receive(:find_by).with(id: 1).and_return(build(:hierarchy_item))
+        allow(Group).to receive(:organizational_units).and_return(Group.none)
+        allow(Group.organizational_units).to receive(:find_by).with(id: 1).and_return(build(:department))
       end
 
       OpenProject::CustomFieldFormat.registered.map(&:name).each do |field_format|
@@ -688,6 +690,47 @@ RSpec.describe CustomField do
             expect(field.cast_value(input)).not_to be_nil
           end
         end
+      end
+    end
+  end
+
+  describe "department format" do
+    shared_let(:root_department) { create(:department) }
+    shared_let(:child_department) { create(:department, parent: root_department) }
+    let(:custom_field) { build(:custom_field, :department) }
+
+    describe "#possible_department_values" do
+      it "returns all organizational units in tree order" do
+        expect(custom_field.possible_department_values).to eq([root_department, child_department])
+      end
+    end
+
+    describe "#possible_department_values_options" do
+      it "returns ancestry-path/id pairs" do
+        expect(custom_field.possible_department_values_options).to eq(
+          [
+            [root_department.ancestry_path, root_department.id],
+            [child_department.ancestry_path, child_department.id]
+          ]
+        )
+      end
+    end
+
+    describe "#possible_values" do
+      it "returns the ids of all organizational units as strings" do
+        expect(custom_field.possible_values).to contain_exactly(root_department.id.to_s, child_department.id.to_s)
+      end
+    end
+
+    describe "#possible_values_options" do
+      it "delegates to #possible_department_values_options" do
+        expect(custom_field.possible_values_options).to eq(custom_field.possible_department_values_options)
+      end
+    end
+
+    describe "#cast_value" do
+      it "returns the referenced department" do
+        expect(custom_field.cast_value(child_department.id.to_s)).to eq(child_department)
       end
     end
   end

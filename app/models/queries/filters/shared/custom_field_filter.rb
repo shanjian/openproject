@@ -98,6 +98,8 @@ module Queries::Filters::Shared::CustomFieldFilter
         ::Queries::Filters::Shared::CustomFields::ListOptional
       when "hierarchy", "weighted_item_list"
         ::Queries::Filters::Shared::CustomFields::Hierarchy
+      when "department"
+        ::Queries::Filters::Shared::CustomFields::Department
       when "bool"
         ::Queries::Filters::Shared::CustomFields::Bool
       else

@@ -3613,6 +3613,7 @@ en:
   label_custom_pdf_export_settings: "Custom PDF export settings"
   label_custom_favicon: "Custom favicon"
   label_custom_touch_icon: "Custom touch icon"
+  label_department: "Department"
   label_departments: "Organization"
   label_departments_description_html: >
     Define your company's structure by creating departments and sub-departments in a hierarchical way. This allows you

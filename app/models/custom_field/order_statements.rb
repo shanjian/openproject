@@ -36,6 +36,7 @@ module CustomField::OrderStatements
     "list" => :join_for_order_by_list_sql,
     "user" => :join_for_order_by_user_sql,
     "version" => :join_for_order_by_version_sql,
+    "department" => :join_for_order_by_department_sql,
     %w[hierarchy weighted_item_list] => :join_for_order_by_hierarchy_sql
   ).freeze
 
@@ -64,13 +65,18 @@ module CustomField::OrderStatements
   def group_by_statement
     return unless can_be_used_for_grouping?
 
-    order_statement
+    # Department names are only unique among siblings (see Group#uniqueness_of_name), so
+    # grouping by the name column (order_statement's "value") would merge distinct
+    # departments that happen to share a leaf name under different parents. Group by the
+    # raw custom value (the department id) instead; the name column still drives display
+    # ordering via group_by_sort/column.sortable.
+    department? ? "cf_order_#{id}.ids" : order_statement
   end
 
   # Returns the expression to use in SELECT clause if it differs from one used
   # to group by
   def group_by_select_statement
-    return unless %w[list hierarchy weighted_item_list].include?(field_format)
+    return unless %w[list hierarchy weighted_item_list department].include?(field_format)
 
     # MIN needed to not add this column to group by, ANY_VALUE can be used when
     # minimum required PostgreSQL becomes 16
@@ -87,7 +93,7 @@ module CustomField::OrderStatements
 
   private
 
-  def can_be_used_for_grouping? = field_format.in?(%w[list date bool int float string link hierarchy])
+  def can_be_used_for_grouping? = field_format.in?(%w[list date bool int float string link hierarchy department])
 
   # Template for all the join statements.
   #
@@ -166,6 +172,14 @@ module CustomField::OrderStatements
              end,
       join: "INNER JOIN #{Version.quoted_table_name} versions_for_ordering ON versions_for_ordering.id = cv.value::bigint",
       multi_value:
+    )
+  end
+
+  def join_for_order_by_department_sql
+    join_for_order_sql(
+      value: "departments_for_ordering.lastname",
+      add_select: "cv.value ids",
+      join: "INNER JOIN #{Group.quoted_table_name} departments_for_ordering ON departments_for_ordering.id = cv.value::bigint"
     )
   end
 

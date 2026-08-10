@@ -171,6 +171,10 @@ FactoryBot.define do
       multi_value
     end
 
+    trait :department do
+      field_format { "department" }
+    end
+
     trait :user do
       field_format { "user" }
     end
@@ -264,6 +268,7 @@ FactoryBot.define do
       %w[
         boolean
         date
+        department
         float
         hierarchy multi_hierarchy
         integer
