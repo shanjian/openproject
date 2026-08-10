@@ -122,12 +122,12 @@ class DepartmentsController < ApplicationController
 
   def edit_organization_name
     replace_via_turbo_stream(component: Departments::OrganizationNameFormComponent.new)
-    respond_with_turbo_streams
+    respond_with_turbo_streams { |format| format.html { redirect_to departments_path } }
   end
 
   def cancel_edit_organization_name
     replace_via_turbo_stream(component: Departments::OrganizationNameComponent.new)
-    respond_with_turbo_streams
+    respond_with_turbo_streams { |format| format.html { redirect_to departments_path } }
   end
 
   def update_organization_name
@@ -136,7 +136,7 @@ class DepartmentsController < ApplicationController
       .call(organization_name: params[:organization_name])
 
     replace_via_turbo_stream(component: Departments::OrganizationNameComponent.new)
-    respond_with_turbo_streams
+    respond_with_turbo_streams { |format| format.html { redirect_to departments_path } }
   end
 
   # old groups interface that we adapted for departments.
