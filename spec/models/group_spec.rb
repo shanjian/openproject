@@ -231,6 +231,17 @@ RSpec.describe Group do
       end
     end
 
+    describe "#ancestry_path" do
+      it "is just its own name for a root group" do
+        expect(grandparent.ancestry_path).to eq(grandparent.name)
+      end
+
+      it "joins ancestor names root-to-leaf with a slash" do
+        expect(grandchild.ancestry_path)
+          .to eq("#{grandparent.name} / #{parent_group.name} / #{child.name} / #{grandchild.name}")
+      end
+    end
+
     describe "#descendants" do
       it "returns all groups below in the tree" do
         expect(grandparent.descendants).to contain_exactly(parent_group, child, grandchild)

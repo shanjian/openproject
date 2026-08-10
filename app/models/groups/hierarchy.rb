@@ -83,6 +83,11 @@ module Groups::Hierarchy
     parent_id.nil?
   end
 
+  # Root-to-leaf breadcrumb of names, e.g. "Engineering / Frontend".
+  def ancestry_path
+    (ancestors(order: :asc).to_a + [self]).map(&:name).join(" / ")
+  end
+
   class_methods do
     # Returns all groups in depth-first tree order, alphabetical within each level.
     # Each group has its `hierarchy_depth` set to its nesting level (0 for roots).
