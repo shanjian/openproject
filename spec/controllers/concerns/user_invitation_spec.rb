@@ -49,5 +49,19 @@ RSpec.describe UserInvitation do
       expect(new_token.value).not_to eq token.value
       expect(Token::Invitation.exists?(token.id)).to be false
     end
+
+    it "skips the notification when send_notification: false" do
+      expect(OpenProject::Notifications).not_to receive(:send)
+
+      UserInvitation.reinvite_user(user.id, send_notification: false)
+    end
+
+    it "still creates a fresh token when send_notification: false" do
+      new_token = UserInvitation.reinvite_user(user.id, send_notification: false)
+
+      expect(new_token).to be_persisted
+      expect(new_token.value).not_to eq token.value
+      expect(Token::Invitation.exists?(token.id)).to be false
+    end
   end
 end

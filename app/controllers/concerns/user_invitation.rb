@@ -89,13 +89,13 @@ module UserInvitation
   #
   # @param user_id [Integer] ID of the user to be re-invited.
   # @return [Token] The new token used for the invitation.
-  def reinvite_user(user_id)
+  def reinvite_user(user_id, send_notification: true)
     User.transaction do
       clear_tokens user_id
       reset_login user_id
 
       Token::Invitation.create!(user_id:).tap do |token|
-        OpenProject::Notifications.send Events.user_reinvited, token
+        OpenProject::Notifications.send(Events.user_reinvited, token) if send_notification
       end
     end
   end
