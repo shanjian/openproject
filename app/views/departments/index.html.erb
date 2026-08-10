@@ -1,3 +1,11 @@
 <%= render(Departments::PageHeaderComponent.new) %>
 
-<%= render(Departments::HierarchyLayoutComponent.new(groups: @groups, active_group: @group, add_user: @add_user, add_subgroup: @add_subgroup)) %>
+<%= render(
+      Departments::HierarchyLayoutComponent.new(
+        groups: @groups,
+        active_group: @group,
+        add_user: @add_user,
+        add_subgroup: @add_subgroup,
+        editing_organization_name: @editing_organization_name
+      )
+    ) %>

@@ -36,12 +36,13 @@ module Departments
 
     attr_reader :groups, :active_group
 
-    def initialize(groups:, active_group: nil, add_user: false, add_subgroup: false)
+    def initialize(groups:, active_group: nil, add_user: false, add_subgroup: false, editing_organization_name: false)
       super()
       @groups = groups
       @active_group = active_group
       @add_user = add_user
       @add_subgroup = add_subgroup
+      @editing_organization_name = editing_organization_name
     end
 
     def render_group_tree(tree, parent_id: nil)

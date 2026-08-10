@@ -122,12 +122,16 @@ class DepartmentsController < ApplicationController
 
   def edit_organization_name
     replace_via_turbo_stream(component: Departments::OrganizationNameFormComponent.new)
-    respond_with_turbo_streams { |format| format.html { redirect_to departments_path } }
+    respond_with_turbo_streams do |format|
+      format.html { render_organization_name_index(editing: true) }
+    end
   end
 
   def cancel_edit_organization_name
     replace_via_turbo_stream(component: Departments::OrganizationNameComponent.new)
-    respond_with_turbo_streams { |format| format.html { redirect_to departments_path } }
+    respond_with_turbo_streams do |format|
+      format.html { render_organization_name_index(editing: false) }
+    end
   end
 
   def update_organization_name
@@ -136,7 +140,9 @@ class DepartmentsController < ApplicationController
       .call(organization_name: params[:organization_name])
 
     replace_via_turbo_stream(component: Departments::OrganizationNameComponent.new)
-    respond_with_turbo_streams { |format| format.html { redirect_to departments_path } }
+    respond_with_turbo_streams do |format|
+      format.html { render_organization_name_index(editing: false) }
+    end
   end
 
   # old groups interface that we adapted for departments.
@@ -210,6 +216,15 @@ class DepartmentsController < ApplicationController
     return "turbo_rails/frame" if turbo_frame_request?
 
     "admin"
+  end
+
+  # Full-page (non-Turbo) fallback for the organization-name Turbo Stream actions:
+  # renders the same index page the sidebar's edit/cancel/save link normally patches
+  # in place, so the interaction still works without JavaScript.
+  def render_organization_name_index(editing:)
+    @groups = Group.with_detail.organizational_units.visible.order(:lastname)
+    @editing_organization_name = editing
+    render action: :index
   end
 
   def redirect_target_for(department)
