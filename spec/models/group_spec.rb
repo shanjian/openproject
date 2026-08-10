@@ -222,6 +222,15 @@ RSpec.describe Group do
       end
     end
 
+    describe "#destroy" do
+      it "nullifies the parent of its children instead of failing on the foreign key" do
+        expect { parent_group.destroy }.not_to raise_error
+
+        expect(described_class.exists?(parent_group.id)).to be(false)
+        expect(child.reload.parent_id).to be_nil
+      end
+    end
+
     describe "#descendants" do
       it "returns all groups below in the tree" do
         expect(grandparent.descendants).to contain_exactly(parent_group, child, grandchild)

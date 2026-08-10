@@ -342,6 +342,27 @@ RSpec.describe DepartmentsController do
           expect(response).to redirect_to department_path(parent)
         end
       end
+
+      context "with a child department" do
+        let!(:child) { create(:department, parent: department) }
+
+        it "deletes the department without failing on the child's foreign key" do
+          perform_enqueued_jobs do
+            delete :destroy, params: { id: department.id }
+          end
+
+          expect { department.reload }.to raise_error ActiveRecord::RecordNotFound
+          expect(flash[:info]).to eq I18n.t(:notice_deletion_scheduled)
+        end
+
+        it "moves the child to the root instead of leaving it attached to the deleted parent" do
+          perform_enqueued_jobs do
+            delete :destroy, params: { id: department.id }
+          end
+
+          expect(child.reload.parent_id).to be_nil
+        end
+      end
     end
 
     describe "#destroy_membership" do
