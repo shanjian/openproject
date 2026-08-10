@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 #-- copyright
 # OpenProject is an open source project management software.
 # Copyright (C) the OpenProject GmbH
@@ -87,6 +89,8 @@ module API
                 :custom_option
               when "hierarchy", "weighted_item_list"
                 :custom_field_item
+              when "department"
+                :group
               else
                 custom_field.field_format
               end
