@@ -1,0 +1,28 @@
+<%=
+  render(
+    Primer::Alpha::Dialog.new(
+      id: Users::ShareableLinkDialogComponent::DIALOG_ID,
+      title: @title,
+      data: { controller: "auto-show-dialog" }
+    )
+  ) do |dialog|
+    dialog.with_header(show_divider: false)
+
+    dialog.with_body do
+      flex_layout do |flex|
+        flex.with_row do
+          render(Primer::Beta::Text.new(color: :subtle, tag: :p)) { @description }
+        end
+        flex.with_row(mt: 2) do
+          render(OpPrimer::CopyToClipboardComponent.new(@link, scheme: :link))
+        end
+      end
+    end
+
+    dialog.with_footer(show_divider: false) do
+      render(
+        Primer::Beta::Button.new(data: { "close-dialog-id": Users::ShareableLinkDialogComponent::DIALOG_ID })
+      ) { t(:button_close) }
+    end
+  end
+%>
