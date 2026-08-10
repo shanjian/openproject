@@ -62,4 +62,40 @@ RSpec.describe CustomField::OrderStatements do
       end
     end
   end
+
+  context "when department" do
+    shared_let(:department) { create(:department) }
+
+    subject(:custom_field) { create(:department_wp_custom_field) }
+
+    describe "#order_statement" do
+      it { expect(subject.order_statement).to eq("cf_order_#{custom_field.id}.value") }
+    end
+
+    describe "#order_join_statement" do
+      it "must be equal" do
+        expect(custom_field.order_join_statement).to eq(<<~SQL.squish)
+          LEFT OUTER JOIN (
+            SELECT DISTINCT ON (cv.customized_id) cv.customized_id
+                 , departments_for_ordering.lastname "value"
+            FROM "custom_values" cv INNER JOIN "users" departments_for_ordering ON departments_for_ordering.id = cv.value::bigint
+            WHERE cv.customized_type = 'WorkPackage' AND cv.custom_field_id = #{custom_field.id}
+                  AND cv.value IS NOT NULL AND cv.value != '' ORDER BY cv.customized_id, cv.id
+          ) cf_order_#{custom_field.id} ON cf_order_#{custom_field.id}.customized_id = "work_packages".id
+        SQL
+      end
+    end
+
+    describe "#can_be_used_for_grouping?" do
+      it "is true" do
+        expect(custom_field.send(:can_be_used_for_grouping?)).to be(true)
+      end
+    end
+
+    describe "#group_by_statement" do
+      it "equals the order statement" do
+        expect(custom_field.group_by_statement).to eq(custom_field.order_statement)
+      end
+    end
+  end
 end

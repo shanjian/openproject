@@ -36,6 +36,7 @@ module CustomField::OrderStatements
     "list" => :join_for_order_by_list_sql,
     "user" => :join_for_order_by_user_sql,
     "version" => :join_for_order_by_version_sql,
+    "department" => :join_for_order_by_department_sql,
     %w[hierarchy weighted_item_list] => :join_for_order_by_hierarchy_sql
   ).freeze
 
@@ -87,7 +88,7 @@ module CustomField::OrderStatements
 
   private
 
-  def can_be_used_for_grouping? = field_format.in?(%w[list date bool int float string link hierarchy])
+  def can_be_used_for_grouping? = field_format.in?(%w[list date bool int float string link hierarchy department])
 
   # Template for all the join statements.
   #
@@ -166,6 +167,13 @@ module CustomField::OrderStatements
              end,
       join: "INNER JOIN #{Version.quoted_table_name} versions_for_ordering ON versions_for_ordering.id = cv.value::bigint",
       multi_value:
+    )
+  end
+
+  def join_for_order_by_department_sql
+    join_for_order_sql(
+      value: "departments_for_ordering.lastname",
+      join: "INNER JOIN #{Group.quoted_table_name} departments_for_ordering ON departments_for_ordering.id = cv.value::bigint"
     )
   end
 
