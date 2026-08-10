@@ -42,6 +42,7 @@ RSpec.describe Queries::WorkPackages::Filter::CustomFieldFilter do
   let(:string_wp_custom_field) { build_stubbed(:string_wp_custom_field) }
   let(:link_wp_custom_field) { build_stubbed(:link_wp_custom_field) }
   let(:hierarchy_wp_custom_field) { build_stubbed(:wp_custom_field, :hierarchy) }
+  let(:department_wp_custom_field) { build_stubbed(:department_wp_custom_field) }
   let(:custom_field) { list_wp_custom_field }
   let(:all_custom_fields) do
     [list_wp_custom_field,
@@ -54,7 +55,8 @@ RSpec.describe Queries::WorkPackages::Filter::CustomFieldFilter do
      date_wp_custom_field,
      string_wp_custom_field,
      link_wp_custom_field,
-     hierarchy_wp_custom_field]
+     hierarchy_wp_custom_field,
+     department_wp_custom_field]
   end
   let(:valid_custom_fields) { all_custom_fields }
   let(:query) { build_stubbed(:query, project:) }
@@ -195,6 +197,15 @@ RSpec.describe Queries::WorkPackages::Filter::CustomFieldFilter do
       let(:cf_accessor) { version_wp_custom_field.column_name }
 
       it "is list_optional for a version" do
+        expect(instance.type)
+          .to be(:list_optional)
+      end
+    end
+
+    describe "department" do
+      let(:cf_accessor) { department_wp_custom_field.column_name }
+
+      it "is list_optional for a department" do
         expect(instance.type)
           .to be(:list_optional)
       end
