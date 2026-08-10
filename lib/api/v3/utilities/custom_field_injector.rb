@@ -43,17 +43,19 @@ module API
           "bool" => "Boolean",
           "user" => "User",
           "version" => "Version",
+          "department" => "Group",
           "list" => "CustomOption",
           "hierarchy" => "CustomField::Hierarchy::Item",
           "weighted_item_list" => "CustomField::Hierarchy::Item",
           "calculated_value" => "CalculatedValue"
         }.freeze
 
-        LINK_FORMATS = %w(list user version hierarchy weighted_item_list).freeze
+        LINK_FORMATS = %w(list user version department hierarchy weighted_item_list).freeze
 
         NAMESPACE_MAP = {
           "user" => %w[users groups placeholder_users],
           "version" => "versions",
+          "department" => "groups",
           "list" => "custom_options",
           "hierarchy" => "custom_field_items",
           "weighted_item_list" => "custom_field_items"
@@ -62,6 +64,7 @@ module API
         REPRESENTER_MAP = {
           "user" => "::API::V3::Principals::PrincipalRepresenterFactory",
           "version" => "::API::V3::Versions::VersionRepresenter",
+          "department" => "::API::V3::Groups::GroupRepresenter",
           "list" => "::API::V3::CustomOptions::CustomOptionRepresenter",
           "hierarchy" => "::API::V3::CustomFields::Hierarchy::HierarchyItemRepresenter",
           "weighted_item_list" => "::API::V3::CustomFields::Hierarchy::HierarchyItemRepresenter"
@@ -117,6 +120,8 @@ module API
           case custom_field.field_format
           when "version"
             inject_version_schema(custom_field)
+          when "department"
+            inject_department_schema(custom_field)
           when "user"
             inject_user_schema(custom_field)
           when "list"
@@ -164,6 +169,24 @@ module API
                                                   {
                                                     href: api_v3_paths.version(version.id),
                                                     title: version.name
+                                                  }
+                                                },
+                                                required: custom_field.is_required
+        end
+
+        def inject_department_schema(custom_field)
+          @class.schema_with_allowed_collection property_name(custom_field),
+                                                type: resource_type(custom_field),
+                                                name_source: ->(*) { custom_field.name },
+                                                values_callback: ->(*) {
+                                                  represented
+                                                    .assignable_custom_field_values(custom_field)
+                                                },
+                                                value_representer: Groups::GroupRepresenter,
+                                                link_factory: ->(department) {
+                                                  {
+                                                    href: api_v3_paths.group(department.id),
+                                                    title: department.ancestry_path
                                                   }
                                                 },
                                                 required: custom_field.is_required

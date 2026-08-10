@@ -38,6 +38,8 @@ module AssignableCustomFieldValues
         custom_field.possible_values
       when "version"
         assignable_version_custom_field_values(custom_field)
+      when "department"
+        custom_field.possible_department_values
       end
     end
 
