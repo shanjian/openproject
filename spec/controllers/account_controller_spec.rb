@@ -723,6 +723,59 @@ RSpec.describe AccountController, :skip_2fa_stage do
         end
       end
     end
+
+    context "when Setting.lost_password? is false", with_settings: { lost_password: false } do
+      let(:user) { create(:user) }
+      let(:token) { create(:recovery_token, user:) }
+
+      context "with a valid token (admin-issued link)" do
+        before do
+          get :lost_password, params: { token: token.value }
+        end
+
+        it "still renders the password recovery form" do
+          expect(response).to render_template "account/password_recovery"
+        end
+      end
+
+      context "without a token (self-service request)" do
+        before do
+          get :lost_password
+        end
+
+        it "redirects home instead of showing the request form" do
+          expect(response).to redirect_to home_url
+        end
+      end
+
+      context "submitting the self-service request form" do
+        let(:mail_user) { create(:user) }
+
+        before do
+          post :lost_password, params: { mail: mail_user.mail }
+        end
+
+        it "redirects home instead of creating a token" do
+          expect(response).to redirect_to home_url
+          expect(Token::Recovery.where(user_id: mail_user.id)).to be_empty
+        end
+      end
+    end
+
+    context "when password login is disabled entirely" do
+      let(:user) { create(:user) }
+      let(:token) { create(:recovery_token, user:) }
+
+      before do
+        allow(OpenProject::Configuration).to receive(:disable_password_login?).and_return(true)
+      end
+
+      it "redirects home even with a valid token" do
+        get :lost_password, params: { token: token.value }
+
+        expect(response).to redirect_to home_url
+      end
+    end
   end
 
   shared_examples "registration disabled" do
