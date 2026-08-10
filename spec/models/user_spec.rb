@@ -1156,4 +1156,34 @@ RSpec.describe User do
       end
     end
   end
+
+  describe "#department" do
+    subject { user.department }
+
+    let(:user) { create(:user) }
+
+    context "when the user belongs to no department" do
+      it { is_expected.to be_nil }
+    end
+
+    context "when the user belongs to a department" do
+      let(:department) { create(:department, members: [user]) }
+
+      before { department }
+
+      it { is_expected.to eq(department) }
+    end
+
+    context "when eager-loaded via includes" do
+      let(:department) { create(:department, members: [user]) }
+
+      before { department }
+
+      it "does not issue additional queries" do
+        loaded_user = described_class.includes(:departments).find(user.id)
+
+        expect { loaded_user.department }.to have_a_query_limit(0)
+      end
+    end
+  end
 end

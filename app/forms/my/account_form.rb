@@ -68,6 +68,18 @@ class My::AccountForm < ApplicationForm
       required: true,
       autocomplete: "email"
     )
+
+    if @user.department
+      # Users cannot move themselves between departments; the field is always
+      # read-only on the self-service account page.
+      f.text_field(
+        name: :department,
+        label: User.human_attribute_name(:department),
+        input_width: :small,
+        value: @user.department.name,
+        readonly: true
+      )
+    end
   end
 
   def initialize(user:)

@@ -203,6 +203,199 @@ RSpec.describe Group do
     end
   end
 
+  describe "hierarchy" do
+    # Build a tree: grandparent -> parent -> child -> grandchild
+    let!(:grandparent) { create(:group) }
+    let!(:parent_group) { create(:group, parent_id: grandparent.id) }
+    let!(:child) { create(:group, parent_id: parent_group.id) }
+    let!(:grandchild) { create(:group, parent_id: child.id) }
+    let!(:unrelated) { create(:group) }
+
+    describe "#children" do
+      it "returns direct children only" do
+        expect(grandparent.children).to contain_exactly(parent_group)
+        expect(parent_group.children).to contain_exactly(child)
+      end
+
+      it "returns empty for a leaf group" do
+        expect(grandchild.children).to be_empty
+      end
+    end
+
+    describe "#destroy" do
+      it "nullifies the parent of its children instead of failing on the foreign key" do
+        expect { parent_group.destroy }.not_to raise_error
+
+        expect(described_class.exists?(parent_group.id)).to be(false)
+        expect(child.reload.parent_id).to be_nil
+      end
+    end
+
+    describe "#descendants" do
+      it "returns all groups below in the tree" do
+        expect(grandparent.descendants).to contain_exactly(parent_group, child, grandchild)
+      end
+
+      it "returns direct child and its subtree" do
+        expect(parent_group.descendants).to contain_exactly(child, grandchild)
+      end
+
+      it "returns empty for a leaf group" do
+        expect(grandchild.descendants).to be_empty
+      end
+
+      it "does not include unrelated groups" do
+        expect(grandparent.descendants).not_to include(unrelated)
+      end
+    end
+
+    describe "#self_and_descendants" do
+      it "includes self and all descendants" do
+        expect(grandparent.self_and_descendants).to contain_exactly(grandparent, parent_group, child, grandchild)
+      end
+    end
+
+    describe "#ancestors" do
+      it "returns all groups above in the tree" do
+        expect(grandchild.ancestors).to contain_exactly(child, parent_group, grandparent)
+      end
+
+      it "returns empty for a root group" do
+        expect(grandparent.ancestors).to be_empty
+      end
+    end
+
+    describe "#self_and_ancestors" do
+      it "includes self and all ancestors" do
+        expect(grandchild.self_and_ancestors).to contain_exactly(grandchild, child, parent_group, grandparent)
+      end
+    end
+
+    describe "#root" do
+      it "returns the topmost ancestor" do
+        expect(grandchild.root).to eq(grandparent)
+        expect(child.root).to eq(grandparent)
+      end
+
+      it "returns self when already the root" do
+        expect(grandparent.root).to eq(grandparent)
+      end
+    end
+
+    describe "#root?" do
+      it "is true when there is no parent" do
+        expect(grandparent).to be_root
+      end
+
+      it "is false when there is a parent" do
+        expect(child).not_to be_root
+      end
+    end
+
+    describe "circular dependency prevention" do
+      it "is invalid when assigning self as parent" do
+        grandparent.parent_id = grandparent.id
+        expect(grandparent).not_to be_valid
+        expect(grandparent.errors[:parent_id]).to be_present
+      end
+
+      it "is invalid when assigning a direct child as parent" do
+        grandparent.parent_id = parent_group.id
+        expect(grandparent).not_to be_valid
+        expect(grandparent.errors[:parent_id]).to be_present
+      end
+
+      it "is invalid when assigning a distant descendant as parent" do
+        grandparent.parent_id = grandchild.id
+        expect(grandparent).not_to be_valid
+        expect(grandparent.errors[:parent_id]).to be_present
+      end
+
+      it "is valid when assigning an unrelated group as parent" do
+        grandchild.parent_id = unrelated.id
+        expect(grandchild).to be_valid
+      end
+
+      it "is valid when clearing the parent" do
+        child.parent_id = nil
+        expect(child).to be_valid
+      end
+    end
+  end
+
+  describe "organizational units" do
+    let(:department) { create(:department) }
+    let(:regular_group) { create(:group) }
+
+    it "distinguishes departments from regular groups" do
+      expect(department).to be_organizational_unit
+      expect(regular_group).not_to be_organizational_unit
+    end
+
+    describe ".organizational_units" do
+      it "returns only organizational units" do
+        department
+        regular_group
+        expect(described_class.organizational_units).to contain_exactly(department)
+      end
+    end
+
+    describe ".not_organizational_units" do
+      it "returns only regular groups" do
+        department
+        regular_group
+        expect(described_class.not_organizational_units).to include(regular_group)
+        expect(described_class.not_organizational_units).not_to include(department)
+      end
+    end
+
+    describe "organizational unit mismatch prevention" do
+      it "is invalid when a department's parent is a regular group" do
+        department.parent_id = regular_group.id
+        expect(department).not_to be_valid
+        expect(department.errors[:parent_id]).to be_present
+      end
+
+      it "is invalid when a regular group's parent is a department" do
+        regular_group.parent_id = department.id
+        expect(regular_group).not_to be_valid
+        expect(regular_group.errors[:parent_id]).to be_present
+      end
+
+      it "is valid when a department's parent is another department" do
+        other_department = create(:department)
+        department.parent_id = other_department.id
+        expect(department).to be_valid
+      end
+    end
+
+    describe "name uniqueness" do
+      it "is scoped to siblings for departments" do
+        parent = create(:department)
+        create(:department, lastname: "Support", parent_id: parent.id)
+        sibling = build(:department, lastname: "Support", parent_id: parent.id)
+
+        expect(sibling).not_to be_valid
+      end
+
+      it "allows the same name for departments under different parents" do
+        parent_a = create(:department)
+        parent_b = create(:department)
+        create(:department, lastname: "Support", parent_id: parent_a.id)
+        sibling_under_other_parent = build(:department, lastname: "Support", parent_id: parent_b.id)
+
+        expect(sibling_under_other_parent).to be_valid
+      end
+
+      it "remains global for regular groups" do
+        create(:group, lastname: "Engineering")
+        duplicate = build(:group, lastname: "Engineering")
+
+        expect(duplicate).not_to be_valid
+      end
+    end
+  end
+
   it_behaves_like "creates an audit trail on destroy" do
     subject { create(:attachment) }
   end

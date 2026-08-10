@@ -111,6 +111,8 @@ class UsersController < ApplicationController
     call = ::Users::UpdateService.new(model: @user, user: current_user).call(update_params)
 
     if call.success?
+      department_result = update_department
+
       if update_params[:password].present? && @user.change_password_allowed?
         send_information = params[:send_information]
 
@@ -133,7 +135,11 @@ class UsersController < ApplicationController
 
       respond_to do |format|
         format.html do
-          flash[:notice] = I18n.t(:notice_successful_update)
+          if department_result&.failure?
+            flash[:error] = department_result.errors.full_messages.join("\n")
+          else
+            flash[:notice] = I18n.t(:notice_successful_update)
+          end
           redirect_to action: :edit
         end
       end
@@ -344,6 +350,38 @@ class UsersController < ApplicationController
     end
 
     update_params
+  end
+
+  # Reconciles the user's department membership with the submitted department_id.
+  # Editing the department is restricted to administrators; the field only appears
+  # in the form for admins, and this guard prevents bypassing that via params.
+  # Returns the ServiceResult of the membership change, or nil when nothing changed.
+  def update_department
+    return unless current_user.active_admin?
+    return unless params[:user]&.key?(:department_id)
+
+    target_id = params[:user][:department_id].presence&.to_i
+    current = @user.department
+    return if target_id == current&.id
+
+    target_id ? assign_department(target_id) : remove_department(current)
+  end
+
+  def assign_department(department_id)
+    department = Group.organizational_units.find_by(id: department_id)
+    return unless department
+
+    Departments::AddUserService
+      .new(department, user: current_user)
+      .call(user_id: @user.id, remove_from_previous_department: true)
+  end
+
+  def remove_department(department)
+    return unless department
+
+    Departments::RemoveUserService
+      .new(department, user: current_user)
+      .call(user_id: @user.id)
   end
 
   def create_params

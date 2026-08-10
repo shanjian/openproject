@@ -526,8 +526,9 @@ class PermittedParams
           name
           reassign_to_id
         ),
-        group: [
-          :lastname
+        group: %i[
+          lastname
+          parent_id
         ],
         membership: [
           :project_id,

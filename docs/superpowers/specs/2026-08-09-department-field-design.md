@@ -1,7 +1,7 @@
 # Department (Organizational Unit) — Design
 
 **Date:** 2026-08-09
-**Status:** Draft (pending approval)
+**Status:** Implemented
 
 ## Goal
 

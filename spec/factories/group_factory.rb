@@ -53,5 +53,10 @@ FactoryBot.define do
       lastname { "DeletedGroup" }
       status { Group.statuses[:deleted] }
     end
+
+    factory :department do
+      sequence(:lastname) { |n| "Department #{n}" }
+      organizational_unit { true }
+    end
   end
 end

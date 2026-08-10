@@ -440,6 +440,38 @@ en:
   concatenation:
     single: "or"
 
+  departments:
+    edit: "Edit department"
+    add_user: "Add user"
+    add_department: "Add department"
+    blankslate:
+      heading: "Your organization has no departments"
+      description: >
+        Start by adding departments or users to the organization. Each department can be used to create
+        a hierarchy below it, to navigate and create sub-department inside a hierarchy click on the created item.
+      add_button: "Add"
+    detail_blankslate:
+      add_button: "Add"
+      description: "Add departments or users to create sub-items inside another one."
+      heading: "This department doesn't have any hierarchy level below"
+    add_department_form:
+      name_label: "Department name"
+      name_placeholder: "Enter department name"
+    move_user_dialog:
+      title: "User already in a department"
+      heading: "Move user to this department?"
+      description: "%{user} is currently a member of %{from_department}. Moving them will remove them from that department."
+      confirm: "Move user"
+    context_menu:
+      add_sub_department: "Add sub-department"
+      add_user: "Add user"
+    flash:
+      user_added: "User was successfully added to the department."
+      user_removed: "User was successfully removed from the department."
+      department_created: "Department was successfully created."
+    errors:
+      move_user_failed: "Failed to move user between departments."
+
   danger_dialog:
     confirmation_live_message_checked: "The button to proceed is now active."
     confirmation_live_message_unchecked: "The button to proceed is now inactive. You need to tick the checkbox to continue."
@@ -1541,6 +1573,7 @@ en:
       user:
         admin: "Administrator"
         auth_source: "Authentication source"
+        department: "Department"
         ldap_auth_source: "LDAP connection"
         identity_url: "Identity URL"
         current_password: "Current password"
@@ -1556,6 +1589,12 @@ en:
         consented_at: "Consented at"
       group:
         identity_url: "Identity URL"
+        parent: "Parent group"
+        organizational_unit: "Organizational unit"
+        group_users: "Group users"
+      group_detail:
+        parent: "Parent group"
+        organizational_unit: "Organizational unit"
       user_preference:
         header_look_and_feel: "Look and feel"
         header_alerts: "Alerts"
@@ -1653,6 +1692,7 @@ en:
         confirmation: "doesn't match %{attribute}."
         could_not_be_copied: "%{dependency} could not be (fully) copied."
         does_not_exist: "does not exist."
+        user_already_in_department: "User %{user_id} is already a member of department %{department_id}."
         error_enterprise_only: "%{action} is only available in the OpenProject Enterprise edition."
         error_unauthorized: "may not be accessed."
         error_readonly: "was attempted to be written but is not writable."
@@ -1712,6 +1752,11 @@ en:
           is not providing a "Secure Context". Either use HTTPS or a loopback address, such as localhost.
         wrong_length: "is the wrong length (should be %{count} characters)."
       models:
+        group:
+          attributes:
+            parent_id:
+              circular_dependency: "would create a circular group hierarchy."
+              organizational_unit_mismatch: "must have the same organizational unit setting as the group."
         ldap_auth_source:
           attributes:
             tls_certificate_string:
@@ -3568,6 +3613,10 @@ en:
   label_custom_pdf_export_settings: "Custom PDF export settings"
   label_custom_favicon: "Custom favicon"
   label_custom_touch_icon: "Custom touch icon"
+  label_departments: "Organization"
+  label_departments_description_html: >
+    Define your company's structure by creating departments and sub-departments in a hierarchical way. This allows you
+    to reflect reporting lines and maintain a clear, structured overview of your organization within OpenProject.
   label_logout: "Sign out"
   label_mapping_for: "Mapping for: %{attribute}"
   label_main_menu: "Side Menu"
@@ -4630,6 +4679,7 @@ en:
   setting_activity_days_default: "Days displayed on project activity"
   setting_app_subtitle: "Application subtitle"
   setting_app_title: "Application title"
+  setting_organization_name: "Organization name"
   setting_attachment_max_size: "Attachment max. size"
   setting_show_work_package_attachments: "Show attachments in the files tab by default"
   setting_antivirus_scan_mode: "Scan mode"

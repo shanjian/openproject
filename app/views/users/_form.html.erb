@@ -34,6 +34,7 @@ See COPYRIGHT and LICENSE files for more details.
 
   <% if current_user.admin? %>
     <%= render partial: "users/form/admin_flag", locals: { f: f } %>
+    <%= render partial: "users/form/department", locals: { f: f } unless @user.new_record? %>
   <% end %>
 
   <%= render partial: "users/form/custom_fields", locals: { f: f } %>

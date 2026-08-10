@@ -46,6 +46,12 @@ module UsersHelper
     options_for_select options.sort, selected
   end
 
+  def department_options_for_select
+    Group.organizational_units.in_tree_order.map do |department|
+      ["#{'  ' * (department.hierarchy_depth || 0)}#{department.name}", department.id]
+    end
+  end
+
   def translate_user_status(status_name)
     I18n.t(status_name.to_sym, scope: :user)
   end

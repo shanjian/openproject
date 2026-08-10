@@ -78,6 +78,9 @@ module Settings
       app_title: {
         default: "OpenProject"
       },
+      organization_name: {
+        default: "My Organization"
+      },
       attachment_max_size: {
         default: 5120
       },

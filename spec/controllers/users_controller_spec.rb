@@ -1042,6 +1042,42 @@ RSpec.describe UsersController do
                      edited_user: :some_user,
                      current_user: :user
 
+    context "when updating the department" do
+      shared_let(:department) { create(:department) }
+
+      context "as an admin" do
+        current_user { admin }
+
+        it "assigns the user to the department" do
+          expect { put :update, params: { id: some_user.id, user: { department_id: department.id } } }
+            .to change { some_user.reload.department }.from(nil).to(department)
+        end
+
+        context "when the user already belongs to a department" do
+          shared_let(:other_department) { create(:department, members: [some_user]) }
+
+          it "moves the user to the new department" do
+            expect { put :update, params: { id: some_user.id, user: { department_id: department.id } } }
+              .to change { some_user.reload.department }.from(other_department).to(department)
+          end
+
+          it "removes the user from their department when submitted blank" do
+            expect { put :update, params: { id: some_user.id, user: { department_id: "" } } }
+              .to change { some_user.reload.department }.from(other_department).to(nil)
+          end
+        end
+      end
+
+      context "as a non-admin with manage_user permission" do
+        current_user { user_with_manage_user_global_permission }
+
+        it "does not change the department" do
+          expect { put :update, params: { id: some_user.id, user: { department_id: department.id } } }
+            .not_to change { some_user.reload.department }
+        end
+      end
+    end
+
     context "with external authentication" do
       let(:some_user) { create(:user, :passwordless, identity_url: "some:identity") }
 
