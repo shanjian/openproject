@@ -61,9 +61,13 @@ necessarily sending an email.
 ## Flow 2 — Admin-issued password-reset link
 
 - New button **"Copy password reset link"**, shown only when
-  `@user.active? && @user.change_password_allowed?` (this already excludes
-  LDAP/SSO-only accounts and instances with `disable_password_login?` set —
-  see `User#change_password_allowed?`).
+  `current_user.allowed_globally?(:manage_user) && @user.active? && @user.change_password_allowed?`.
+  The permission check matters because the show-page header is also rendered
+  for ordinary users viewing profiles (`UsersController#show` is
+  `no_authorization_required!`) — without it they would see a button that
+  always 403s. The target-user conditions already exclude LDAP/SSO-only
+  accounts and instances with `disable_password_login?` set — see
+  `User#change_password_allowed?`.
 - New route `POST /users/:id/password_reset_link` → `UsersController#password_reset_link`.
 - The action **re-checks eligibility server-side** — the same
   `@user.active? && @user.change_password_allowed?` condition guards the POST,
@@ -110,9 +114,14 @@ containing
   activation, so the clipboard write is permitted; the visible readonly URL
   is the manual fallback when clipboard access is unavailable.
 
-DOM contract: the dialog is plain server-rendered Primer — `ClipboardCopy`
-is a self-contained custom element shipped by the Primer gem, so no new
-Stimulus controller is needed at all.
+DOM contract: the dialog is server-rendered Primer. Per the flash-modal
+pattern (`lookbook/docs/patterns/09-flash-modal.md.erb`), a
+`Primer::Alpha::Dialog` delivered via `flash[:op_modal]` renders closed
+unless it declares the existing `auto-show-dialog` Stimulus controller —
+the component must set `data: { controller: "auto-show-dialog" }` so the
+dialog opens on page load. `ClipboardCopy` itself is a self-contained
+custom element shipped by the Primer gem; no *new* Stimulus controller is
+written for this feature.
 
 ## Token validity
 
@@ -239,7 +248,12 @@ apply.
 - Model spec for `Token::Recovery` covering both validity branches.
 - Extend `spec/features/auth/lost_password_spec.rb` (or add a new feature
   spec) to cover consuming a token when `Setting.lost_password?` is false.
-- Feature spec for the dialog: generating a link shows the dialog with the
-  URL visible in the readonly field (clipboard write itself is exercised by
-  Primer's own component tests; ours asserts the URL is present and
-  selectable as the manual fallback).
+- Feature spec for the dialog: generating a link **opens** the dialog — the
+  assertion must be on a *visible* dialog (`auto-show-dialog` fired), not
+  mere DOM presence — with the URL shown in the readonly field (clipboard
+  write itself is exercised by Primer's own component tests; ours asserts
+  the URL is present and selectable as the manual fallback).
+- Component/feature coverage for button visibility: the reset-link button is
+  absent for users without `manage_user` (e.g. a regular user viewing a
+  profile or their own page), absent for ineligible targets (locked,
+  LDAP-backed), and present for an admin viewing an eligible active user.
