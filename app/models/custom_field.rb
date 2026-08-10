@@ -163,6 +163,8 @@ class CustomField < ApplicationRecord
       possible_version_values_options(obj, options:)
     when "list"
       possible_list_values_options
+    when "department"
+      possible_department_values_options
     else
       possible_values
     end
@@ -191,6 +193,8 @@ class CustomField < ApplicationRecord
       custom_options
     when "hierarchy", "weighted_item_list"
       custom_field_hierarchy_items
+    when "department"
+      possible_department_values.pluck(:id).map(&:to_s)
     else
       read_attribute(:possible_values)
     end
@@ -225,6 +229,14 @@ class CustomField < ApplicationRecord
     items.value_or([])
   end
 
+  def possible_department_values
+    Group.organizational_units.in_tree_order
+  end
+
+  def possible_department_values_options
+    possible_department_values.map { |department| [department.ancestry_path, department.id] }
+  end
+
   def cast_value(value)
     return if value.blank?
 
@@ -249,6 +261,8 @@ class CustomField < ApplicationRecord
       Version.find_by(id: value.to_i)
     when "hierarchy", "weighted_item_list"
       CustomField::Hierarchy::Item.find_by(id: value.to_i)
+    when "department"
+      Group.organizational_units.find_by(id: value.to_i)
     end
   end
 
