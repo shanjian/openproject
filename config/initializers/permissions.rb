@@ -69,7 +69,7 @@ Rails.application.reloader.to_prepare do
 
       map.permission :create_user,
                      {
-                       users: %i[index show new create resend_invitation],
+                       users: %i[index show new create resend_invitation invitation_link],
                        "users/memberships": %i[create],
                        admin: %i[index]
                      },
@@ -80,7 +80,7 @@ Rails.application.reloader.to_prepare do
 
       map.permission :manage_user,
                      {
-                       users: %i[index show edit update change_status change_status_info],
+                       users: %i[index show edit update change_status change_status_info password_reset_link],
                        "users/memberships": %i[create update destroy],
                        admin: %i[index]
                      },

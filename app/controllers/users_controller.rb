@@ -42,7 +42,9 @@ class UsersController < ApplicationController
                                      change_status
                                      destroy
                                      deletion_info
-                                     resend_invitation]
+                                     resend_invitation
+                                     invitation_link
+                                     password_reset_link]
   # should also contain destroy but post data can not be redirected
   before_action :require_login, only: [:deletion_info]
   before_action :authorize_for_user, only: [:destroy]
@@ -233,6 +235,60 @@ class UsersController < ApplicationController
       flash[:notice] = I18n.t(:notice_user_invitation_resent, email: @user.mail)
     else
       logger.error "could not re-invite #{@user.mail}: #{token.errors.full_messages.join(' ')}"
+      flash[:error] = I18n.t(:notice_internal_server_error, app_title: Setting.app_title)
+    end
+
+    redirect_to helpers.allowed_management_user_profile_path(@user)
+  end
+
+  def invitation_link # rubocop:disable Metrics/AbcSize
+    if @user.admin? && !current_user.admin?
+      # non-admin users are not allowed to change admin status
+      flash[:error] = I18n.t("user.error_admin_change_on_non_admin")
+      redirect_to helpers.allowed_management_user_profile_path(@user)
+      return
+    end
+
+    status = Principal.statuses[:invited]
+    @user.update!(status: status) if @user.status != status
+
+    token = UserInvitation.reinvite_user(@user.id, send_notification: false)
+
+    if token.persisted?
+      link = url_for(controller: "/account", action: :activate, token: token.value)
+      flash_op_modal component: Users::ShareableLinkDialogComponent,
+                     parameters: {
+                       link:,
+                       title: I18n.t(:label_invitation_link_dialog_title),
+                       description: I18n.t(:text_invitation_link_dialog_description)
+                     }
+    else
+      logger.error "could not generate invitation link for #{@user.mail}: #{token.errors.full_messages.join(' ')}"
+      flash[:error] = I18n.t(:notice_internal_server_error, app_title: Setting.app_title)
+    end
+
+    redirect_to helpers.allowed_management_user_profile_path(@user)
+  end
+
+  def password_reset_link # rubocop:disable Metrics/AbcSize
+    unless @user.active? && @user.change_password_allowed?
+      flash[:error] = I18n.t("user.error_password_reset_link_not_allowed")
+      redirect_to helpers.allowed_management_user_profile_path(@user)
+      return
+    end
+
+    token = Token::Recovery.new(user_id: @user.id, data: { channel: Token::Recovery::CHANNEL_CHAT_LINK })
+
+    if token.save
+      link = url_for(controller: "/account", action: :lost_password, token: token.value)
+      flash_op_modal component: Users::ShareableLinkDialogComponent,
+                     parameters: {
+                       link:,
+                       title: I18n.t(:label_password_reset_link_dialog_title),
+                       description: I18n.t(:text_password_reset_link_dialog_description)
+                     }
+    else
+      logger.error "could not generate password reset link for #{@user.mail}: #{token.errors.full_messages.join(' ')}"
       flash[:error] = I18n.t(:notice_internal_server_error, app_title: Setting.app_title)
     end
 

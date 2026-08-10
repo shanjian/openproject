@@ -3380,6 +3380,10 @@ en:
   label_select_main_menu_item: Select new main menu item
   label_required_disk_storage: "Required disk storage"
   label_send_invitation: Send invitation
+  label_copy_invitation_link: "Copy invitation link"
+  label_invitation_link_dialog_title: "Invitation link"
+  label_copy_password_reset_link: "Copy password reset link"
+  label_password_reset_link_dialog_title: "Password reset link"
   label_calculated_value: "Calculated value"
   label_change_parent: "Change parent"
   label_change_plural: "Changes"
@@ -5259,6 +5263,17 @@ en:
     case the old one expired or the user did not get the original email.
     Can also be used for active users to choose a new authentication method.
     When used with active users their status will be changed to 'invited'.
+  tooltip_copy_invitation_link: >
+    Generates a fresh activation link and shows it so you can copy and share it directly
+    (e.g. via a chat app), without sending an email. When used with active users their
+    status will be changed to 'invited'.
+  text_invitation_link_dialog_description: >
+    Share this link with the user so they can activate their account and choose a password.
+  tooltip_copy_password_reset_link: >
+    Generates a link the user can use to set a new password, and shows it so you can
+    copy and share it directly (e.g. via a chat app) instead of email.
+  text_password_reset_link_dialog_description: >
+    Share this link with the user so they can set a new password. It expires after 1 day.
 
   tooltip:
     setting_email_login: >
@@ -5306,6 +5321,9 @@ en:
     deleted: "Deleted user"
     error_status_change_self: "You cannot change your own user status."
     error_admin_change_on_non_admin: "Only administrators can change the status of administrator users."
+    error_password_reset_link_not_allowed: >
+      A password reset link cannot be generated for this user (they must be active and
+      allowed to change their password).
     error_status_change_failed: "Changing the user status failed due to the following errors: %{errors}"
     invite: Invite user via email
     invited: invited
