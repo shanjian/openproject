@@ -58,6 +58,8 @@ RSpec.describe DepartmentsController do
     end
 
     describe "#edit" do
+      render_views
+
       let(:department) { create(:department) }
 
       it "is successful" do
