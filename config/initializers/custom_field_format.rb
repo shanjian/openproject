@@ -76,6 +76,12 @@ OpenProject::CustomFieldFormat.map do |fields|
                                                      order: 10,
                                                      multi_value_possible: true,
                                                      formatter: "CustomValue::VersionStrategy")
+  fields.register OpenProject::CustomFieldFormat.new("department",
+                                                     label: :label_department,
+                                                     only: %w(WorkPackage),
+                                                     order: 10.5,
+                                                     multi_value_possible: false,
+                                                     formatter: "CustomValue::DepartmentStrategy")
   # This is an internal formatter used as a fallback in case a value is not found.
   # Setting the label to nil in order to avoid it becoming available for selection as a custom value format.
   fields.register OpenProject::CustomFieldFormat.new("empty",
