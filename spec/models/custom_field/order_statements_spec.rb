@@ -100,8 +100,12 @@ RSpec.describe CustomField::OrderStatements do
     end
 
     describe "#group_by_statement" do
-      it "equals the order statement" do
-        expect(custom_field.group_by_statement).to eq(custom_field.order_statement)
+      it "groups by the raw custom value (the department id), not the ordering value (its name)" do
+        # Department names are only unique among siblings (Group#uniqueness_of_name), so
+        # grouping by order_statement's name column would merge distinct departments that
+        # happen to share a leaf name under different parents.
+        expect(custom_field.group_by_statement).to eq("cf_order_#{custom_field.id}.ids")
+        expect(custom_field.group_by_statement).not_to eq(custom_field.order_statement)
       end
     end
   end

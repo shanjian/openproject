@@ -121,5 +121,33 @@ RSpec.describe "Department custom field on work packages", :aggregate_failures d
       expect(counts[engineering]).to eq(1)
       expect(counts[sales]).to eq(1)
     end
+
+    context "with two different departments sharing the same leaf name under different parents" do
+      shared_let(:it_department) { create(:department) }
+      shared_let(:hr_department) { create(:department) }
+      shared_let(:it_support) { create(:department, parent: it_department, lastname: "Support") }
+      shared_let(:hr_support) { create(:department, parent: hr_department, lastname: "Support") }
+
+      let!(:it_support_wp) do
+        create(:work_package, project:, type: work_package_type,
+                              custom_values: { department_field.id => it_support.id.to_s })
+      end
+      let!(:hr_support_wp) do
+        create(:work_package, project:, type: work_package_type,
+                              custom_values: { department_field.id => hr_support.id.to_s })
+      end
+
+      it "does not merge the two distinct departments into one group" do
+        query = build(:query, project:)
+        query.filters.clear
+        query.group_by = department_field.column_name
+
+        counts = Query::Results.new(query).work_package_count_by_group
+
+        expect(counts.keys).to include(it_support, hr_support)
+        expect(counts[it_support]).to eq(1)
+        expect(counts[hr_support]).to eq(1)
+      end
+    end
   end
 end

@@ -101,12 +101,10 @@ module API
             end
 
             def link_value_title(custom_value, custom_field)
-              if custom_field.department?
+              if custom_field.department? || custom_field.hierarchical_list?
                 custom_value.formatted_value
               elsif custom_value.typed_value.respond_to?(:name)
                 custom_value.typed_value.name
-              elsif custom_field.hierarchical_list?
-                custom_value.formatted_value
               else
                 custom_value.typed_value
               end

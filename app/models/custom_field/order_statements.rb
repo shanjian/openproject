@@ -65,7 +65,12 @@ module CustomField::OrderStatements
   def group_by_statement
     return unless can_be_used_for_grouping?
 
-    order_statement
+    # Department names are only unique among siblings (see Group#uniqueness_of_name), so
+    # grouping by the name column (order_statement's "value") would merge distinct
+    # departments that happen to share a leaf name under different parents. Group by the
+    # raw custom value (the department id) instead; the name column still drives display
+    # ordering via group_by_sort/column.sortable.
+    department? ? "cf_order_#{id}.ids" : order_statement
   end
 
   # Returns the expression to use in SELECT clause if it differs from one used
