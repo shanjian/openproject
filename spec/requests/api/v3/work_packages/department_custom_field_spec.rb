@@ -40,6 +40,24 @@ RSpec.describe "Department custom field on work packages", :aggregate_failures d
       expect(last_response).to have_http_status(200)
       expect(work_package.reload.send(department_field.attribute_getter)).to eq(frontend_team)
     end
+
+    it "titles the department link with its full ancestry path, not just the leaf name" do
+      patch api_v3_paths.work_package(work_package.id),
+            {
+              department_field.attribute_name(:camel_case) => {
+                href: api_v3_paths.group(frontend_team.id)
+              },
+              lockVersion: work_package.lock_version
+            }.to_json,
+            "CONTENT_TYPE" => "application/json"
+
+      get api_v3_paths.work_package(work_package.id)
+
+      body = JSON.parse(last_response.body)
+      title = body["_links"][department_field.attribute_name(:camel_case)]["title"]
+
+      expect(title).to eq(frontend_team.ancestry_path)
+    end
   end
 
   describe "the work package's update form" do
@@ -90,6 +108,18 @@ RSpec.describe "Department custom field on work packages", :aggregate_failures d
 
       expect(Query::Results.new(query).work_packages.pluck(:id))
         .to contain_exactly(engineering_wp.id, sales_wp.id)
+    end
+
+    it "preserves the department as the group key so counts/headers resolve correctly" do
+      query = build(:query, project:)
+      query.filters.clear
+      query.group_by = department_field.column_name
+
+      counts = Query::Results.new(query).work_package_count_by_group
+
+      expect(counts.keys).to contain_exactly(engineering, sales)
+      expect(counts[engineering]).to eq(1)
+      expect(counts[sales]).to eq(1)
     end
   end
 end

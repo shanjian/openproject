@@ -78,6 +78,7 @@ RSpec.describe CustomField::OrderStatements do
           LEFT OUTER JOIN (
             SELECT DISTINCT ON (cv.customized_id) cv.customized_id
                  , departments_for_ordering.lastname "value"
+                 , cv.value ids
             FROM "custom_values" cv INNER JOIN "users" departments_for_ordering ON departments_for_ordering.id = cv.value::bigint
             WHERE cv.customized_type = 'WorkPackage' AND cv.custom_field_id = #{custom_field.id}
                   AND cv.value IS NOT NULL AND cv.value != '' ORDER BY cv.customized_id, cv.id
@@ -89,6 +90,12 @@ RSpec.describe CustomField::OrderStatements do
     describe "#can_be_used_for_grouping?" do
       it "is true" do
         expect(custom_field.send(:can_be_used_for_grouping?)).to be(true)
+      end
+    end
+
+    describe "#group_by_select_statement" do
+      it "selects the raw custom value (the department id), not the ordering value (its name)" do
+        expect(custom_field.group_by_select_statement).to eq("MIN(cf_order_#{custom_field.id}.ids)")
       end
     end
 

@@ -71,7 +71,7 @@ module CustomField::OrderStatements
   # Returns the expression to use in SELECT clause if it differs from one used
   # to group by
   def group_by_select_statement
-    return unless %w[list hierarchy weighted_item_list].include?(field_format)
+    return unless %w[list hierarchy weighted_item_list department].include?(field_format)
 
     # MIN needed to not add this column to group by, ANY_VALUE can be used when
     # minimum required PostgreSQL becomes 16
@@ -173,6 +173,7 @@ module CustomField::OrderStatements
   def join_for_order_by_department_sql
     join_for_order_sql(
       value: "departments_for_ordering.lastname",
+      add_select: "cv.value ids",
       join: "INNER JOIN #{Group.quoted_table_name} departments_for_ordering ON departments_for_ordering.id = cv.value::bigint"
     )
   end

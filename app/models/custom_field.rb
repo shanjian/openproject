@@ -350,6 +350,10 @@ class CustomField < ApplicationRecord
     field_format == "version"
   end
 
+  def department?
+    field_format == "department"
+  end
+
   def formattable?
     field_format == "text"
   end
