@@ -716,6 +716,15 @@ Redmine::MenuManager.map :project_menu do |menu|
             last: true,
             caption: :label_all_open_wps
 
+  menu.push :work_packages_import,
+            { controller: "/work_packages/imports", action: "new" },
+            after: :work_packages,
+            caption: :"work_packages.import.new.title",
+            if: ->(project) {
+              project.module_enabled?("work_package_tracking") &&
+                User.current.allowed_in_project?(:import_work_packages, project)
+            }
+
   menu.push :news,
             { controller: "/news", action: "index" },
             caption: :label_news_plural,

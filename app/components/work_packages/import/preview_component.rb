@@ -42,17 +42,31 @@ module WorkPackages
         @rows.any? { |row| row.errors.any? }
       end
 
-      def computed_attribute_names(row)
+      # `index` is this row's position within the full `rows` array (its `node.parent_index`
+      # points at other rows by that same position) -- callers must iterate with
+      # `rows.each_with_index`, not `rows.each`, since "has children" only makes sense relative to
+      # the whole tree, not a single row in isolation.
+      def computed_attribute_names(row, index)
         return [] unless row.work_package
 
         names = DERIVED_ATTRIBUTES.select { |attr| row.work_package.class.attribute_names.include?(attr) }
         names << "subject" if row.work_package.type&.enabled_patterns&.key?(:subject)
+        # A row with at least one child never keeps the dates resolved into its `work_package`:
+        # WorkPackages::Import::CreateJob creates rows top-down, and each child's creation runs
+        # `multi_update_ancestors`/`reschedule_related` (see WorkPackage's scheduling callbacks),
+        # which silently rewrites the parent's start_date/due_date once the child actually exists.
+        # Since this whole feature exists to import hierarchies, this applies to every non-leaf row.
+        names.push("start_date", "due_date") if has_children?(index)
         names
       end
 
       private
 
       attr_reader :rows
+
+      def has_children?(index)
+        rows.any? { |row| row.node.parent_index == index }
+      end
     end
   end
 end

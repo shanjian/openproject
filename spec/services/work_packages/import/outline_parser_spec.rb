@@ -152,7 +152,7 @@ RSpec.describe WorkPackages::Import::OutlineParser do
     end
   end
 
-  context "attribute inheritance" do
+  context "when computing attribute inheritance" do
     let(:markdown) { <<~MD }
       ---
       Version: FY2026 Q3

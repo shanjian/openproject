@@ -74,6 +74,46 @@ RSpec.describe WorkPackages::Import::CreateJob do
 
       expect(WorkPackages::CreateService).to have_received(:new).at_least(:once)
     end
+
+    # The job declares `updates_own_status? => true` (see JobStatus::ApplicationJobWithStatus),
+    # meaning ActiveJob will not auto-write a JobStatus::Status for it -- the job must call
+    # `upsert_status` itself. `JobStatusesController#validate_job` later looks the resulting
+    # record up scoped to `job_id` *and* `user_id: current_user.id`, so it must be attributed to
+    # the importing user, not whatever `User.current` happens to be in the worker thread.
+    #
+    # Uses `perform_now` (bypassing `perform_later`/`perform_enqueued_jobs`) deliberately:
+    # `.perform_later` called from inside RSpec's ambient per-example transaction defers the
+    # actual enqueue via Rails' `ActiveJob::EnqueueAfterTransactionCommit` until *a* transaction
+    # commits -- which ends up being this job's own `WorkPackage.transaction do` block committing,
+    # so the deferred "enqueue.active_job" notification fires again right after the job finishes
+    # and resets the JobStatus::Status back to "in_queue", masking the very thing under test. That
+    # is a Rails/RSpec transactional-test artifact of any job that both self-enqueues and wraps
+    # its own body in a top-level `Model.transaction do` -- unrelated to `upsert_status` itself and
+    # not reproducible outside of this specific test setup (a real `perform_later` call from the
+    # controller, with no ambient transaction open, enqueues immediately). `perform_now` exercises
+    # the same job body without going through `.enqueue` at all, sidestepping the artifact.
+    it "records a successful JobStatus::Status scoped to the importing user" do
+      # A fresh `find` (rather than the `let`-memoized `import_run`) mirrors what `perform_later`
+      # would give the job via GlobalID deserialization -- its `project` association is loaded
+      # from scratch, not carrying over any association cache from this example's own setup.
+      job = described_class.new(import_run: WorkPackages::ImportRun.find(import_run.id))
+
+      # In production, `ImportsController#create` calls `.perform_later` under `User.current ==
+      # <the importing user>` (it's a normal authenticated request), so the very first
+      # `upsert_status` call for this job_id (the automatic "in_queue" one fired by
+      # OpenProject::JobStatus::EventListener at enqueue time -- see
+      # JobStatus::ApplicationJobWithStatus#upsert_status, which only assigns `resource.user` on
+      # `new_record?`) already stamps the correct user; later calls, including this job's own,
+      # never need to touch `user` again. `perform_now` above skips that enqueue step entirely, so
+      # this wrapper reproduces the same "correct `User.current` for the first-ever write" starting
+      # condition by hand.
+      User.execute_as(user) { job.perform_now }
+
+      status = JobStatus::Status.find_by(job_id: job.job_id)
+      expect(status).to be_present
+      expect(status).to be_success
+      expect(status.user_id).to eq(user.id)
+    end
   end
 
   context "when a later node fails" do
@@ -95,6 +135,19 @@ RSpec.describe WorkPackages::Import::CreateJob do
       # line -- line 3 is "## Task: Rework the sequence", the heading the bullet belongs to.
       expect(import_run.failure["source_line"]).to eq(3)
       expect(import_run.failure["message"]).to include("no user found with email")
+    end
+
+    # See the sibling success-path test above for why `perform_now` (wrapped in `User.execute_as`)
+    # is used here instead of `perform_later`/`perform_enqueued_jobs`.
+    it "records a failed JobStatus::Status scoped to the importing user" do
+      job = described_class.new(import_run: WorkPackages::ImportRun.find(import_run.id))
+      User.execute_as(user) { job.perform_now }
+
+      status = JobStatus::Status.find_by(job_id: job.job_id)
+      expect(status).to be_present
+      expect(status).to be_failure
+      expect(status.user_id).to eq(user.id)
+      expect(status.message).to include("no user found with email")
     end
   end
 

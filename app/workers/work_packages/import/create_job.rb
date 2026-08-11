@@ -45,12 +45,23 @@ module WorkPackages
         self.import_run = import_run
         import_run.update!(status: :running)
 
-        WorkPackage.transaction do
-          created_ids = create_tree!
-          import_run.update!(status: :succeeded, created_work_package_ids: created_ids)
+        # `upsert_status` (see JobStatus::ApplicationJobWithStatus) records the JobStatus::Status
+        # under `User.current`, and JobStatusesController#validate_job later looks that record up
+        # scoped to the *viewing* user's id -- so it must be the importing user, not whatever
+        # `User.current` happens to be in this worker thread. `WorkPackages::CreateService` below
+        # is already given `user: import_run.user` explicitly and is unaffected by this; only the
+        # `upsert_status` calls actually depend on it. Matches the same `User.execute_as` wrapping
+        # `Exports::ExportJob` uses around its own `upsert_status` calls.
+        User.execute_as(import_run.user) do
+          WorkPackage.transaction do
+            created_ids = create_tree!
+            import_run.update!(status: :succeeded, created_work_package_ids: created_ids)
+            upsert_status(status: :success)
+          end
+        rescue CreationFailed => e
+          import_run.update!(status: :failed, failure: { source_line: e.source_line, message: e.message })
+          upsert_status(status: :failure, message: e.message)
         end
-      rescue CreationFailed => e
-        import_run.update!(status: :failed, failure: { source_line: e.source_line, message: e.message })
       end
 
       def status_reference

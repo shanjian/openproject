@@ -13,8 +13,7 @@
   <% if current_user.allowed_in_project?(:delete_work_packages, @project) %>
     <%= link_to t("work_packages.import.show.undo"),
                 work_packages_bulk_path(ids: @import_run.created_work_package_ids),
-                method: :delete,
-                data: { confirm: t("work_packages.import.show.undo_confirm") } %>
+                data: { turbo_method: :delete, turbo_confirm: t("work_packages.import.show.undo_confirm") } %>
   <% end %>
 <% elsif @import_run.failed? %>
   <p class="work-package-import-errors">

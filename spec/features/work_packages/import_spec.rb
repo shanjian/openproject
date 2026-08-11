@@ -62,7 +62,8 @@ RSpec.describe "Markdown work package import", :js do # rubocop:disable RSpec/Mu
 
   let(:user) do
     create(:user, member_with_permissions: { project => %i[view_work_packages add_work_packages manage_subtasks
-                                                           assign_versions import_work_packages] })
+                                                           assign_versions import_work_packages
+                                                           delete_work_packages] })
   end
 
   let(:document) { <<~MD }
@@ -106,6 +107,15 @@ RSpec.describe "Markdown work package import", :js do # rubocop:disable RSpec/Mu
     expect(obj.parent).to eq(initiative)
     expect(kr.parent).to eq(obj)
     expect(task.parent).to eq(kr)
+
+    created_ids = [initiative, obj, kr, task].map(&:id)
+
+    accept_confirm do
+      click_link I18n.t("work_packages.import.show.undo")
+    end
+
+    expect(WorkPackage.where(id: created_ids)).not_to exist
+    expect(WorkPackage.where(project:).count).to eq(0)
   end
 
   it "fails to import the same document without manage_subtasks or assign_versions" do
@@ -152,5 +162,72 @@ RSpec.describe "Preview fidelity", type: :request do
     # derived_done_ratio / derived_estimated_hours / derived_remaining_hours and any
     # type-pattern-driven subject are the only fields expected to differ -- none apply
     # to this plain Task, so every previewed attribute above matches exactly.
+  end
+
+  # Per the design's documented "computed on creation" categories, a parent row's dates are one
+  # of them: WorkPackages::Import::CreateJob creates rows top-down, and creating the child below
+  # runs `multi_update_ancestors`/`reschedule_related`, which silently rewrites the parent's
+  # start_date/due_date -- even though the parent's own explicit dates resolve and preview fine
+  # in isolation. PreviewComponent#computed_attribute_names must mark them as computed for any
+  # row that has a child, not show the previewed exact date as if it would survive creation.
+  it "marks a parent row's dates as computed on creation instead of showing the exact previewed date",
+     :skip_csrf do
+    create(:type, name: "Objective", projects: [project])
+    document = <<~MD
+      # Objective: Increase retention
+      - Start date: 2026-01-01
+      - Finish date: 2026-01-31
+
+      ## Task: Rework the sequence
+    MD
+
+    post preview_project_work_packages_imports_path(project), { source: document }, "HTTP_ACCEPT" => "text/html"
+
+    # The parent row genuinely resolved with real dates (proving the "computed" marking below
+    # isn't just masking a resolution failure)...
+    expect(last_response.body).to include("Start date: 2026-01-01")
+    expect(last_response.body).to include("Finish date: 2026-01-31")
+
+    # ...but because it has a child, its dates get silently rewritten by
+    # multi_update_ancestors/reschedule_related once that child is actually created, so the
+    # preview must ALSO mark them as computed rather than implying the previewed date is final.
+    computed = I18n.t("work_packages.import.preview.computed_on_creation")
+    expect(last_response.body).to include("start_date: #{computed}")
+    expect(last_response.body).to include("due_date: #{computed}")
+  end
+end
+
+# Before config/initializers/menus.rb registered a :work_packages_import project_menu entry, the
+# only way to reach `new_project_work_packages_import_path` was to know the URL by heart -- grep
+# confirmed nothing in app/, lib/, modules/, or config/ ever linked to it. The project sidebar
+# (rendered server-side by `render_main_menu` in app/views/layouts/base.html.erb, independent of
+# the Angular-driven work packages table) is where every other project-scoped feature surfaces
+# its own entry point, so that's where this one belongs too.
+RSpec.describe "Import work packages sidebar entry", type: :request do
+  let(:project) { create(:project) }
+
+  before { login_as(user) }
+
+  context "with the import_work_packages permission" do
+    let(:user) do
+      create(:user, member_with_permissions: { project => %i[view_work_packages add_work_packages
+                                                             manage_subtasks assign_versions import_work_packages] })
+    end
+
+    it "shows a project sidebar link to the import page" do
+      get project_work_packages_path(project), {}, "HTTP_ACCEPT" => "text/html"
+
+      expect(last_response.body).to include(new_project_work_packages_import_path(project))
+    end
+  end
+
+  context "without the import_work_packages permission" do
+    let(:user) { create(:user, member_with_permissions: { project => %i[view_work_packages] }) }
+
+    it "does not show the link" do
+      get project_work_packages_path(project), {}, "HTTP_ACCEPT" => "text/html"
+
+      expect(last_response.body).not_to include(new_project_work_packages_import_path(project))
+    end
   end
 end

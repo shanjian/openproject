@@ -36,7 +36,7 @@ module WorkPackages
     belongs_to :user
 
     enum :status, { queued: "queued", running: "running", succeeded: "succeeded", failed: "failed" },
-                  default: "queued"
+         default: "queued"
 
     validates :source, presence: true
   end

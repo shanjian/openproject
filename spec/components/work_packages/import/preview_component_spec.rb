@@ -62,6 +62,55 @@ RSpec.describe WorkPackages::Import::PreviewComponent, type: :component do
     expect(page).to have_text("Line 5: unknown type")
   end
 
+  describe "#computed_attribute_names" do
+    # Per the design's documented "computed on creation" categories: a row with at least one
+    # child never keeps the start_date/due_date resolved into its `work_package`, because
+    # WorkPackages::Import::CreateJob creates rows top-down and each child's creation runs
+    # `multi_update_ancestors`/`reschedule_related`, silently rewriting the parent's dates once
+    # the child actually exists -- regardless of what date the row was previewed with.
+    let(:parent_node) do
+      WorkPackages::Import::OutlineParser::Node.new(level: 1, type_name: "Objective", subject: "Parent row",
+                                                    attributes: {}, description: "", source_line: 1,
+                                                    parent_index: nil)
+    end
+    let(:child_node) do
+      WorkPackages::Import::OutlineParser::Node.new(level: 2, type_name: "Task", subject: "Child row",
+                                                    attributes: {}, description: "", source_line: 2,
+                                                    parent_index: 0)
+    end
+    let(:parent_work_package) { build(:work_package, start_date: Date.new(2026, 1, 1), due_date: Date.new(2026, 1, 31)) }
+    let(:child_work_package) { build(:work_package, start_date: Date.new(2026, 1, 5), due_date: Date.new(2026, 1, 10)) }
+    let(:parent_row) do
+      WorkPackages::Import::Resolver::ResolvedRow.new(node: parent_node, work_package: parent_work_package,
+                                                      attribute_matches: [], errors: [])
+    end
+    let(:child_row) do
+      WorkPackages::Import::Resolver::ResolvedRow.new(node: child_node, work_package: child_work_package,
+                                                      attribute_matches: [], errors: [])
+    end
+    let(:component) { described_class.new(rows: [parent_row, child_row]) }
+
+    it "marks start_date and due_date as computed for a row that has a child, even with real dates set" do
+      expect(component.computed_attribute_names(parent_row, 0)).to include("start_date", "due_date")
+    end
+
+    it "does not mark start_date/due_date as computed for a leaf row" do
+      expect(component.computed_attribute_names(child_row, 1)).not_to include("start_date", "due_date")
+    end
+
+    it "renders the parent row's dates as computed on creation but the leaf row's as not" do
+      render_inline(component)
+
+      parent_li = page.find("li", text: "Parent row")
+      expect(parent_li).to have_text("start_date: #{I18n.t('work_packages.import.preview.computed_on_creation')}")
+      expect(parent_li).to have_text("due_date: #{I18n.t('work_packages.import.preview.computed_on_creation')}")
+
+      child_li = page.find("li", text: "Child row")
+      expect(child_li).to have_no_text("start_date")
+      expect(child_li).to have_no_text("due_date")
+    end
+  end
+
   describe "#any_errors?" do
     it "is true if any row has errors" do
       row = WorkPackages::Import::Resolver::ResolvedRow.new(node:, work_package: nil, attribute_matches: [],
