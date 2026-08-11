@@ -79,13 +79,16 @@ module WorkPackages
                                  errors: [{ source_line: node.source_line, message: }])
         end
 
-        work_package = WorkPackage.new(project: @project)
+        # type_id must be set before any custom-field resolution below: it (together with
+        # @project, set via `project:`) is what WorkPackage#available_custom_fields needs to
+        # compute the project- and type-aware set of enabled custom fields.
+        work_package = WorkPackage.new(project: @project, type_id: type.id)
         attributes = { type_id: type.id, subject: node.subject, description: node.description }
         attribute_matches = []
         errors = []
 
         node.attributes.each do |label, raw_value|
-          resolved = resolve_attribute(type, label, raw_value)
+          resolved = resolve_attribute(work_package, label, raw_value)
           attributes[resolved[:key]] = resolved[:value]
           attribute_matches << { label:, formatted: resolved[:formatted] }
         rescue AttributeError => e
@@ -105,11 +108,11 @@ module WorkPackages
         ResolvedRow.new(node:, work_package: result.result, attribute_matches:, errors:)
       end
 
-      def resolve_attribute(type, label, raw_value)
+      def resolve_attribute(work_package, label, raw_value)
         if BUILTIN_ATTRIBUTE_KEYS.key?(label)
           resolve_builtin_attribute(label, raw_value)
         else
-          resolve_custom_field_attribute(type, label, raw_value)
+          resolve_custom_field_attribute(work_package, label, raw_value)
         end
       end
 
@@ -128,9 +131,17 @@ module WorkPackages
           formatted: format_value(value) }
       end
 
-      def resolve_custom_field_attribute(type, label, raw_value) # rubocop:disable Metrics/AbcSize
-        custom_field = type.custom_fields.find_by(name: label)
-        raise AttributeError, "no field named #{label.inspect} on type #{type.name.inspect}" unless custom_field
+      def resolve_custom_field_attribute(work_package, label, raw_value) # rubocop:disable Metrics/AbcSize
+        # Deliberately goes through the same project- and type-aware availability list that
+        # acts_as_customizable's custom_field_<id> accessors are gated on (see
+        # WorkPackage.available_custom_fields), not the type-only `type.custom_fields`
+        # association: a field enabled for the type but not for this specific project (a normal,
+        # separate admin step) must be rejected here too, or SetAttributesService would later
+        # silently drop the very attribute this method just reported as resolved.
+        custom_field = work_package.available_custom_fields.find { |cf| cf.name == label }
+        unless custom_field
+          raise AttributeError, "no field named #{label.inspect} on type #{work_package.type.name.inspect}"
+        end
 
         value = case custom_field.field_format
                 when "user" then resolve_user(raw_value)

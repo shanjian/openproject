@@ -221,6 +221,24 @@ RSpec.describe WorkPackages::Import::Resolver do
                                   message: 'Not A Real Field: no field named "Not A Real Field" on type "Task"' }])
     end
 
+    it "raises an AttributeError for a custom field enabled on the type but not on this project" do
+      # WorkPackageCustomField enablement is two separate admin steps: per-type (`types:`) and
+      # per-project (`projects:`, or `is_for_all: true`). Here only the type side is done, so
+      # WorkPackage#available_custom_fields (which acts_as_customizable's custom_field_<id>
+      # accessors are gated on) must not see this field for `project` — and neither should the
+      # resolver, or the preview would show a value that SetAttributesService later silently drops.
+      create(:integer_wp_custom_field, name: "Budget", types: [task_type])
+      doc = document(<<~MD)
+        # Task: Rework the sequence
+        - Budget: 100
+      MD
+      row = described_class.new(project:, user: jane).call(doc).result.first
+
+      expect(row.errors).to eq([{ source_line: 1,
+                                  message: 'Budget: no field named "Budget" on type "Task"' }])
+      expect(row.attribute_matches).to be_empty
+    end
+
     it "rejects a document whose front matter Project does not match" do
       doc = document(<<~MD)
         ---
