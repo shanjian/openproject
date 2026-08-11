@@ -30,38 +30,42 @@
 
 require "spec_helper"
 
-RSpec.describe UserInvitation do
-  describe ".reinvite_user" do
-    let(:user) { create(:invited_user) }
-    let!(:token) { create(:invitation_token, user:) }
+RSpec.describe "Copying an invitation link", :js do
+  shared_let(:admin) { create(:admin) }
+  shared_let(:invited_user) { create(:invited_user) }
 
-    it "notifies listeners of the re-invite" do
-      expect(OpenProject::Notifications).to receive(:send) do |event, _new_token|
-        expect(event).to eq "user_reinvited"
-      end
+  before do
+    login_as admin
+  end
 
-      UserInvitation.reinvite_user user.id
+  it "opens a dialog with the activation link, without sending an email" do
+    visit edit_user_path(invited_user)
+
+    perform_enqueued_jobs do
+      click_on "Copy invitation link"
     end
 
-    it "creates a new token" do
-      new_token = UserInvitation.reinvite_user user.id
+    expect(page).to have_css("dialog##{Users::ShareableLinkDialogComponent::DIALOG_ID}", visible: true)
 
-      expect(new_token.value).not_to eq token.value
-      expect(Token::Invitation.exists?(token.id)).to be false
+    token = Token::Invitation.find_by(user_id: invited_user.id)
+    expect(page).to have_css(
+      "clipboard-copy[value*='/account/activate'][value*='token=#{token.value}']",
+      visible: true
+    )
+    expect(ActionMailer::Base.deliveries).to be_empty
+  end
+
+  context "when a regular user without create_user views their own profile" do
+    let(:user) { create(:user) }
+
+    before do
+      login_as user
     end
 
-    it "skips the notification when send_notification: false" do
-      expect(OpenProject::Notifications).not_to receive(:send)
+    it "does not show the button" do
+      visit user_path(user)
 
-      UserInvitation.reinvite_user(user.id, send_notification: false)
-    end
-
-    it "still creates a fresh token when send_notification: false" do
-      new_token = UserInvitation.reinvite_user(user.id, send_notification: false)
-
-      expect(new_token).to be_persisted
-      expect(new_token.value).not_to eq token.value
-      expect(Token::Invitation.exists?(token.id)).to be false
+      expect(page).to have_no_link("Copy invitation link")
     end
   end
 end

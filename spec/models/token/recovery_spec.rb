@@ -30,38 +30,36 @@
 
 require "spec_helper"
 
-RSpec.describe UserInvitation do
-  describe ".reinvite_user" do
-    let(:user) { create(:invited_user) }
-    let!(:token) { create(:invitation_token, user:) }
+RSpec.describe Token::Recovery do
+  let(:user) { create(:user) }
 
-    it "notifies listeners of the re-invite" do
-      expect(OpenProject::Notifications).to receive(:send) do |event, _new_token|
-        expect(event).to eq "user_reinvited"
+  describe "validity_time" do
+    context "without a channel marker (email / self-service flow)" do
+      it "expires after EMAIL_VALIDITY" do
+        token = described_class.create!(user_id: user.id)
+
+        expect(token.expires_on).to be_within(1.second).of(described_class::EMAIL_VALIDITY.from_now)
       end
-
-      UserInvitation.reinvite_user user.id
     end
 
-    it "creates a new token" do
-      new_token = UserInvitation.reinvite_user user.id
+    context "with the chat_link channel marker (admin-generated flow)" do
+      it "expires after CHAT_LINK_VALIDITY" do
+        token = described_class.create!(user_id: user.id, data: { channel: described_class::CHANNEL_CHAT_LINK })
 
-      expect(new_token.value).not_to eq token.value
-      expect(Token::Invitation.exists?(token.id)).to be false
+        expect(token.expires_on).to be_within(1.second).of(described_class::CHAT_LINK_VALIDITY.from_now)
+      end
     end
 
-    it "skips the notification when send_notification: false" do
-      expect(OpenProject::Notifications).not_to receive(:send)
+    context "with an unrelated data payload" do
+      it "still expires after EMAIL_VALIDITY" do
+        token = described_class.create!(user_id: user.id, data: { channel: "something_else" })
 
-      UserInvitation.reinvite_user(user.id, send_notification: false)
+        expect(token.expires_on).to be_within(1.second).of(described_class::EMAIL_VALIDITY.from_now)
+      end
     end
+  end
 
-    it "still creates a fresh token when send_notification: false" do
-      new_token = UserInvitation.reinvite_user(user.id, send_notification: false)
-
-      expect(new_token).to be_persisted
-      expect(new_token.value).not_to eq token.value
-      expect(Token::Invitation.exists?(token.id)).to be false
-    end
+  it "EMAIL_VALIDITY is longer than CHAT_LINK_VALIDITY" do
+    expect(described_class::EMAIL_VALIDITY).to be > described_class::CHAT_LINK_VALIDITY
   end
 end

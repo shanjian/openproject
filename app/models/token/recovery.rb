@@ -32,8 +32,19 @@ module Token
   class Recovery < Base
     include ExpirableToken
 
+    CHANNEL_CHAT_LINK = "chat_link"
+    EMAIL_VALIDITY = 3.days
+    CHAT_LINK_VALIDITY = 1.day
+
     def self.validity_time
-      1.day
+      EMAIL_VALIDITY
+    end
+
+    def validity_time
+      # `data` is nil for a new record until an explicit `data:` value is assigned
+      # (Rails does not run a serialized column's coder over its unset default),
+      # so `&.dig` is required here, not just for readability.
+      data&.dig("channel") == CHANNEL_CHAT_LINK ? CHAT_LINK_VALIDITY : self.class.validity_time
     end
   end
 end

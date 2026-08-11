@@ -60,6 +60,38 @@ See COPYRIGHT and LICENSE files for more details.
       end
     end
 
+    if @current_user.allowed_globally?(:create_user) && @current_user.id != @user.id
+      header.with_action_button(
+        tag: :a,
+        mobile_icon: :copy,
+        mobile_label: t(:label_copy_invitation_link),
+        size: :medium,
+        href: invitation_link_user_path(@user),
+        data: { turbo_method: :post },
+        aria: { label: I18n.t(:label_copy_invitation_link) },
+        title: I18n.t(:tooltip_copy_invitation_link)
+      ) do |button|
+        button.with_leading_visual_icon(icon: :copy)
+        t(:label_copy_invitation_link)
+      end
+    end
+
+    if @current_user.allowed_globally?(:manage_user) && @user.active? && @user.change_password_allowed?
+      header.with_action_button(
+        tag: :a,
+        mobile_icon: :key,
+        mobile_label: t(:label_copy_password_reset_link),
+        size: :medium,
+        href: password_reset_link_user_path(@user),
+        data: { turbo_method: :post },
+        aria: { label: I18n.t(:label_copy_password_reset_link) },
+        title: I18n.t(:tooltip_copy_password_reset_link)
+      ) do |button|
+        button.with_leading_visual_icon(icon: :key)
+        t(:label_copy_password_reset_link)
+      end
+    end
+
     if @current_user.admin?
       unless @current_user.id == @user.id
         iterate_user_statusses(@user) do |title, name|

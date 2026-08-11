@@ -91,7 +91,7 @@ class AccountController < ApplicationController
 
   # Enable user to choose a new password
   def lost_password # rubocop:disable Metrics/AbcSize, Metrics/PerceivedComplexity
-    return redirect_to(home_url, status: :see_other) unless allow_lost_password_recovery?
+    return redirect_to(home_url, status: :see_other) if OpenProject::Configuration.disable_password_login?
 
     if params[:token]
       @token = ::Token::Recovery.find_by_plaintext_value(params[:token])
@@ -110,36 +110,40 @@ class AccountController < ApplicationController
       end
 
       render template: "account/password_recovery"
-    elsif request.post?
-      mail = params[:mail]
-      user = User.find_by_mail(mail) if mail.present?
+    else
+      return redirect_to(home_url, status: :see_other) unless Setting.lost_password?
 
-      # Ensure the same request is sent regardless of which email is entered
-      # to avoid detecability of mails
-      flash[:notice] = I18n.t(:notice_account_lost_email_sent)
+      if request.post?
+        mail = params[:mail]
+        user = User.find_by_mail(mail) if mail.present?
 
-      unless user
-        # user not found in db
-        Rails.logger.error "Lost password unknown email input: #{mail}"
-        redirect_to action: :lost_password, status: :see_other
-        return
-      end
-
-      unless user.change_password_allowed?
-        # user uses an external authentication
-        UserMailer.password_change_not_possible(user).deliver_later
-        Rails.logger.warn "Password cannot be changed for user: #{mail}"
-        redirect_to action: :lost_password, status: :see_other
-        return
-      end
-
-      # create a new token for password recovery
-      token = Token::Recovery.new(user_id: user.id)
-      if token.save
-        UserMailer.password_lost(token).deliver_later
+        # Ensure the same request is sent regardless of which email is entered
+        # to avoid detecability of mails
         flash[:notice] = I18n.t(:notice_account_lost_email_sent)
-        redirect_to action: :lost_password, status: :see_other
-        nil
+
+        unless user
+          # user not found in db
+          Rails.logger.error "Lost password unknown email input: #{mail}"
+          redirect_to action: :lost_password, status: :see_other
+          return
+        end
+
+        unless user.change_password_allowed?
+          # user uses an external authentication
+          UserMailer.password_change_not_possible(user).deliver_later
+          Rails.logger.warn "Password cannot be changed for user: #{mail}"
+          redirect_to action: :lost_password, status: :see_other
+          return
+        end
+
+        # create a new token for password recovery
+        token = Token::Recovery.new(user_id: user.id)
+        if token.save
+          UserMailer.password_lost(token).deliver_later
+          flash[:notice] = I18n.t(:notice_account_lost_email_sent)
+          redirect_to action: :lost_password, status: :see_other
+          nil
+        end
       end
     end
   end
@@ -296,10 +300,6 @@ class AccountController < ApplicationController
     post = (request.post? || request.patch?) && (session[:auth_source_registration].present? || allow)
 
     invited || get || post
-  end
-
-  def allow_lost_password_recovery?
-    Setting.lost_password? && !OpenProject::Configuration.disable_password_login?
   end
 
   def check_auth_source_sso_failure

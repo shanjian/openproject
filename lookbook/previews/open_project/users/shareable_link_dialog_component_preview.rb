@@ -28,40 +28,16 @@
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-require "spec_helper"
-
-RSpec.describe UserInvitation do
-  describe ".reinvite_user" do
-    let(:user) { create(:invited_user) }
-    let!(:token) { create(:invitation_token, user:) }
-
-    it "notifies listeners of the re-invite" do
-      expect(OpenProject::Notifications).to receive(:send) do |event, _new_token|
-        expect(event).to eq "user_reinvited"
-      end
-
-      UserInvitation.reinvite_user user.id
-    end
-
-    it "creates a new token" do
-      new_token = UserInvitation.reinvite_user user.id
-
-      expect(new_token.value).not_to eq token.value
-      expect(Token::Invitation.exists?(token.id)).to be false
-    end
-
-    it "skips the notification when send_notification: false" do
-      expect(OpenProject::Notifications).not_to receive(:send)
-
-      UserInvitation.reinvite_user(user.id, send_notification: false)
-    end
-
-    it "still creates a fresh token when send_notification: false" do
-      new_token = UserInvitation.reinvite_user(user.id, send_notification: false)
-
-      expect(new_token).to be_persisted
-      expect(new_token.value).not_to eq token.value
-      expect(Token::Invitation.exists?(token.id)).to be false
+module OpenProject::Users
+  # @logical_path OpenProject/Users
+  class ShareableLinkDialogComponentPreview < Lookbook::Preview
+    # @param link text
+    # @param title text
+    # @param description text
+    def default(link: "https://example.org/account/activate?token=abc123",
+                title: "Invitation link",
+                description: "Share this link with the user so they can activate their account.")
+      render(Users::ShareableLinkDialogComponent.new(link:, title:, description:))
     end
   end
 end

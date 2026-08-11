@@ -30,38 +30,30 @@
 
 require "spec_helper"
 
-RSpec.describe UserInvitation do
-  describe ".reinvite_user" do
-    let(:user) { create(:invited_user) }
-    let!(:token) { create(:invitation_token, user:) }
+RSpec.describe Users::ShareableLinkDialogComponent, type: :component do
+  let(:link) { "https://example.org/account/activate?token=abc123" }
 
-    it "notifies listeners of the re-invite" do
-      expect(OpenProject::Notifications).to receive(:send) do |event, _new_token|
-        expect(event).to eq "user_reinvited"
-      end
+  before do
+    render_inline(described_class.new(link:, title: "Invitation link", description: "Share this with the user."))
+  end
 
-      UserInvitation.reinvite_user user.id
-    end
+  it "renders as an auto-showing dialog" do
+    expect(page).to have_css("dialog##{described_class::DIALOG_ID}[data-controller='auto-show-dialog']", visible: :all)
+  end
 
-    it "creates a new token" do
-      new_token = UserInvitation.reinvite_user user.id
+  it "shows the title" do
+    expect(page).to have_text("Invitation link")
+  end
 
-      expect(new_token.value).not_to eq token.value
-      expect(Token::Invitation.exists?(token.id)).to be false
-    end
+  it "shows the description" do
+    expect(page).to have_text("Share this with the user.")
+  end
 
-    it "skips the notification when send_notification: false" do
-      expect(OpenProject::Notifications).not_to receive(:send)
+  it "renders the link in a clipboard-copy element" do
+    expect(page).to have_css("clipboard-copy[value='#{link}']", visible: :all)
+  end
 
-      UserInvitation.reinvite_user(user.id, send_notification: false)
-    end
-
-    it "still creates a fresh token when send_notification: false" do
-      new_token = UserInvitation.reinvite_user(user.id, send_notification: false)
-
-      expect(new_token).to be_persisted
-      expect(new_token.value).not_to eq token.value
-      expect(Token::Invitation.exists?(token.id)).to be false
-    end
+  it "renders a close button" do
+    expect(page).to have_button("Close")
   end
 end

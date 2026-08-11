@@ -295,6 +295,214 @@ RSpec.describe UsersController do
     end
   end
 
+  describe "POST invitation_link" do
+    let(:invited_user) { create(:invited_user) }
+
+    context "without admin rights" do
+      let(:normal_user) { create(:user) }
+
+      before do
+        as_logged_in_user normal_user do
+          post :invitation_link, params: { id: invited_user.id }
+        end
+      end
+
+      it "returns 403 forbidden" do
+        expect(response).to have_http_status :forbidden
+      end
+    end
+
+    context "with create_user permission rights" do
+      let(:acting_user) do
+        create(:user, global_permissions: %i[view_all_principals create_user manage_user])
+      end
+
+      before do
+        as_logged_in_user acting_user do
+          perform_enqueued_jobs do
+            post :invitation_link, params: { id: invited_user.id }
+          end
+        end
+      end
+
+      it "redirects back to the edit user page" do
+        expect(response).to redirect_to edit_user_path(invited_user)
+      end
+
+      it "does not send an email" do
+        expect(ActionMailer::Base.deliveries).to be_empty
+      end
+
+      it "generates a fresh, persisted invitation token" do
+        token = Token::Invitation.find_by(user_id: invited_user.id)
+
+        expect(token).to be_present
+      end
+
+      it "flashes the shareable link dialog with the activation URL" do
+        token = Token::Invitation.find_by(user_id: invited_user.id)
+        modal = flash[:op_modal]
+
+        expect(modal[:component]).to eq("Users::ShareableLinkDialogComponent")
+        expect(modal[:parameters][:link]).to include("token=#{token.value}")
+        expect(modal[:parameters][:link]).to include("/account/activate")
+      end
+    end
+
+    context "when the target user is already active" do
+      let(:active_user) { create(:user) }
+      let(:acting_user) { admin }
+
+      before do
+        as_logged_in_user acting_user do
+          post :invitation_link, params: { id: active_user.id }
+        end
+      end
+
+      it "transitions the user to invited" do
+        expect(active_user.reload).to be_invited
+      end
+
+      it "generates a token consumable via the activate action, self-registration disabled",
+         with_settings: { self_registration: Setting::SelfRegistration.disabled } do
+        token = Token::Invitation.find_by(user_id: active_user.id)
+
+        # `activate` lives on AccountController, not UsersController, so a
+        # real integration session is needed to reach it from this controller spec.
+        session = ActionDispatch::Integration::Session.new(Rails.application)
+        session.get account_activate_path(token: token.value)
+
+        expect(session.response).not_to redirect_to(signin_path)
+      end
+    end
+
+    context "when trying to generate a link for an admin" do
+      let(:affected_user) { create(:admin) }
+
+      subject do
+        as_logged_in_user acting_user do
+          post :invitation_link, params: { id: affected_user.id }
+        end
+      end
+
+      context "as non-admin" do
+        let(:acting_user) { create(:user, global_permissions: %i[view_all_principals create_user manage_user]) }
+
+        it "does not allow generating a link and does not touch the target" do
+          subject
+
+          expect(flash[:error]).to eq(I18n.t("user.error_admin_change_on_non_admin"))
+          expect(flash[:op_modal]).to be_nil
+          expect(Token::Invitation.where(user_id: affected_user.id)).to be_empty
+        end
+      end
+
+      context "as admin" do
+        let(:acting_user) { admin }
+
+        it "allows generating the link" do
+          subject
+
+          expect(flash[:op_modal]).to be_present
+        end
+      end
+    end
+  end
+
+  describe "POST password_reset_link" do
+    let(:active_user) { create(:user) }
+
+    context "without manage_user rights" do
+      let(:normal_user) { create(:user) }
+
+      before do
+        as_logged_in_user normal_user do
+          post :password_reset_link, params: { id: active_user.id }
+        end
+      end
+
+      it "returns 403 forbidden" do
+        expect(response).to have_http_status :forbidden
+      end
+    end
+
+    context "with manage_user permission rights" do
+      let(:acting_user) do
+        create(:user, global_permissions: %i[view_all_principals manage_user])
+      end
+
+      before do
+        as_logged_in_user acting_user do
+          post :password_reset_link, params: { id: active_user.id }
+        end
+      end
+
+      it "redirects back to the edit user page" do
+        expect(response).to redirect_to edit_user_path(active_user)
+      end
+
+      it "does not send an email" do
+        expect(ActionMailer::Base.deliveries).to be_empty
+      end
+
+      it "creates a Token::Recovery marked as a chat link" do
+        token = Token::Recovery.find_by(user_id: active_user.id)
+
+        expect(token).to be_present
+        expect(token.data["channel"]).to eq(Token::Recovery::CHANNEL_CHAT_LINK)
+      end
+
+      it "flashes the shareable link dialog with the lost_password URL" do
+        token = Token::Recovery.find_by(user_id: active_user.id)
+        modal = flash[:op_modal]
+
+        expect(modal[:component]).to eq("Users::ShareableLinkDialogComponent")
+        expect(modal[:parameters][:link]).to include("token=#{token.value}")
+        expect(modal[:parameters][:link]).to include("/account/lost_password")
+      end
+    end
+
+    context "when the target user is locked" do
+      let(:acting_user) { admin }
+      let(:locked_user) { create(:locked_user) }
+
+      before do
+        as_logged_in_user acting_user do
+          post :password_reset_link, params: { id: locked_user.id }
+        end
+      end
+
+      it "does not create a token" do
+        expect(Token::Recovery.where(user_id: locked_user.id)).to be_empty
+      end
+
+      it "flashes an error instead of the dialog" do
+        expect(flash[:op_modal]).to be_nil
+        expect(flash[:error]).to eq(I18n.t("user.error_password_reset_link_not_allowed"))
+      end
+    end
+
+    context "when the target user authenticates via LDAP" do
+      let(:acting_user) { admin }
+      let(:ldap_user) { create(:user, ldap_auth_source: create(:ldap_auth_source)) }
+
+      before do
+        as_logged_in_user acting_user do
+          post :password_reset_link, params: { id: ldap_user.id }
+        end
+      end
+
+      it "does not create a token" do
+        expect(Token::Recovery.where(user_id: ldap_user.id)).to be_empty
+      end
+
+      it "flashes an error instead of the dialog" do
+        expect(flash[:op_modal]).to be_nil
+        expect(flash[:error]).to eq(I18n.t("user.error_password_reset_link_not_allowed"))
+      end
+    end
+  end
+
   describe "GET edit" do
     before do
       as_logged_in_user admin do

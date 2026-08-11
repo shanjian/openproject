@@ -961,6 +961,8 @@ Rails.application.routes.draw do
       get "/change_status/:change_action" => "users#change_status_info", as: "change_status_info"
       post :change_status
       post :resend_invitation
+      post :invitation_link
+      post :password_reset_link
       get :deletion_info
     end
   end
