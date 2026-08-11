@@ -48,16 +48,17 @@ RSpec.describe "user edit page header actions" do
       target = create(:user)
       visit edit_user_path(target)
       expect_menu_with_content("Send invitation", "Copy invitation link",
-                                "Copy password reset link", "Lock", "Delete")
+                               "Copy password reset link", "Lock", "Delete")
     end
 
-    it "renders for an active, blocked target (worst case: 2 status actions)" do
+    it "renders for an active, blocked target (worst case: 2 status actions)",
+       with_settings: { brute_force_block_after_failed_logins: 1, users_deletable_by_admins: true } do
       login_as(admin)
       target = create(:user)
-      allow_any_instance_of(User).to receive(:failed_too_many_recent_login_attempts?).and_return(true)
+      target.log_failed_login
       visit edit_user_path(target)
       expect_menu_with_content("Send invitation", "Copy invitation link",
-                                "Copy password reset link", "Delete")
+                               "Copy password reset link", "Delete")
     end
 
     it "renders for a locked target" do
@@ -78,6 +79,7 @@ RSpec.describe "user edit page header actions" do
       login_as(admin)
       target = create(:user, ldap_auth_source: create(:ldap_auth_source))
       visit edit_user_path(target)
+      expect(page).to have_content(target.name)
       expect(page).to have_no_content("Copy password reset link")
     end
 
@@ -104,6 +106,7 @@ RSpec.describe "user edit page header actions" do
       login_as(viewer)
       target = create(:locked_user)
       visit edit_user_path(target)
+      expect(page).to have_content(target.name)
       expect(page).to have_no_css('[data-test-selector="user-more-dropdown-menu"]')
     end
   end
