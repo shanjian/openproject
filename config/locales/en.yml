@@ -1132,6 +1132,11 @@ en:
       preview:
         computed_on_creation: "computed on creation"
         error_on_line: "Line %{line}: %{message}"
+      show:
+        title: "Import result"
+        status: "Status: %{status}"
+        undo: "Undo this import"
+        undo_confirm: "This will delete every work package this import created. Continue?"
 
     datepicker_modal:
       banner:

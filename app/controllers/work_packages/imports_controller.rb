@@ -41,6 +41,11 @@ module WorkPackages
   class ImportsController < ApplicationController
     before_action :find_project_by_project_id
     before_action :authorize
+    before_action :find_import_run, only: :show
+
+    def show
+      @created_work_packages = WorkPackage.where(id: @import_run.created_work_package_ids)
+    end
 
     def new
       @rows = []
@@ -68,6 +73,19 @@ module WorkPackages
       end
 
       render :new
+    end
+
+    def create
+      import_run = WorkPackages::ImportRun.create!(project: @project, user: current_user, source: params[:source])
+      WorkPackages::Import::CreateJob.perform_later(import_run:)
+
+      redirect_to project_work_packages_import_path(@project, import_run)
+    end
+
+    private
+
+    def find_import_run
+      @import_run = WorkPackages::ImportRun.where(project: @project).find(params[:id])
     end
   end
 end

@@ -1,0 +1,27 @@
+<%# app/views/work_packages/imports/show.html.erb %>
+<h2><%= t("work_packages.import.show.title") %></h2>
+
+<p><%= t("work_packages.import.show.status", status: @import_run.status) %></p>
+
+<% if @import_run.succeeded? %>
+  <ul>
+    <% @created_work_packages.each do |wp| %>
+      <li><%= link_to wp.subject, work_package_path(wp) %></li>
+    <% end %>
+  </ul>
+
+  <% if current_user.allowed_in_project?(:delete_work_packages, @project) %>
+    <%= link_to t("work_packages.import.show.undo"),
+                work_packages_bulk_path(ids: @import_run.created_work_package_ids),
+                method: :delete,
+                data: { confirm: t("work_packages.import.show.undo_confirm") } %>
+  <% end %>
+<% elsif @import_run.failed? %>
+  <p class="work-package-import-errors">
+    <%= t(
+          "work_packages.import.preview.error_on_line",
+          line: @import_run.failure["source_line"],
+          message: @import_run.failure["message"]
+        ) %>
+  </p>
+<% end %>
