@@ -33,7 +33,7 @@ See COPYRIGHT and LICENSE files for more details.
       <strong><%= row.node.type_name %>:</strong> <%= row.node.subject %>
 
       <ul>
-        <% row.attribute_matches.each do |match| %>
+        <% attribute_matches_for(row, index).each do |match| %>
           <li><%= match[:label] %>: <%= match[:formatted] %></li>
         <% end %>
         <% computed_attribute_names(row, index).each do |name| %>

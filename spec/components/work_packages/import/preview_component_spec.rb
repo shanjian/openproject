@@ -109,6 +109,27 @@ RSpec.describe WorkPackages::Import::PreviewComponent, type: :component do
       expect(child_li).to have_no_text("start_date")
       expect(child_li).to have_no_text("due_date")
     end
+
+    it "does not also show the author's typed Start date/Finish date as exact when the row has a child" do
+      # A parent row whose author explicitly wrote "Start date: ..." / "Finish date: ..." bullets
+      # gets those in `attribute_matches` (the resolver's record of what it matched), in addition
+      # to start_date/due_date landing in `computed_attribute_names` because the row has a child.
+      # Showing both is contradictory: one line says "2026-01-01", the next says "computed on
+      # creation" for the same field.
+      parent_row_with_typed_dates = WorkPackages::Import::Resolver::ResolvedRow.new(
+        node: parent_node, work_package: parent_work_package,
+        attribute_matches: [{ label: "Start date", formatted: "2026-01-01" },
+                            { label: "Finish date", formatted: "2026-01-31" }],
+        errors: []
+      )
+      render_inline(described_class.new(rows: [parent_row_with_typed_dates, child_row]))
+
+      parent_li = page.find("li", text: "Parent row")
+      expect(parent_li).to have_no_text("Start date: 2026-01-01")
+      expect(parent_li).to have_no_text("Finish date: 2026-01-31")
+      expect(parent_li).to have_text("start_date: #{I18n.t('work_packages.import.preview.computed_on_creation')}")
+      expect(parent_li).to have_text("due_date: #{I18n.t('work_packages.import.preview.computed_on_creation')}")
+    end
   end
 
   describe "#any_errors?" do

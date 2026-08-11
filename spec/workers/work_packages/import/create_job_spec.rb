@@ -209,4 +209,44 @@ RSpec.describe WorkPackages::Import::CreateJob do
       expect(WorkPackage.where(subject: "Increase retention")).not_to exist
     end
   end
+
+  # `create_tree!` only ever raises `CreationFailed` deliberately -- for the four enumerated,
+  # expected failure kinds (parse, resolve, per-row resolver error, CreateService failure). A
+  # genuinely unexpected exception (a real bug, a DB blip, anything else) previously had no
+  # rescue clause of its own: it would still roll back the transaction (any exception does that
+  # regardless of class), but `import_run.status` would never be touched, leaving the run stuck
+  # at "running" forever -- the feature's own `show` page would tell the user their import is
+  # still in progress indefinitely, with no record of what went wrong.
+  context "when an unexpected, non-CreationFailed error occurs" do
+    let(:source) { "# Task: Rework the sequence\n" }
+
+    it "marks the run failed with the error's message and still re-raises" do
+      # perform_now (wrapped in User.execute_as), not perform_later/perform_enqueued_jobs -- same
+      # reason as the sibling JobStatus test below: propagating a real exception back out through
+      # the test adapter's own enqueue/perform machinery hits unrelated logging setup this spec
+      # doesn't otherwise need, whereas perform_now exercises the job's own rescue/re-raise
+      # directly.
+      allow(WorkPackages::Import::OutlineParser).to receive(:call).and_raise(RuntimeError, "boom")
+
+      job = described_class.new(import_run: WorkPackages::ImportRun.find(import_run.id))
+      expect { User.execute_as(user) { job.perform_now } }.to raise_error(RuntimeError, "boom")
+
+      import_run.reload
+      expect(import_run).to be_failed
+      expect(import_run.failure["message"]).to eq("boom")
+    end
+
+    it "records a failed JobStatus::Status scoped to the importing user" do
+      allow(WorkPackages::Import::OutlineParser).to receive(:call).and_raise(RuntimeError, "boom")
+
+      job = described_class.new(import_run: WorkPackages::ImportRun.find(import_run.id))
+      expect { User.execute_as(user) { job.perform_now } }.to raise_error(RuntimeError, "boom")
+
+      status = JobStatus::Status.find_by(job_id: job.job_id)
+      expect(status).to be_present
+      expect(status).to be_failure
+      expect(status.user_id).to eq(user.id)
+      expect(status.message).to eq("boom")
+    end
+  end
 end

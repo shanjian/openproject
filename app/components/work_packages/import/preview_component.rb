@@ -32,6 +32,7 @@ module WorkPackages
   module Import
     class PreviewComponent < ViewComponent::Base
       DERIVED_ATTRIBUTES = %w[derived_done_ratio derived_estimated_hours derived_remaining_hours].freeze
+      DATE_LABELS = ["Start date", "Finish date"].freeze
 
       def initialize(rows:)
         super()
@@ -58,6 +59,16 @@ module WorkPackages
         # Since this whole feature exists to import hierarchies, this applies to every non-leaf row.
         names.push("start_date", "due_date") if has_children?(index)
         names
+      end
+
+      # Rows with a child list "start_date"/"due_date" in `computed_attribute_names` (see above);
+      # showing the author's typed "Start date: 2026-01-01" from `attribute_matches` right next to
+      # "start_date: computed on creation" for the same row is contradictory, so those two labels
+      # are dropped from the exact-value list wherever the computed marker is about to appear.
+      def attribute_matches_for(row, index)
+        return row.attribute_matches unless has_children?(index)
+
+        row.attribute_matches.reject { |match| DATE_LABELS.include?(match[:label]) }
       end
 
       private

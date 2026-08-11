@@ -78,8 +78,49 @@ RSpec.describe WorkPackages::Import::Resolver do
       expect(resolver.send(:convert_custom_value, bool_field, "True")).to be true
     end
 
-    it "accepts anything else as false" do
+    it "accepts no/false as falsy" do
       expect(resolver.send(:convert_custom_value, bool_field, "no")).to be false
+      expect(resolver.send(:convert_custom_value, bool_field, "False")).to be false
+    end
+
+    it "raises AttributeError for anything outside yes/no/true/false" do
+      expect { resolver.send(:convert_custom_value, bool_field, "maybe") }
+        .to raise_error(described_class::AttributeError, /"maybe" is not a valid bool value/)
+    end
+  end
+
+  describe "#convert_custom_value for version" do
+    let(:resolver) { described_class.new(project:, user: build_stubbed(:user)) }
+    let(:project) { create(:project) }
+    let!(:version) { create(:version, project:, name: "FY2026 Q3") }
+    let(:version_field) { build_stubbed(:custom_field, field_format: "version") }
+
+    it "resolves a version name to the real Version record" do
+      # convert_custom_value returns the resolved record itself for reference-type formats
+      # (matching the "list" branch's CustomOption return) -- resolve_custom_field_attribute's
+      # caller is what converts an ActiveRecord::Base result to its stored `.id.to_s`.
+      expect(resolver.send(:convert_custom_value, version_field, "FY2026 Q3")).to eq(version)
+    end
+
+    it "raises AttributeError for an unknown version name" do
+      expect { resolver.send(:convert_custom_value, version_field, "FY2099 Q1") }
+        .to raise_error(described_class::AttributeError, /no version named/)
+    end
+  end
+
+  describe "#convert_custom_value for hierarchy", with_ee: [:custom_field_hierarchies] do
+    let(:resolver) { described_class.new(project: build_stubbed(:project), user: build_stubbed(:user)) }
+    let(:hierarchy_field) { create(:hierarchy_wp_custom_field) }
+    let!(:marketing) { hierarchy_field.hierarchy_root.children.create!(label: "Marketing") }
+    let!(:retention) { marketing.children.create!(label: "Retention") }
+
+    it "resolves a full ancestry path to the real hierarchy item" do
+      expect(resolver.send(:resolve_hierarchy_value, hierarchy_field, "Marketing / Retention")).to eq(retention)
+    end
+
+    it "raises AttributeError for an unknown path" do
+      expect { resolver.send(:resolve_hierarchy_value, hierarchy_field, "Sales / Enablement") }
+        .to raise_error(described_class::AttributeError, /no hierarchy value at path/)
     end
   end
 

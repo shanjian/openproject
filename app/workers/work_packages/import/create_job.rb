@@ -41,7 +41,7 @@ module WorkPackages
         end
       end
 
-      def perform(import_run:)
+      def perform(import_run:) # rubocop:disable Metrics/AbcSize
         self.import_run = import_run
         import_run.update!(status: :running)
 
@@ -61,6 +61,18 @@ module WorkPackages
         rescue CreationFailed => e
           import_run.update!(status: :failed, failure: { source_line: e.source_line, message: e.message })
           upsert_status(status: :failure, message: e.message)
+        rescue StandardError => e
+          # An unexpected error (a bug, a DB blip -- anything not one of the four enumerated
+          # CreationFailed kinds) still rolls back the transaction (any exception does), but
+          # without this rescue `import_run.status` would never be touched: the run would stay
+          # "running" forever and the feature's own `show` page would tell the user their import
+          # is still in progress indefinitely, with no record of what actually went wrong. Record
+          # what's known and re-raise -- this must not look like a normal, expected failure to
+          # whatever's monitoring the job (GoodJob's own retry/error handling, JobStatus's
+          # exception listener), only to `import_run`'s own status.
+          import_run.update!(status: :failed, failure: { source_line: nil, message: e.message })
+          upsert_status(status: :failure, message: e.message)
+          raise
         end
       end
 

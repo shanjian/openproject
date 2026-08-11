@@ -146,7 +146,7 @@ module WorkPackages
         value = case custom_field.field_format
                 when "user" then resolve_user(raw_value)
                 when "department" then resolve_department(raw_value)
-                when "hierarchy" then resolve_list_option(custom_field, raw_value)
+                when "hierarchy" then resolve_hierarchy_value(custom_field, raw_value)
                 else convert_custom_value(custom_field, raw_value)
                 end
 
@@ -191,17 +191,26 @@ module WorkPackages
         priority
       end
 
-      def convert_custom_value(custom_field, raw) # rubocop:disable Metrics/AbcSize
+      def convert_custom_value(custom_field, raw)
         case custom_field.field_format
         when "date" then resolve_date(raw).iso8601
         when "int" then Integer(raw.delete("%").strip)
         when "float" then Float(raw.delete("%").strip)
-        when "bool" then %w[yes true].include?(raw.strip.downcase)
+        when "bool" then resolve_bool(raw)
         when "list" then resolve_list_option(custom_field, raw)
+        when "version" then resolve_version(raw)
         else raw
         end
       rescue ArgumentError
         raise AttributeError, "#{raw.inspect} is not a valid #{custom_field.field_format} value"
+      end
+
+      def resolve_bool(raw)
+        case raw.strip.downcase
+        when "yes", "true" then true
+        when "no", "false" then false
+        else raise AttributeError, "#{raw.inspect} is not a valid bool value"
+        end
       end
 
       def resolve_list_option(custom_field, raw)
@@ -209,6 +218,28 @@ module WorkPackages
         raise AttributeError, "#{raw.inspect} is not an option of #{custom_field.name}" unless option
 
         option
+      end
+
+      # Hierarchy-format custom values are `CustomField::Hierarchy::Item` records (closure-tree
+      # nodes under `custom_field.hierarchy_root`), never `CustomOption`s -- a distinct storage
+      # mechanism from the "list" format despite the similar-looking dropdown UI. Matches on the
+      # item's full path only ("Parent / Child"), per the documented accepted input for this
+      # format; unlike department there is no documented unambiguous-leaf-name shorthand, and
+      # hierarchy item labels are only unique within a tree level, not across the whole tree.
+      def resolve_hierarchy_value(custom_field, raw)
+        raw = raw.strip
+        item = hierarchy_items(custom_field).find { |candidate| candidate.ancestry_path == raw }
+        raise AttributeError, "no hierarchy value at path #{raw.inspect} for #{custom_field.name}" unless item
+
+        item
+      end
+
+      def hierarchy_items(custom_field)
+        return [] if custom_field.hierarchy_root.nil?
+
+        CustomFields::Hierarchy::HierarchicalItemService.new
+                                                         .get_descendants(item: custom_field.hierarchy_root, include_self: false)
+                                                         .value_or([])
       end
 
       def build_user_lookup
