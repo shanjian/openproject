@@ -452,6 +452,12 @@ Rails.application.routes.draw do
       resource :dialog, only: %i[new create] do
         post :refresh_form
       end
+
+      resources :imports, only: %i[new create show] do
+        collection do
+          post :preview
+        end
+      end
     end
 
     resources :activity, :activities, only: :index, controller: "activities" do

@@ -1125,6 +1125,10 @@ en:
 
   work_packages:
     import:
+      new:
+        title: "Import work packages from Markdown"
+        preview_button: "Preview"
+        confirm_button: "Create work packages"
       preview:
         computed_on_creation: "computed on creation"
         error_on_line: "Line %{line}: %{message}"

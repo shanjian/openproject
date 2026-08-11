@@ -329,6 +329,14 @@ Rails.application.reloader.to_prepare do
                      dependencies: :view_work_packages,
                      contract_actions: { work_packages: %i[create] }
 
+      wpt.permission :import_work_packages,
+                     {
+                       "work_packages/imports": %i[new preview create show]
+                     },
+                     permissible_on: :project,
+                     dependencies: %i[view_work_packages add_work_packages
+                                      manage_subtasks assign_versions]
+
       wpt.permission :edit_work_packages,
                      {
                        "work_packages/bulk": %i[edit update]
