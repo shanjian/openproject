@@ -161,8 +161,11 @@ module WorkPackages
       end
 
       def apply_inheritance(nodes, front_matter)
+        inheritable_front_matter = front_matter.except("Project")
+
         nodes.each do |node|
-          inherited = ancestors_root_first(nodes, node).reduce(front_matter) { |acc, ancestor| acc.merge(ancestor.attributes) }
+          inherited = ancestors_root_first(nodes, node)
+                        .reduce(inheritable_front_matter) { |acc, ancestor| acc.merge(ancestor.attributes) }
           node.attributes = inherited.merge(node.attributes)
         end
       end

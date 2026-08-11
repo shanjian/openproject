@@ -188,6 +188,21 @@ RSpec.describe WorkPackages::Import::OutlineParser do
       expect(nps.attributes).not_to have_key("Accountable")
       expect(renewals.attributes["Accountable"]).to eq("sam.lee@example.com")
     end
+
+    it "does not inherit front matter Project into node attributes" do
+      markdown = <<~MD
+        ---
+        Project: Company OKRs
+        Version: FY2026 Q3
+        ---
+
+        # Objective: Increase retention
+      MD
+      node = described_class.call(markdown).result.nodes.first
+
+      expect(node.attributes["Version"]).to eq("FY2026 Q3")
+      expect(node.attributes).not_to have_key("Project")
+    end
   end
 
   context "with three levels of nesting" do
