@@ -98,6 +98,7 @@ RSpec.describe "user deletion:", :js, :selenium, driver: :firefox_en do
 
       expect(page).to have_content "#{user.firstname} #{user.lastname}"
 
+      page.find('[data-test-selector="user-more-dropdown-menu"]').click
       click_on "Delete"
 
       SeleniumHubWaiter.wait
@@ -106,6 +107,7 @@ RSpec.describe "user deletion:", :js, :selenium, driver: :firefox_en do
 
       dialog.confirm_flow_with "wrong", should_fail: true
 
+      page.find('[data-test-selector="user-more-dropdown-menu"]').click
       click_on "Delete"
       SeleniumHubWaiter.wait
       check "I understand that this deletion cannot be reversed"
@@ -124,6 +126,7 @@ RSpec.describe "user deletion:", :js, :selenium, driver: :firefox_en do
 
       expect(page).to have_content "#{user.firstname} #{user.lastname}"
 
+      page.find('[data-test-selector="user-more-dropdown-menu"]').click
       click_on "Delete"
 
       SeleniumHubWaiter.wait

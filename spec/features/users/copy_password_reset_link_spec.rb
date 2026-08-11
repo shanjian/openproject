@@ -42,6 +42,7 @@ RSpec.describe "Copying a password reset link", :js do
     visit edit_user_path(active_user)
 
     perform_enqueued_jobs do
+      page.find('[data-test-selector="user-more-dropdown-menu"]').click
       click_on "Copy password reset link"
     end
 
