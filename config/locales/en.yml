@@ -1124,6 +1124,11 @@ en:
       no_results_title_text: There are currently no workflows.
 
   work_packages:
+    import:
+      preview:
+        computed_on_creation: "computed on creation"
+        error_on_line: "Line %{line}: %{message}"
+
     datepicker_modal:
       banner:
         description:
