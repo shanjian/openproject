@@ -189,4 +189,20 @@ RSpec.describe WorkPackages::Import::OutlineParser do
       expect(renewals.attributes["Accountable"]).to eq("sam.lee@example.com")
     end
   end
+
+  context "with three levels of nesting" do
+    let(:markdown) { <<~MD }
+      # Strategic Initiative: Subscription Growth
+      - Organizational Unit: Marketing
+
+      ## Objective: Increase retention
+
+      ### Key Result: Renewals to 75%
+    MD
+
+    it "carries a grandparent-only attribute down to a grandchild" do
+      key_result = call.result.nodes.find { |n| n.subject == "Renewals to 75%" }
+      expect(key_result.attributes["Organizational Unit"]).to eq("Marketing")
+    end
+  end
 end
