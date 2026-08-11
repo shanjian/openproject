@@ -35,12 +35,123 @@ module WorkPackages
 
       ResolvedRow = Struct.new(:node, :work_package, :attribute_matches, :errors)
 
+      BUILTIN_ATTRIBUTE_KEYS = {
+        "Accountable" => :responsible_id,
+        "Assignee" => :assigned_to_id,
+        "Version" => :version_id,
+        "Status" => :status_id,
+        "Priority" => :priority_id,
+        "Start date" => :start_date,
+        "Finish date" => :due_date
+      }.freeze
+
       def initialize(project:, user:)
         @project = project
         @user = user
       end
 
+      def call(document)
+        mismatch = front_matter_project_mismatch(document.front_matter)
+        return ServiceResult.failure(errors: [mismatch]) if mismatch
+
+        @user_lookup = build_user_lookup
+        @department_lookup = build_department_lookup
+
+        ServiceResult.success(result: document.nodes.map { |node| resolve_node(node) })
+      end
+
       private
+
+      def front_matter_project_mismatch(front_matter)
+        declared = front_matter["Project"]
+        return nil if declared.blank? || declared == @project.name
+
+        { source_line: 1,
+          message: "document declares Project: #{declared.inspect}, but is being imported into #{@project.name.inspect}" }
+      end
+
+      def resolve_node(node) # rubocop:disable Metrics/AbcSize
+        type = @project.types.find_by(name: node.type_name)
+
+        if type.nil?
+          message = "unknown or disabled work package type #{node.type_name.inspect}"
+          return ResolvedRow.new(node:, work_package: nil, attribute_matches: [],
+                                 errors: [{ source_line: node.source_line, message: }])
+        end
+
+        work_package = WorkPackage.new(project: @project)
+        attributes = { type_id: type.id, subject: node.subject, description: node.description }
+        attribute_matches = []
+        errors = []
+
+        node.attributes.each do |label, raw_value|
+          resolved = resolve_attribute(type, label, raw_value)
+          attributes[resolved[:key]] = resolved[:value]
+          attribute_matches << { label:, formatted: resolved[:formatted] }
+        rescue AttributeError => e
+          errors << { source_line: node.source_line, message: "#{label}: #{e.message}" }
+        end
+
+        result = WorkPackages::SetAttributesService
+          .new(user: @user, model: work_package, contract_class: WorkPackages::CreateContract)
+          .call(attributes)
+
+        if result.failure?
+          errors.concat(result.errors.full_messages.map do |message|
+            { source_line: node.source_line, message: }
+          end)
+        end
+
+        ResolvedRow.new(node:, work_package: result.result, attribute_matches:, errors:)
+      end
+
+      def resolve_attribute(type, label, raw_value)
+        if BUILTIN_ATTRIBUTE_KEYS.key?(label)
+          resolve_builtin_attribute(label, raw_value)
+        else
+          resolve_custom_field_attribute(type, label, raw_value)
+        end
+      end
+
+      def resolve_builtin_attribute(label, raw_value)
+        value =
+          case label
+          when "Accountable", "Assignee" then resolve_user(raw_value)
+          when "Version" then resolve_version(raw_value)
+          when "Status" then resolve_status(raw_value)
+          when "Priority" then resolve_priority(raw_value)
+          when "Start date", "Finish date" then resolve_date(raw_value)
+          end
+
+        { key: BUILTIN_ATTRIBUTE_KEYS.fetch(label),
+          value: value.is_a?(ActiveRecord::Base) ? value.id : value,
+          formatted: format_value(value) }
+      end
+
+      def resolve_custom_field_attribute(type, label, raw_value) # rubocop:disable Metrics/AbcSize
+        custom_field = type.custom_fields.find_by(name: label)
+        raise AttributeError, "no field named #{label.inspect} on type #{type.name.inspect}" unless custom_field
+
+        value = case custom_field.field_format
+                when "user" then resolve_user(raw_value)
+                when "department" then resolve_department(raw_value)
+                when "hierarchy" then resolve_list_option(custom_field, raw_value)
+                else convert_custom_value(custom_field, raw_value)
+                end
+
+        stored_value = value.is_a?(ActiveRecord::Base) ? value.id.to_s : value
+
+        { key: :"custom_field_#{custom_field.id}", value: stored_value, formatted: format_value(value) }
+      end
+
+      def format_value(value)
+        case value
+        when User then "#{value.name} (#{value.mail})"
+        when Group then value.ancestry_path
+        when ActiveRecord::Base then value.respond_to?(:name) ? value.name : value.to_s
+        else value.to_s
+        end
+      end
 
       def resolve_date(raw)
         Date.iso8601(raw.strip)
