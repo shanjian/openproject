@@ -86,4 +86,76 @@ RSpec.describe WorkPackages::Import::Resolver do
       expect(resolver.send(:convert_custom_value, string_field, "Rework the sequence")).to eq("Rework the sequence")
     end
   end
+
+  describe "#resolve_user" do
+    let!(:jane) { create(:user, mail: "jane.doe@example.com", firstname: "Jane", lastname: "Doe") }
+    let!(:sam) { create(:user, mail: "sam.lee@example.com", firstname: "Sam", lastname: "Lee") }
+
+    before { resolver.instance_variable_set(:@user_lookup, resolver.send(:build_user_lookup)) }
+
+    it "resolves by email" do
+      expect(resolver.send(:resolve_user, "jane.doe@example.com")).to eq(jane)
+    end
+
+    it "resolves by unambiguous display name" do
+      expect(resolver.send(:resolve_user, jane.name)).to eq(jane)
+    end
+
+    it "raises on an unknown email" do
+      expect { resolver.send(:resolve_user, "nobody@example.com") }
+        .to raise_error(described_class::AttributeError, /no user found with email/)
+    end
+
+    context "with two users sharing a display name" do
+      let!(:other_jane) { create(:user, mail: "jane.doe2@example.com", firstname: "Jane", lastname: "Doe") }
+
+      # Re-run after other_jane exists: the outer `before` (a hook declared in an
+      # enclosing context) always fires before this context's own `let!(:other_jane)`
+      # hook, so without rebuilding here the lookup would be built too early and miss her.
+      before { resolver.instance_variable_set(:@user_lookup, resolver.send(:build_user_lookup)) }
+
+      it "raises ambiguity, not a silent guess" do
+        expect { resolver.send(:resolve_user, jane.name) }
+          .to raise_error(described_class::AttributeError, /matches more than one user/)
+      end
+    end
+  end
+
+  describe "#resolve_department" do
+    let!(:marketing) { create(:group, lastname: "Marketing", organizational_unit: true) }
+    let!(:retention) { create(:group, lastname: "Retention", parent: marketing, organizational_unit: true) }
+    let!(:security_group) { create(:group, lastname: "Retention", organizational_unit: false) }
+
+    before { resolver.instance_variable_set(:@department_lookup, resolver.send(:build_department_lookup)) }
+
+    it "resolves a full ancestry path" do
+      expect(resolver.send(:resolve_department, "Marketing / Retention")).to eq(retention)
+    end
+
+    it "resolves an unambiguous leaf name" do
+      expect(resolver.send(:resolve_department, "Marketing")).to eq(marketing)
+    end
+
+    it "never matches a same-named regular security group" do
+      # "Retention" as a bare leaf name is ambiguous between the org unit and the
+      # regular group only if both are considered — assert only the org unit counts.
+      expect(resolver.send(:build_department_lookup)[:by_leaf_name]["Retention"]).to eq([retention])
+    end
+
+    it "raises on an unknown path" do
+      expect { resolver.send(:resolve_department, "Sales / Enablement") }
+        .to raise_error(described_class::AttributeError, /no organizational unit/)
+    end
+  end
+
+  describe "#build_department_lookup query count" do
+    before do
+      marketing = create(:group, lastname: "Marketing", organizational_unit: true)
+      5.times { |i| create(:group, lastname: "Team #{i}", parent: marketing, organizational_unit: true) }
+    end
+
+    it "issues at most one query regardless of tree size" do
+      expect { resolver.send(:build_department_lookup) }.to have_a_query_limit(1)
+    end
+  end
 end

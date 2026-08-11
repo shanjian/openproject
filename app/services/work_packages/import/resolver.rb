@@ -88,6 +88,77 @@ module WorkPackages
 
         option
       end
+
+      def build_user_lookup
+        users = User.where(status: User.statuses[:active]).to_a
+        {
+          by_mail: users.index_by { |u| u.mail.to_s.downcase },
+          by_name: users.group_by { |u| u.name.downcase }
+        }
+      end
+
+      def resolve_user(raw)
+        raw = raw.strip
+        raw.include?("@") ? resolve_user_by_mail(raw) : resolve_user_by_name(raw)
+      end
+
+      def resolve_user_by_mail(raw)
+        user = @user_lookup[:by_mail][raw.downcase]
+        raise AttributeError, "no user found with email #{raw.inspect}" unless user
+
+        user
+      end
+
+      def resolve_user_by_name(raw)
+        matches = @user_lookup[:by_name][raw.downcase] || []
+        raise AttributeError, "no user found named #{raw.inspect}" if matches.empty?
+        raise AttributeError, "#{raw.inspect} matches more than one user" if matches.size > 1
+
+        matches.first
+      end
+
+      def build_department_lookup
+        departments = Group.organizational_units.in_tree_order
+        by_path = {}
+        path_by_depth = []
+
+        # Build each department's "Root / Child / Leaf" path from the already
+        # depth-first-ordered, in-memory tree, instead of calling #ancestry_path
+        # (which issues its own recursive query per group). in_tree_order sets
+        # hierarchy_depth as it walks, so a stack indexed by depth is enough to
+        # reconstruct every ancestor without touching the database again.
+        departments.each do |department|
+          path_by_depth[department.hierarchy_depth] = department.name
+          by_path[path_by_depth[0..department.hierarchy_depth].join(" / ")] = department
+        end
+
+        {
+          by_leaf_name: departments.group_by(&:name),
+          by_path:
+        }
+      end
+
+      def resolve_department(raw)
+        raw = raw.strip
+        raw.include?("/") ? resolve_department_by_path(raw) : resolve_department_by_leaf_name(raw)
+      end
+
+      def resolve_department_by_path(raw)
+        department = @department_lookup[:by_path][raw]
+        raise AttributeError, "no organizational unit at path #{raw.inspect}" unless department
+
+        department
+      end
+
+      def resolve_department_by_leaf_name(raw)
+        matches = @department_lookup[:by_leaf_name][raw] || []
+        raise AttributeError, "no organizational unit named #{raw.inspect}" if matches.empty?
+        if matches.size > 1
+          raise AttributeError, "#{raw.inspect} matches more than one organizational unit; use the full path"
+        end
+
+        matches.first
+      end
     end
   end
 end
