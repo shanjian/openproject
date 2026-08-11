@@ -58,6 +58,7 @@ module WorkPackages
       def call
         front_matter, index = parse_front_matter(0)
         nodes = parse_nodes(index)
+        apply_inheritance(nodes, front_matter)
         ServiceResult.success(result: Document.new(front_matter:, nodes:))
       rescue ParseError => e
         ServiceResult.failure(errors: [{ source_line: e.source_line, message: e.message }])
@@ -157,6 +158,20 @@ module WorkPackages
         node.description = description_lines.join("\n").strip
 
         index
+      end
+
+      def apply_inheritance(nodes, front_matter)
+        nodes.each do |node|
+          inherited = ancestors_root_first(nodes, node).reduce(front_matter) { |acc, ancestor| acc.merge(ancestor.attributes) }
+          node.attributes = inherited.merge(node.attributes)
+        end
+      end
+
+      def ancestors_root_first(nodes, node)
+        chain = []
+        current = node
+        chain << (current = nodes[current.parent_index]) while current.parent_index
+        chain.reverse
       end
     end
   end

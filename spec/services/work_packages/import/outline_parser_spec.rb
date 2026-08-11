@@ -151,4 +151,42 @@ RSpec.describe WorkPackages::Import::OutlineParser do
       expect(call.errors.first[:message]).to eq("attribute bullet before any heading")
     end
   end
+
+  context "attribute inheritance" do
+    let(:markdown) { <<~MD }
+      ---
+      Version: FY2026 Q3
+      ---
+
+      # Objective: Increase retention
+      - Organizational Unit: Marketing / Retention
+
+      ## Key Result: Renewals to 75%
+      - Accountable: sam.lee@example.com
+
+      ## Key Result: NPS to 60
+      - Organizational Unit: Marketing / Brand
+    MD
+
+    it "flows front matter down to every node" do
+      expect(call.result.nodes.map { |n| n.attributes["Version"] }).to eq(["FY2026 Q3"] * 3)
+    end
+
+    it "flows an ancestor's own attribute down to descendants" do
+      renewals = call.result.nodes.find { |n| n.subject == "Renewals to 75%" }
+      expect(renewals.attributes["Organizational Unit"]).to eq("Marketing / Retention")
+    end
+
+    it "lets a descendant override an inherited attribute" do
+      nps = call.result.nodes.find { |n| n.subject == "NPS to 60" }
+      expect(nps.attributes["Organizational Unit"]).to eq("Marketing / Brand")
+    end
+
+    it "does not push a sibling's attribute across" do
+      renewals = call.result.nodes.find { |n| n.subject == "Renewals to 75%" }
+      nps = call.result.nodes.find { |n| n.subject == "NPS to 60" }
+      expect(nps.attributes).not_to have_key("Accountable")
+      expect(renewals.attributes["Accountable"]).to eq("sam.lee@example.com")
+    end
+  end
 end
