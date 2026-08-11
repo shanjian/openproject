@@ -443,7 +443,14 @@ Rails.application.routes.draw do
           constraints: { id: /\d+/, state: /(?!(shares|copy|dialog)).+/ }
 
       # states managed by client-side routing on work_package#index
-      get "(/*state)" => "work_packages#index", on: :collection, as: "", constraints: { state: /(?!(dialog|new)).+/ }
+      #
+      # "imports" is excluded too: it is a server-rendered sub-resource (see the
+      # `namespace :work_packages do resources :imports ... end` block below), not a
+      # client-side SPA state. Without this exclusion, this catch-all -- declared earlier and
+      # therefore matched first -- swallows every GET to /work_packages/imports/* (both `new`
+      # and `show`) and routes it to the Angular shell instead of WorkPackages::ImportsController.
+      get "(/*state)" => "work_packages#index", on: :collection, as: "",
+          constraints: { state: /(?!(dialog|new|imports)).+/ }
 
       get "/create_new" => "work_packages#index", on: :collection, as: "new_split"
     end
