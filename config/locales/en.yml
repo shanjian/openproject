@@ -1674,6 +1674,11 @@ en:
         type: "Type"
         version: "Version"
         watcher: "Watcher"
+      work_packages/import_run:
+        source: "Source"
+        status: "Status"
+        created_work_package_ids: "Created work packages"
+        failure: "Failure"
 
     errors:
       messages:
