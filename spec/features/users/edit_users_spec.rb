@@ -140,6 +140,7 @@ RSpec.describe "edit users", :js do
     it "can reinvite the user" do
       visit edit_user_path(user)
 
+      page.find('[data-test-selector="user-more-dropdown-menu"]').click
       click_on "Send invitation"
 
       expect_flash(message: "An invitation has been sent to foo@example.com")

@@ -42,6 +42,7 @@ RSpec.describe "Copying an invitation link", :js do
     visit edit_user_path(invited_user)
 
     perform_enqueued_jobs do
+      page.find('[data-test-selector="user-more-dropdown-menu"]').click
       click_on "Copy invitation link"
     end
 
