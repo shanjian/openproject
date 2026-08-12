@@ -39,17 +39,26 @@ module API
         # Deliberately not a subclass of GroupFilterDependencyRepresenter: that one narrows the
         # collection to groups that are members of the filter's project, and a department is an
         # organisational unit rather than a project member, so it would answer an empty list.
-        #
-        # The collection is every Group, which is a superset of the organisational units: the
-        # principals API has no organizational_unit filter to narrow it further. Filtering by a
-        # group that is not a department simply matches nothing, so the imprecision is confined to
-        # the values offered in the filter's autocompleter.
         class DepartmentFilterDependencyRepresenter <
           PrincipalFilterDependencyRepresenter
+          # Not the inherited "[]User". The frontend treats any type containing "User" as a user
+          # resource and prepends a "Me" option
+          # (filter-searchable-multiselect-value.component.ts#isUserResource), which can never
+          # match a department. Both types fall through to the same searchable multiselect in
+          # query-filter.component.html, so this only removes that bogus option.
+          def type
+            "[]Group"
+          end
+
           private
 
+          # Restricted to organisational units, not merely to groups: a group that is not a
+          # department can never match, since the filter resolves its values through
+          # Group.organizational_units, so offering one in the autocompleter is a dead end.
           def filter_query
-            [{ type: { operator: "=", values: ["Group"] } }]
+            [{ type: { operator: "=", values: ["Group"] } },
+             { organizationalUnit: { operator: "=",
+                                     values: [OpenProject::Database::DB_VALUE_TRUE] } }]
           end
         end
       end

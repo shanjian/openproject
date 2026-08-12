@@ -77,4 +77,33 @@ RSpec.describe "POST /api/v3/queries/form with a department custom field" do
     expect(Query.new.available_filters.map { |filter| filter.class.to_s })
       .to include("Queries::Filters::Shared::CustomFields::Department")
   end
+
+  # End-to-end check that the allowed-values link the representer emits really does exclude
+  # non-departments: a plain group can never match the filter, because it resolves its values
+  # through Group.organizational_units, so offering it in the autocompleter is a dead end.
+  describe "following the department filter's allowed values link" do
+    shared_let(:department) { create(:group, lastname: "Marketing", organizational_unit: true) }
+    shared_let(:plain_group) { create(:group, lastname: "Plain Team") }
+
+    let(:filter) do
+      Queries::WorkPackages::Filter::CustomFieldFilter
+        .from_custom_field!(custom_field: department_cf, context: Query.new)
+    end
+    let(:href) do
+      API::V3::Queries::Schemas::DepartmentFilterDependencyRepresenter
+        .new(filter, Queries::Operators::Equals, form_embedded: true)
+        .send(:href_callback)
+    end
+
+    it "offers departments and not other groups" do
+      get href
+
+      expect(last_response).to have_http_status(200)
+
+      names = JSON.parse(last_response.body).dig("_embedded", "elements").pluck("name")
+
+      expect(names).to include(department.name)
+      expect(names).not_to include(plain_group.name)
+    end
+  end
 end
