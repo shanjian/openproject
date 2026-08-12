@@ -270,6 +270,21 @@ a.main-menu--parent-node:not(.Button)
         .main-menu--children-menu-header
           display: none
 
+// The saved views partial above is `height: 100%`, so it consumes the entire scroll container
+// and any sibling rendered after it -- the "Import from Markdown" entry -- is pushed exactly
+// out of view at every window size, reachable only by scrolling the submenu. Lay the work
+// packages children out as a column instead, so the partial takes the *remaining* space and
+// trailing entries stay visible. Scoped to that one node by data-name, because it is the only
+// children list that mixes a height-filling partial with a following static item.
+.main-menu ul.menu_root.closed > li.open[data-name="work_packages"] > ul.main-menu--children
+  display: flex
+  flex-direction: column
+
+  > li.partial
+    flex: 1 1 auto
+    min-height: 0
+    height: auto
+
 .hidden-navigation
   .main-menu
     width: var(--main-menu-folded-width)
