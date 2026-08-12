@@ -1,7 +1,16 @@
 <%# app/views/work_packages/imports/new.html.erb %>
 <h2><%= t("work_packages.import.new.title") %></h2>
 
-<%= form_tag preview_project_work_packages_imports_path(@project), method: :post do %>
+<%# Turbo is disabled on both forms below deliberately. This import UI is built out of plain
+    full-page renders -- no turbo streams, no frames. Turbo submits forms with a turbo-stream
+    Accept header, so Rails negotiates format=turbo_stream and hands back a full HTML document
+    that Turbo cannot apply as a stream. For #preview (which renders without redirecting) the
+    submission never settles: the form stays aria-busy, the submit button stays disabled and no
+    preview appears. For #create (which does redirect) Turbo fetches the show page as a stream
+    too, so it renders nothing and never updates the URL. Native submissions give both actions
+    the plain full-page behaviour they are written for. Turbo itself stays loaded on the page, so
+    the turbo_method: :delete undo link on the show page still works. %>
+<%= form_tag preview_project_work_packages_imports_path(@project), method: :post, data: { turbo: false } do %>
   <%= text_area_tag :source, @source, rows: 20, style: "width: 100%" %>
   <%= submit_tag t("work_packages.import.new.preview_button") %>
 <% end %>
@@ -17,7 +26,7 @@
 <% if @rows.present? %>
   <%= render WorkPackages::Import::PreviewComponent.new(rows: @rows) %>
 
-  <%= form_tag project_work_packages_imports_path(@project), method: :post do %>
+  <%= form_tag project_work_packages_imports_path(@project), method: :post, data: { turbo: false } do %>
     <%= hidden_field_tag :source, @source %>
     <%= submit_tag t("work_packages.import.new.confirm_button"), disabled: WorkPackages::Import::PreviewComponent.new(rows: @rows).any_errors? %>
   <% end %>

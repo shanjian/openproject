@@ -76,14 +76,17 @@ class WorkPackages::BulkController < ApplicationController
 
       respond_to do |format|
         format.html do
-          redirect_to (project_work_packages_path(@work_packages.first.project))
+          # 303 rather than the default 302: this action answers DELETE, and Turbo re-issues the
+          # original method when following a 302. That turns the redirect below into
+          # DELETE /projects/:id/work_packages, which has no route. See RFC 9110 s15.4.4.
+          redirect_to(project_work_packages_path(@work_packages.first.project), status: :see_other)
         end
         format.json do
           head :ok
         end
       end
     else
-      redirect_to(action: :reassign, ids: @work_packages.map(&:id))
+      redirect_to(action: :reassign, ids: @work_packages.map(&:id), status: :see_other)
     end
   end
 
