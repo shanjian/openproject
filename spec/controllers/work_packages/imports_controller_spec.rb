@@ -60,6 +60,38 @@ RSpec.describe WorkPackages::ImportsController do
         expect(response).to have_http_status(:forbidden)
       end
     end
+
+    # :import_work_packages lives in the :work_package_import project module, which is opt-in per
+    # project. allowed_in_project? filters permissions by the project's enabled modules before the
+    # admin short-circuit, so the module -- not just the role -- guards the endpoint.
+    context "when the work_package_import module is disabled for the project" do
+      shared_let(:module_less_project) { create(:project, disable_modules: %i[work_package_import]) }
+
+      context "with a user holding import_work_packages" do
+        let(:user) do
+          create(:user, member_with_permissions: {
+                   module_less_project => %i[view_work_packages add_work_packages
+                                             manage_subtasks assign_versions import_work_packages]
+                 })
+        end
+
+        it "is forbidden" do
+          get :new, params: { project_id: module_less_project.id }
+
+          expect(response).to have_http_status(:forbidden)
+        end
+      end
+
+      context "with an admin" do
+        let(:user) { create(:admin) }
+
+        it "is forbidden" do
+          get :new, params: { project_id: module_less_project.id }
+
+          expect(response).to have_http_status(:forbidden)
+        end
+      end
+    end
   end
 
   describe "POST #preview" do

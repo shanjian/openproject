@@ -212,7 +212,9 @@ end
 # confirmed nothing in app/, lib/, modules/, or config/ ever linked to it. The project sidebar
 # (rendered server-side by `render_main_menu` in app/views/layouts/base.html.erb, independent of
 # the Angular-driven work packages table) is where every other project-scoped feature surfaces
-# its own entry point, so that's where this one belongs too.
+# its own entry point, so that's where this one belongs too. It hangs off the :work_packages
+# entry rather than sitting at the top level, because importing is a periodic action and does not
+# warrant a permanent sidebar slot of its own.
 RSpec.describe "Import work packages sidebar entry", type: :request do
   let(:project) { create(:project) }
 
@@ -229,6 +231,28 @@ RSpec.describe "Import work packages sidebar entry", type: :request do
 
       expect(last_response.body).to include(new_project_work_packages_import_path(project))
     end
+
+    # It hangs off :work_packages, so it must land in that node's children list rather than at the
+    # top level of the sidebar. Renders via the same `<ul class="main-menu--children">` path as every
+    # other parent's children (Redmine::MenuManager::MenuHelper#render_visible_children_list).
+    # Asserted on data-name rather than href, because menu links render absolute URLs here.
+    it "nests the link under the work packages menu node, above the saved views" do
+      get project_work_packages_path(project), {}, "HTTP_ACCEPT" => "text/html"
+
+      children = Capybara.string(last_response.body)
+        .find("li[data-name='work_packages'] > ul.main-menu--children")
+
+      expect(children).to have_css("li[data-name='work_packages_import']")
+      expect(children).to have_link(I18n.t("work_packages.import.menu_title"))
+
+      # :work_packages_import is pushed `first: true` and the saved views partial `last: true`.
+      expect(children.all("li", visible: :all).pluck("data-name"))
+        .to eq(%w[work_packages_import work_packages_query_select])
+    end
+
+    it "uses a caption short enough for the sidebar" do
+      expect(I18n.t("work_packages.import.menu_title").length).to be <= 25
+    end
   end
 
   context "without the import_work_packages permission" do
@@ -239,5 +263,64 @@ RSpec.describe "Import work packages sidebar entry", type: :request do
 
       expect(last_response.body).not_to include(new_project_work_packages_import_path(project))
     end
+  end
+
+  # The importer is only wanted in a handful of projects, so it is gated on the opt-in
+  # :work_package_import project module. Admins hold every permission, which is exactly the case
+  # that used to leak the entry into every project's sidebar.
+  context "when the work_package_import module is disabled for the project" do
+    let(:project) { create(:project, disable_modules: %i[work_package_import]) }
+
+    context "with an admin" do
+      let(:user) { create(:admin) }
+
+      it "does not show the link" do
+        get project_work_packages_path(project), {}, "HTTP_ACCEPT" => "text/html"
+
+        expect(last_response.body).not_to include(new_project_work_packages_import_path(project))
+      end
+    end
+
+    context "with a user holding import_work_packages" do
+      let(:user) do
+        create(:user, member_with_permissions: { project => %i[view_work_packages add_work_packages
+                                                               manage_subtasks assign_versions import_work_packages] })
+      end
+
+      it "does not show the link" do
+        get project_work_packages_path(project), {}, "HTTP_ACCEPT" => "text/html"
+
+        expect(last_response.body).not_to include(new_project_work_packages_import_path(project))
+      end
+    end
+  end
+
+  context "with an admin" do
+    let(:user) { create(:admin) }
+
+    it "offers the module in the project settings form" do
+      get project_settings_modules_path(project), {}, "HTTP_ACCEPT" => "text/html"
+
+      expect(last_response.body).to include("work_package_import")
+    end
+  end
+end
+
+RSpec.describe "work_package_import project module registration" do
+  # Enabling the importer without work package tracking makes no sense, so the module declares a
+  # dependency that Projects::EnabledModulesContract enforces.
+  it "depends on the work_package_tracking module" do
+    expect(OpenProject::AccessControl.modules.find { it[:name] == :work_package_import }[:dependencies])
+      .to eq([:work_package_tracking])
+  end
+
+  it "owns the import_work_packages permission" do
+    expect(OpenProject::AccessControl.permission(:import_work_packages).project_module)
+      .to eq(:work_package_import)
+  end
+
+  # Existing projects must not silently gain the importer, so it stays out of the default set.
+  it "is not enabled by default for new projects" do
+    expect(Setting.default_projects_modules).not_to include("work_package_import")
   end
 end
