@@ -158,10 +158,20 @@ module WorkPackages
       def format_value(value)
         case value
         when User then "#{value.name} (#{value.mail})"
-        when Group then value.ancestry_path
+        when Group then department_path(value)
         when ActiveRecord::Base then value.respond_to?(:name) ? value.name : value.to_s
         else value.to_s
         end
+      end
+
+      # Reuses the path build_department_lookup already computed for every department in one
+      # pass (see its comment on why it avoids Group#ancestry_path in the first place) instead of
+      # calling #ancestry_path again here -- every resolved department match in a document would
+      # otherwise re-trigger the exact per-row query cost that lookup exists to avoid. `value` is
+      # always one of the Group records build_department_lookup itself loaded (resolve_department
+      # only ever returns those), so the fallback below is defensive, not a normal path.
+      def department_path(value)
+        @department_lookup[:path_by_id][value.id] || value.ancestry_path
       end
 
       def resolve_date(raw)
@@ -273,6 +283,7 @@ module WorkPackages
       def build_department_lookup
         departments = Group.organizational_units.in_tree_order
         by_path = {}
+        path_by_id = {}
         path_by_depth = []
 
         # Build each department's "Root / Child / Leaf" path from the already
@@ -280,14 +291,21 @@ module WorkPackages
         # (which issues its own recursive query per group). in_tree_order sets
         # hierarchy_depth as it walks, so a stack indexed by depth is enough to
         # reconstruct every ancestor without touching the database again.
+        #
+        # path_by_id is kept alongside by_path/by_leaf_name so format_value can look up a
+        # resolved department's display path the same way, without calling #ancestry_path a
+        # second time per formatted match (see format_value/department_path).
         departments.each do |department|
           path_by_depth[department.hierarchy_depth] = department.name
-          by_path[path_by_depth[0..department.hierarchy_depth].join(" / ")] = department
+          path = path_by_depth[0..department.hierarchy_depth].join(" / ")
+          by_path[path] = department
+          path_by_id[department.id] = path
         end
 
         {
           by_leaf_name: departments.group_by(&:name),
-          by_path:
+          by_path:,
+          path_by_id:
         }
       end
 

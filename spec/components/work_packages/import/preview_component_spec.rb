@@ -44,6 +44,46 @@ RSpec.describe WorkPackages::Import::PreviewComponent, type: :component do
     expect(page).to have_text("Do the thing")
   end
 
+  describe "#subject_computed?" do
+    # Types::ApplyPatterns#apply_patterns (create_service.rb) overwrites `subject` from the
+    # type's pattern strictly after save -- the typed heading is exactly as unreliable as
+    # start_date/due_date are for a row with children, and for the same reason.
+    let(:autosubject_type) do
+      create(:type, name: "Autosubject", patterns: { subject: { blueprint: "\#{{id}}", enabled: true } })
+    end
+
+    it "is true when the row's type has an enabled subject pattern" do
+      row = WorkPackages::Import::Resolver::ResolvedRow.new(
+        node:, work_package: build(:work_package, type: autosubject_type), attribute_matches: [], errors: []
+      )
+      expect(described_class.new(rows: [row]).subject_computed?(row)).to be true
+    end
+
+    it "is false when the row's type has no subject pattern" do
+      row = WorkPackages::Import::Resolver::ResolvedRow.new(
+        node:, work_package: build(:work_package), attribute_matches: [], errors: []
+      )
+      expect(described_class.new(rows: [row]).subject_computed?(row)).to be false
+    end
+
+    it "is false for a row with no resolved work_package" do
+      row = WorkPackages::Import::Resolver::ResolvedRow.new(node:, work_package: nil, attribute_matches: [], errors: [])
+      expect(described_class.new(rows: [row]).subject_computed?(row)).to be false
+    end
+
+    it "shows 'computed on creation' in the header instead of the typed subject" do
+      row = WorkPackages::Import::Resolver::ResolvedRow.new(
+        node:, work_package: build(:work_package, type: autosubject_type), attribute_matches: [], errors: []
+      )
+      render_inline(described_class.new(rows: [row]))
+
+      row_li = page.find("li.work-package-import-preview--row")
+      expect(row_li).to have_no_text("Do the thing")
+      expect(row_li).to have_text("Task:")
+      expect(row_li).to have_text(I18n.t("work_packages.import.preview.computed_on_creation"))
+    end
+  end
+
   it "renders an attribute match" do
     match = { label: "Accountable", formatted: "Jane Doe (jane.doe@example.com)" }
     row = WorkPackages::Import::Resolver::ResolvedRow.new(node:, work_package: build(:work_package),

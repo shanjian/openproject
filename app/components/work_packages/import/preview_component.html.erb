@@ -30,7 +30,12 @@ See COPYRIGHT and LICENSE files for more details.
 <ul class="work-package-import-preview">
   <% rows.each_with_index do |row, index| %>
     <li class="work-package-import-preview--row" style="margin-left: <%= row.node.level * 1.5 %>em">
-      <strong><%= row.node.type_name %>:</strong> <%= row.node.subject %>
+      <strong><%= row.node.type_name %>:</strong>
+      <% if subject_computed?(row) %>
+        <em><%= t("work_packages.import.preview.computed_on_creation") %></em>
+      <% else %>
+        <%= row.node.subject %>
+      <% end %>
 
       <ul>
         <% attribute_matches_for(row, index).each do |match| %>

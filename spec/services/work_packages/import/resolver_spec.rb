@@ -193,6 +193,25 @@ RSpec.describe WorkPackages::Import::Resolver do
     end
   end
 
+  describe "#format_value for a department already in the lookup" do
+    let!(:marketing) { create(:group, lastname: "Marketing", organizational_unit: true) }
+    let!(:retention) { create(:group, lastname: "Retention", parent: marketing, organizational_unit: true) }
+
+    before { resolver.instance_variable_set(:@department_lookup, resolver.send(:build_department_lookup)) }
+
+    it "formats the path without calling Group#ancestry_path again" do
+      # build_department_lookup already computes every department's path once, from the
+      # already-loaded, depth-first tree, specifically to avoid Group#ancestry_path's own
+      # query-per-call cost (see its comment). format_value must reuse that, not re-derive the
+      # path by calling #ancestry_path on the resolved Group -- otherwise every formatted
+      # department match in a document re-triggers the exact query cost the lookup exists to
+      # avoid, on top of whatever build_department_lookup already paid once.
+      allow(retention).to receive(:ancestry_path).and_raise("should not be called")
+
+      expect(resolver.send(:format_value, retention)).to eq("Marketing / Retention")
+    end
+  end
+
   describe "#build_department_lookup query count" do
     before do
       marketing = create(:group, lastname: "Marketing", organizational_unit: true)

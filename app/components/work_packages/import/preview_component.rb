@@ -51,7 +51,6 @@ module WorkPackages
         return [] unless row.work_package
 
         names = DERIVED_ATTRIBUTES.select { |attr| row.work_package.class.attribute_names.include?(attr) }
-        names << "subject" if row.work_package.type&.enabled_patterns&.key?(:subject)
         # A row with at least one child never keeps the dates resolved into its `work_package`:
         # WorkPackages::Import::CreateJob creates rows top-down, and each child's creation runs
         # `multi_update_ancestors`/`reschedule_related` (see WorkPackage's scheduling callbacks),
@@ -69,6 +68,19 @@ module WorkPackages
         return row.attribute_matches unless has_children?(index)
 
         row.attribute_matches.reject { |match| DATE_LABELS.include?(match[:label]) }
+      end
+
+      # `Types::ApplyPatterns#apply_patterns` (create_service.rb) overwrites `subject` from the
+      # type's pattern strictly AFTER save -- the typed heading shown as this row's header is
+      # exactly as unreliable here as start_date/due_date are for a row with children, and for the
+      # same reason: it's a real, resolved value, but not the one that will actually persist. The
+      # header renders this instead of `row.node.subject` when true, rather than showing both (the
+      # typed heading is what `subject_computed?` replaces here, not a duplicate of the generic
+      # "computed on creation" sub-list, which handles the derived/date fields separately).
+      def subject_computed?(row)
+        return false unless row.work_package
+
+        row.work_package.type&.enabled_patterns&.key?(:subject) || false
       end
 
       private
