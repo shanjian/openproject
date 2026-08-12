@@ -329,14 +329,6 @@ Rails.application.reloader.to_prepare do
                      dependencies: :view_work_packages,
                      contract_actions: { work_packages: %i[create] }
 
-      wpt.permission :import_work_packages,
-                     {
-                       "work_packages/imports": %i[new preview create show]
-                     },
-                     permissible_on: :project,
-                     dependencies: %i[view_work_packages add_work_packages
-                                      manage_subtasks assign_versions]
-
       wpt.permission :edit_work_packages,
                      {
                        "work_packages/bulk": %i[edit update]
@@ -523,6 +515,22 @@ Rails.application.reloader.to_prepare do
                      require: :member,
                      contract_actions: { work_packages: %i[assigned] },
                      grant_to_admin: false
+    end
+
+    # Importing work packages from a Markdown outline is only wanted in a few projects, so it
+    # gets its own module rather than riding along with :work_package_tracking. Because
+    # allowed_in_project? filters permissions by the project's enabled modules before the
+    # admin short-circuit, this module alone gates both the menu entry and the controller.
+    map.project_module :work_package_import,
+                       dependencies: :work_package_tracking,
+                       order: 95 do |wpi|
+      wpi.permission :import_work_packages,
+                     {
+                       "work_packages/imports": %i[new preview create show]
+                     },
+                     permissible_on: :project,
+                     dependencies: %i[view_work_packages add_work_packages
+                                      manage_subtasks assign_versions]
     end
 
     map.project_module :news do |news|

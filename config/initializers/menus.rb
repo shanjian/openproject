@@ -716,14 +716,16 @@ Redmine::MenuManager.map :project_menu do |menu|
             last: true,
             caption: :label_all_open_wps
 
+  # Rendered above the saved-views list, which is pushed with `last: true`.
+  # No module_enabled? check is needed: :import_work_packages lives in the
+  # :work_package_import module, and allowed_in_project? already filters permissions by the
+  # project's enabled modules.
   menu.push :work_packages_import,
             { controller: "/work_packages/imports", action: "new" },
-            after: :work_packages,
-            caption: :"work_packages.import.new.title",
-            if: ->(project) {
-              project.module_enabled?("work_package_tracking") &&
-                User.current.allowed_in_project?(:import_work_packages, project)
-            }
+            parent: :work_packages,
+            first: true,
+            caption: :"work_packages.import.menu_title",
+            if: ->(project) { User.current.allowed_in_project?(:import_work_packages, project) }
 
   menu.push :news,
             { controller: "/news", action: "index" },
