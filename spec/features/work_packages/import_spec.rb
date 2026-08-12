@@ -236,7 +236,7 @@ RSpec.describe "Import work packages sidebar entry", type: :request do
     # top level of the sidebar. Renders via the same `<ul class="main-menu--children">` path as every
     # other parent's children (Redmine::MenuManager::MenuHelper#render_visible_children_list).
     # Asserted on data-name rather than href, because menu links render absolute URLs here.
-    it "nests the link under the work packages menu node, above the saved views" do
+    it "nests the link under the work packages menu node, below the saved views" do
       get project_work_packages_path(project), {}, "HTTP_ACCEPT" => "text/html"
 
       children = Capybara.string(last_response.body)
@@ -245,9 +245,10 @@ RSpec.describe "Import work packages sidebar entry", type: :request do
       expect(children).to have_css("li[data-name='work_packages_import']")
       expect(children).to have_link(I18n.t("work_packages.import.menu_title"))
 
-      # :work_packages_import is pushed `first: true` and the saved views partial `last: true`.
+      # Both siblings are pushed `last: true`, which appends in registration order, and
+      # :work_packages_import is registered after the saved views partial -- so it sorts last.
       expect(children.all("li", visible: :all).pluck("data-name"))
-        .to eq(%w[work_packages_import work_packages_query_select])
+        .to eq(%w[work_packages_query_select work_packages_import])
     end
 
     it "uses a caption short enough for the sidebar" do
