@@ -42,6 +42,8 @@ RSpec.describe API::V3::Queries::Schemas::DepartmentFilterDependencyRepresenter 
                                                                         context: query
   end
   let(:form_embedded) { false }
+  # Default for the examples outside the operator-specific contexts below.
+  let(:operator) { Queries::Operators::Equals }
 
   let(:instance) { described_class.new(filter, operator, form_embedded:) }
 
@@ -57,14 +59,25 @@ RSpec.describe API::V3::Queries::Schemas::DepartmentFilterDependencyRepresenter 
       .to be(described_class)
   end
 
+  # The frontend prepends a "Me" option to anything whose values type contains "User"
+  # (filter-searchable-multiselect-value.component.ts#isUserResource). "Me" is never a department,
+  # so this must not inherit the "[]User" of PrincipalFilterDependencyRepresenter.
+  it "declares a group values type so the frontend offers no 'Me' option" do
+    values_type = JSON.parse(generated).dig("values", "type")
+
+    expect(values_type).to eq("[]Group")
+    expect(values_type).not_to include("User")
+  end
+
   describe "values" do
     let(:path) { "values" }
-    let(:type) { "[]User" }
-    # Every Group, deliberately not narrowed to members of the filter's project: a department is an
-    # organisational unit rather than a project member, so a member filter would answer an empty
-    # list and leave the filter unusable.
+    let(:type) { "[]Group" }
+    # Organisational units only, and deliberately not narrowed to members of the filter's project:
+    # a department is an organisational unit rather than a project member, so a member filter would
+    # answer an empty list and leave the filter unusable.
     let(:filter_query) do
-      [{ type: { operator: "=", values: ["Group"] } }]
+      [{ type: { operator: "=", values: ["Group"] } },
+       { organizationalUnit: { operator: "=", values: [OpenProject::Database::DB_VALUE_TRUE] } }]
     end
     let(:href) do
       "#{api_v3_paths.principals}?filters=#{CGI.escape(JSON.dump(filter_query))}&pageSize=-1"

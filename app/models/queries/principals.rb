@@ -41,6 +41,7 @@ module Queries::Principals
     filter Filters::AnyNameAttributeFilter
     filter Filters::TypeaheadFilter
     filter Filters::IdFilter
+    filter Filters::OrganizationalUnitFilter
 
     order Orders::NameOrder
   end
