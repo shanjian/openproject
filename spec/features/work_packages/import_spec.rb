@@ -95,7 +95,11 @@ RSpec.describe "Markdown work package import", :js do # rubocop:disable RSpec/Mu
     # imports_controller.rb), so the page rendered by that redirect reflects the run's pre-job
     # status. Reload once the job (run synchronously above by perform_enqueued_jobs) has updated
     # the run's status in the database.
-    visit page.current_path
+    #
+    # Turbo performs that redirect asynchronously, so wait for the show URL before reloading --
+    # reading page.current_path straight away can still return the preview URL and reload that.
+    expect(page).to have_current_path(%r{/work_packages/imports/\d+\z})
+    page.refresh
     expect(page).to have_text("Status: succeeded")
     expect(WorkPackage.where(project:).count).to eq(4)
 
@@ -113,6 +117,12 @@ RSpec.describe "Markdown work package import", :js do # rubocop:disable RSpec/Mu
     accept_confirm do
       click_link I18n.t("work_packages.import.show.undo")
     end
+
+    # The undo link issues a Turbo DELETE to work_packages_bulk_path, which redirects to the work
+    # packages index on success (WorkPackages::BulkController#destroy). The assertions below query
+    # the database directly and so do not wait on Capybara, meaning they can outrun that request.
+    # Waiting for the browser to leave the import page synchronises on the DELETE having completed.
+    expect(page).to have_no_current_path(%r{/work_packages/imports/\d+\z}, wait: 10)
 
     expect(WorkPackage.where(id: created_ids)).not_to exist
     expect(WorkPackage.where(project:).count).to eq(0)
