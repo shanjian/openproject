@@ -72,6 +72,34 @@ RSpec.describe "Import work packages menu entry visibility", :js do
       .to be(true), "import entry overflows the submenu by #{geometry['overflowPx']}px"
   end
 
+  # Being visible is not enough: if the partial is allowed to grow it fills the leftover space and
+  # strands the entry at the very bottom of the sidebar, hundreds of pixels below the last saved
+  # view. It belongs immediately after that view, so assert the gap rather than mere visibility.
+  it "sits directly after the last saved view, not at the bottom of the sidebar" do
+    visit project_work_packages_path(project)
+
+    expect(page).to have_css("#work_packages_sidemenu .op-submenu", wait: 20)
+    expect(page).to have_css("li[data-name='work_packages_import']")
+
+    gap = page.evaluate_script(<<~JS)
+      (() => {
+        const ul = document.querySelector("li[data-name='work_packages'] > ul.main-menu--children");
+        const item = ul.querySelector("li[data-name='work_packages_import']");
+        const views = ul.querySelectorAll('.op-submenu--item');
+        const last = views[views.length - 1];
+        return {
+          views: views.length,
+          gapPx: Math.round(item.getBoundingClientRect().top - last.getBoundingClientRect().bottom)
+        };
+      })()
+    JS
+
+    # Guard against measuring an empty list, which would make the gap meaningless.
+    expect(gap["views"]).to be > 0
+    expect(gap["gapPx"]).to be_between(-1, 24),
+                            "import entry sits #{gap['gapPx']}px below the last saved view"
+  end
+
   # The bug is geometric, and a short window is the worst case: the saved views need more room
   # than they have, which is exactly when a `height: 100%` sibling would squeeze the entry out.
   it "stays inside the visible area in a short window" do
