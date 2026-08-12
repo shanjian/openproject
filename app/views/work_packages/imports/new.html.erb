@@ -1,0 +1,24 @@
+<%# app/views/work_packages/imports/new.html.erb %>
+<h2><%= t("work_packages.import.new.title") %></h2>
+
+<%= form_tag preview_project_work_packages_imports_path(@project), method: :post do %>
+  <%= text_area_tag :source, @source, rows: 20, style: "width: 100%" %>
+  <%= submit_tag t("work_packages.import.new.preview_button") %>
+<% end %>
+
+<% if @parse_errors.present? %>
+  <ul class="work-package-import-errors">
+    <% @parse_errors.each do |error| %>
+      <li><%= t("work_packages.import.preview.error_on_line", line: error[:source_line], message: error[:message]) %></li>
+    <% end %>
+  </ul>
+<% end %>
+
+<% if @rows.present? %>
+  <%= render WorkPackages::Import::PreviewComponent.new(rows: @rows) %>
+
+  <%= form_tag project_work_packages_imports_path(@project), method: :post do %>
+    <%= hidden_field_tag :source, @source %>
+    <%= submit_tag t("work_packages.import.new.confirm_button"), disabled: WorkPackages::Import::PreviewComponent.new(rows: @rows).any_errors? %>
+  <% end %>
+<% end %>

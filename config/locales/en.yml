@@ -1124,6 +1124,20 @@ en:
       no_results_title_text: There are currently no workflows.
 
   work_packages:
+    import:
+      new:
+        title: "Import work packages from Markdown"
+        preview_button: "Preview"
+        confirm_button: "Create work packages"
+      preview:
+        computed_on_creation: "computed on creation"
+        error_on_line: "Line %{line}: %{message}"
+      show:
+        title: "Import result"
+        status: "Status: %{status}"
+        undo: "Undo this import"
+        undo_confirm: "This will delete every work package this import created. Continue?"
+
     datepicker_modal:
       banner:
         description:
@@ -1674,6 +1688,11 @@ en:
         type: "Type"
         version: "Version"
         watcher: "Watcher"
+      work_packages/import_run:
+        source: "Source"
+        status: "Status"
+        created_work_package_ids: "Created work packages"
+        failure: "Failure"
 
     errors:
       messages:
