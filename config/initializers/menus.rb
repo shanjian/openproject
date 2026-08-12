@@ -716,14 +716,18 @@ Redmine::MenuManager.map :project_menu do |menu|
             last: true,
             caption: :label_all_open_wps
 
-  # Rendered above the saved-views list, which is pushed with `last: true`.
+  # Rendered below the saved-views list. `last: true` maps to TreeNode#add_last, which appends in
+  # registration order, and this is pushed after :work_packages_query_select -- so being the second
+  # `last: true` sibling puts it at the bottom of the submenu, out of the way of the views a user
+  # picks from every day.
+  #
   # No module_enabled? check is needed: :import_work_packages lives in the
   # :work_package_import module, and allowed_in_project? already filters permissions by the
   # project's enabled modules.
   menu.push :work_packages_import,
             { controller: "/work_packages/imports", action: "new" },
             parent: :work_packages,
-            first: true,
+            last: true,
             caption: :"work_packages.import.menu_title",
             if: ->(project) { User.current.allowed_in_project?(:import_work_packages, project) }
 
