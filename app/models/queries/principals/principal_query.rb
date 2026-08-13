@@ -37,6 +37,17 @@ class Queries::Principals::PrincipalQuery
   end
 
   def default_scope
-    Principal.visible(User.current).not_builtin
+    scope = Principal.visible(User.current)
+
+    # Department custom fields intentionally expose every organisational unit as an assignable
+    # value regardless of the viewer's permissions (CustomField#possible_department_values has no
+    # visibility check), so widen past the ordinary Principal visibility restriction when a query
+    # specifically asks for organisational units -- otherwise a user without view_all_principals
+    # or manage_members would never see departments outside their own visible projects/groups.
+    if (filter = find_active_filter(:organizational_unit)) && filter.wants_organizational_units?
+      scope = scope.or(Principal.where(id: Group.organizational_units.select(:id)))
+    end
+
+    scope.not_builtin
   end
 end
