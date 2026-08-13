@@ -2711,6 +2711,7 @@ en:
       gantt_pdf_export: Gantt PDF Export
       ldap_groups: LDAP users and group sync
       mcp_server: MCP Server
+      meeting_templates: Meeting Templates
       nextcloud_sso: Single Sign-On for Nextcloud Storage
       one_drive_sharepoint_file_storage: OneDrive/SharePoint File Storage
       placeholder_users: Placeholder Users
@@ -2753,6 +2754,8 @@ en:
         professional_support: "Professional support"
         professional_support_text: "Get reliable, high-touch support from senior support engineers with expert knowledge about running OpenProject in business-critical environments."
 
+      meeting_templates:
+        description: "Save meetings as reusable templates and share them across projects to set up recurring formats faster."
       work_package_subject_generation:
         description: "Create automatically generated subjects using referenced attributes and text."
       customize_life_cycle:
