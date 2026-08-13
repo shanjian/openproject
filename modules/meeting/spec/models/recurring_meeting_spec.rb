@@ -460,6 +460,29 @@ RSpec.describe RecurringMeeting,
       end
     end
 
+    describe "schedule humanization" do
+      it "includes the interval for monthly last-day rules" do
+        series = build_series(frequency: "monthly", interval: 2,
+                              schedule_mode: "day_of_month", month_day: -1)
+
+        expect(series.base_schedule).to eq "Every 2 months on the last day"
+      end
+
+      it "includes the interval for yearly nth-weekday rules" do
+        series = build_series(frequency: "yearly", interval: 2,
+                              schedule_mode: "nth_weekday", week_ordinal: 1)
+
+        expect(series.base_schedule).to eq "Every 2 years on the first Friday of September"
+      end
+
+      it "words yearly last-day rules instead of rendering day -1" do
+        series = build_series(frequency: "yearly",
+                              schedule_mode: "day_of_month", month_day: -1)
+
+        expect(series.base_schedule).to eq "Every year on the last day of September"
+      end
+    end
+
     describe "#matching_preset" do
       it "maps each preset round-trip" do
         aggregate_failures do

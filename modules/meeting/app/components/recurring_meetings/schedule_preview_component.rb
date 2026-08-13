@@ -41,7 +41,9 @@ module RecurringMeetings
     end
 
     def summary
-      @meeting.human_frequency_schedule
+      # Unlike human_frequency_schedule, this includes "ends on {date}" for
+      # date- and iteration-bounded series.
+      @meeting.full_schedule_in_words
     end
 
     def occurrences

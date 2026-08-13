@@ -474,7 +474,8 @@ class RecurringMeeting < ApplicationRecord
       I18n.t("recurring_meeting.in_words.#{key}",
              interval:, ordinal: human_ordinal, weekday: weekday_name(start_time.to_date.cwday))
     elsif effective_month_day == -1
-      I18n.t("recurring_meeting.in_words.monthly_last_day")
+      key = interval == 1 ? "monthly_last_day" : "monthly_last_day_interval"
+      I18n.t("recurring_meeting.in_words.#{key}", interval:)
     else
       key = interval == 1 ? "monthly_day" : "monthly_day_interval"
       I18n.t("recurring_meeting.in_words.#{key}", interval:, day: effective_month_day)
@@ -485,15 +486,15 @@ class RecurringMeeting < ApplicationRecord
     month = I18n.t("date.month_names")[start_time.month]
 
     if schedule_mode_nth_weekday?
-      I18n.t("recurring_meeting.in_words.yearly_nth_weekday",
-             ordinal: human_ordinal, weekday: weekday_name(start_time.to_date.cwday), month:)
+      key = interval == 1 ? "yearly_nth_weekday" : "yearly_nth_weekday_interval"
+      I18n.t("recurring_meeting.in_words.#{key}",
+             interval:, ordinal: human_ordinal, weekday: weekday_name(start_time.to_date.cwday), month:)
+    elsif effective_month_day == -1
+      key = interval == 1 ? "yearly_last_day" : "yearly_last_day_interval"
+      I18n.t("recurring_meeting.in_words.#{key}", interval:, month:)
     else
-      date = "#{month} #{effective_month_day}"
-      if interval == 1
-        I18n.t("recurring_meeting.in_words.yearly", date:)
-      else
-        I18n.t("recurring_meeting.in_words.yearly_interval", interval:, date:)
-      end
+      key = interval == 1 ? "yearly" : "yearly_interval"
+      I18n.t("recurring_meeting.in_words.#{key}", interval:, date: "#{month} #{effective_month_day}")
     end
   end
 
