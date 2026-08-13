@@ -125,31 +125,55 @@ module OpenProject::GitlabIntegration
         end
       end
 
+      # The `-MMDD-HHmm` suffix GitActionsService#timestampSuffix appends to
+      # follow-up branches. Both of these have to stay in step with that method:
+      # the length is what the frontend deducts from the type's budget before
+      # truncating it, and the pattern is how a suffixed branch is recognised
+      # here.
+      TIMESTAMP_SUFFIX_LENGTH = "-MMDD-HHmm".length
+      TIMESTAMP_SUFFIX_PATTERN = /-\d{4}-\d{4}\z/
+
       # The frontend reserves space for its timestamp suffix before truncating
       # the type. Accept both the default (no suffix) and timestamp budgets so
       # convention matching remains consistent for generated branches whose
       # subject happens to end in a timestamp-shaped string.
       def branch_convention_prefixes(branch_name, work_package)
-        suffix_lengths = branch_name.match?(/-\d{4}-\d{4}\z/) ? [0, 10] : [0]
+        suffix_lengths = branch_name.match?(TIMESTAMP_SUFFIX_PATTERN) ? [0, TIMESTAMP_SUFFIX_LENGTH] : [0]
 
-        suffix_lengths.map do |suffix_length|
-          branch_convention_prefix(work_package, suffix_length)
-        end.uniq
+        prefixes = suffix_lengths.map { |suffix_length| branch_convention_prefix(work_package, suffix_length) }
+        prefixes.push(untruncated_branch_convention_prefix(work_package)).uniq
+      end
+
+      # Branches pushed from the copied git command before the length cap landed
+      # carry the untruncated type: that path never went through the server-side
+      # validation the cap mirrors, so nothing trimmed them. Only type names long
+      # enough to be truncated are affected, and this is what matching used to key
+      # on, so keeping it as a candidate adds no new false positives.
+      def untruncated_branch_convention_prefix(work_package)
+        branch_convention_prefix_for(work_package, branch_type(work_package))
       end
 
       def branch_convention_prefix(work_package, suffix_length)
         budget = ::GitlabIntegration::CreateBranchService::MAX_LENGTH -
                  "#{work_package.id}-".length - suffix_length
+        # -1 leaves room for the slash that joins the type to the id
         type_room = [budget - 1, 0].max
-        type = truncated_branch_type(work_package, type_room)
-        type_prefix = type.present? ? "#{type}/" : ""
 
-        "#{type_prefix}#{work_package.id}-".downcase
+        branch_convention_prefix_for(work_package, truncated_branch_type(work_package, type_room))
+      end
+
+      # The type is already downcased, and the id is digits, so the assembled
+      # prefix needs no further casing.
+      def branch_convention_prefix_for(work_package, type)
+        type.present? ? "#{type}/#{work_package.id}-" : "#{work_package.id}-"
       end
 
       def truncated_branch_type(work_package, type_room)
-        sanitize_branch_segment(work_package.type&.name).downcase[0, type_room].to_s
-          .sub(/-+\z/, "")
+        branch_type(work_package)[0, type_room].to_s.sub(/-+\z/, "")
+      end
+
+      def branch_type(work_package)
+        sanitize_branch_segment(work_package.type&.name).downcase
       end
 
       def sanitize_branch_segment(str)

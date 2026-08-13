@@ -225,7 +225,7 @@ RSpec.describe OpenProject::GitlabIntegration::NotificationHandler::PushHook do
       end
     end
 
-    context "when the type is truncated to fit the branch name limit" do
+    context "when the type name is longer than the branch name limit allows" do
       shared_let(:long_branch_type) { create(:type, name: "T" * 255) }
       shared_let(:long_branch_work_package) { create(:work_package, type: long_branch_type) }
 
@@ -246,6 +246,18 @@ RSpec.describe OpenProject::GitlabIntegration::NotificationHandler::PushHook do
             long_branch_work_package.id.to_s.length - "-".length - "/".length
         end
         let(:branch_name) { "#{'t' * type_length}/#{long_branch_work_package.id}-" }
+
+        it "persists the branch and links it to the work package" do
+          expect { process }.to change(GitlabBranch, :count).by(1)
+          expect(GitlabBranch.last.work_packages).to contain_exactly(long_branch_work_package)
+        end
+      end
+
+      # Pushed from the copied git command before the length cap landed: that path
+      # skips the server-side validation the cap mirrors, so the name was never
+      # trimmed and carries the type in full.
+      context "when the branch carries the untruncated type name" do
+        let(:branch_name) { "#{'t' * 255}/#{long_branch_work_package.id}-premium-report-0813-1200" }
 
         it "persists the branch and links it to the work package" do
           expect { process }.to change(GitlabBranch, :count).by(1)
