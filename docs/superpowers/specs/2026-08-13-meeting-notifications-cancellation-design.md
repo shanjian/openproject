@@ -1,9 +1,12 @@
 # Meeting change/cancellation notifications and one-off meeting cancellation state
 
 **Date:** 2026-08-13
-**Status:** Approved (revised 2026-08-13 after review — series batching, cancelled-meeting
-visibility, preference round-trip, global-only enforcement, delete-path gating, and
-authorization/actor contracts)
+**Status:** Approved
+**Revisions:** 2026-08-13 (review round 1 — series batching, cancelled-meeting visibility,
+preference round-trip, global-only enforcement, delete-path gating, authorization/actor
+contracts) · 2026-08-13 (review round 2 — EndService gates, draft/template exclusion from
+Cancel, contract guard on generic state writes, `cancelled_series` removed from the
+meeting-bound service, string-key snapshot + deleted-actor fallback)
 
 ## Problem
 
@@ -23,9 +26,10 @@ Three real gaps produce the reported symptom instead:
 1. **Cancellation can be silently muted.** Every cancellation mail in the codebase is
    gated on the organizer-level `notify?` flag: `MeetingNotificationService#call`
    (`modules/meeting/app/services/meeting_notification_service.rb:9-16`) gates all mail
-   types behind `meeting.notify?`, and both delete services check it inline before their
-   direct `MeetingMailer` calls (`modules/meeting/app/services/meetings/delete_service.rb:36`,
-   `modules/meeting/app/services/recurring_meetings/delete_service.rb:40`). There is no
+   types behind `meeting.notify?`, and the destructive services check it inline before
+   their direct `MeetingMailer` calls (`modules/meeting/app/services/meetings/delete_service.rb:36`,
+   `modules/meeting/app/services/recurring_meetings/delete_service.rb:40`,
+   `modules/meeting/app/services/recurring_meetings/end_service.rb:51,53`). There is no
    batching for edits, so an organizer rearranging a series gets one email per recipient
    per edit — both the one-off path and the series path
    (`RecurringMeetings::UpdateService#send_updated_mail`, which loops participants with
@@ -131,7 +135,7 @@ end
 private
 
 def bypasses_mute?(action)
-  %i[cancelled cancelled_series].include?(action)
+  action == :cancelled
 end
 
 def send_notifications!(action, actor, **)
@@ -148,8 +152,13 @@ def send_notifications!(action, actor, **)
 end
 ```
 
-- Cancellation (`cancelled`, `cancelled_series`) always sends, to every participant,
-  regardless of the org-level `notify?` flag or any individual's personal preference.
+- Cancellation always sends, to every participant, regardless of the org-level `notify?`
+  flag or any individual's personal preference. Only `:cancelled` appears in
+  `bypasses_mute?`: `cancelled_series` is **not** a valid action for this service —
+  `MeetingMailer.cancelled_series` takes a `RecurringMeeting`, while this service is bound
+  to a single `Meeting` and loops its participants. Nothing calls the service with
+  `:cancelled_series` today; series-level cancellation mail lives in the series services,
+  where the same invariant is enforced directly (§3).
 - `updated` mail is filtered per-recipient by `meeting_updated`, in addition to the
   existing org-level gate.
 - `invited`, `participant_added`, and `participant_removed` are unchanged: still gated
@@ -163,9 +172,12 @@ end
 ### 2. Batching the `updated` mail (5-minute window) — both paths
 
 Two independent synchronous send sites become delayed jobs. Both jobs carry the acting
-user explicitly (GlobalID-serialized), captured at first-edit enqueue time, and pass it
-via the `actor:` keyword from §1. Both declare `discard_on ActiveJob::DeserializationError`
-so a record deleted before the job runs is a clean no-op.
+user as a plain `actor_id` integer, captured at first-edit enqueue time, and resolve it at
+run time with `User.find_by(id: actor_id) || DeletedUser.first` — *not* as a
+GlobalID-serialized `User` argument, because both jobs declare
+`discard_on ActiveJob::DeserializationError` for their meeting/series argument, and a
+GlobalID actor would extend that discard to "actor account was deleted," dropping valid
+notifications. The resolved user feeds the `actor:` keyword from §1.
 
 The GoodJob guard uses `enqueue_limit: 1` (not `total_limit: 1`): it dedupes *queued*
 jobs, but a job already executing (delivering mail) doesn't block a fresh edit from
@@ -177,7 +189,7 @@ silently lost.
 ```ruby
 Meetings::SendUpdatedNotificationJob
   .set(wait: 5.minutes)
-  .perform_later(self, actor: User.current, old_values: updated_mail_changes)
+  .perform_later(self, actor_id: User.current.id, old_values: updated_mail_changes)
 ```
 
 concurrency-keyed on the meeting id. First edit in a burst enqueues and captures the
@@ -198,14 +210,16 @@ enqueues:
 RecurringMeetings::SendUpdatedNotificationJob
   .set(wait: 5.minutes)
   .perform_later(recurring_meeting,
-                 actor: User.current,
+                 actor_id: User.current.id,
                  old_schedule_attributes: @old_schedule_model.attributes.slice(*SCHEDULE_ATTRS),
                  old_location: @old_location)
 ```
 
-concurrency-keyed on the series id, where `SCHEDULE_ATTRS` is a constant listing the
-schedule-relevant columns (`frequency interval start_time start_date end_after end_date
-iterations time_zone title`). The job rebuilds a transient
+concurrency-keyed on the series id, where `SCHEDULE_ATTRS` is a constant of **string**
+column names (`%w[frequency interval start_time start_date end_after end_date iterations
+time_zone title]`) — `ActiveRecord#attributes` returns string keys, so a symbol list would
+`slice` to an empty snapshot and the "old schedule" in the mail would silently render from
+nothing. The job rebuilds a transient
 `RecurringMeeting.new(old_schedule_attributes)` to render `full_schedule_in_words` in each
 participant's locale (the method needs only schedule attributes; its `template&.duration`
 access is already nil-safe), then loops `series.template.participants.invited` exactly as
@@ -222,21 +236,38 @@ scenario in the requirements doc asks for. Revisit only if that proves to matter
 
 ### 3. Cancellation & restore for one-off meetings
 
-**State transitions.**
+**State transitions — owned by dedicated services, closed to generic writes.**
 
-- New "Cancel" action, offered when `editable?` is true (so never on `closed` — the doc's
-  rule that closed meetings can't be cancelled needs no extra guard). Sets
-  `state: cancelled`, stamps a new `state_before_cancellation` column on `meetings`
-  (integer, nullable — the only schema change to `meetings`; §1 adds a separate column to
+`Meetings::BaseContract` exposes `state` as a writable attribute
+(`modules/meeting/app/contracts/meetings/base_contract.rb:41`), so without a guard any
+generic `Meetings::UpdateService` call could write `state: cancelled` directly — no
+`state_before_cancellation` stamp, no mail, invariant silently broken. Therefore:
+
+- `Meetings::BaseContract` gains a validation rejecting any `state` change **to or from**
+  `cancelled`. The `change_state` controller whitelist already excludes `cancelled`; this
+  closes the API/service layer the same way. The two services below perform their writes
+  outside that validation (their own contract, or direct attribute writes within the
+  service — decided at implementation, both idiomatic here).
+- `Meetings::CancelService` — guards a new predicate
+  `Meeting#cancellable?` = `editable? && !draft? && !template?`. Drafts are excluded
+  because invitations are deliberately not sent until `exit_draft_mode`
+  (`meetings_controller.rb:378-393` is what triggers `deliver_invitation_mails`):
+  "cancelling" a never-published meeting would mail a cancellation for an event nobody was
+  invited to, and restoring it would force-send invitations to a still-draft meeting.
+  Drafts keep hard delete as their only exit, as today; templates aren't real events. The
+  `!closed?` inside `editable?` covers the doc's "closed meetings can't be cancelled"
+  rule. On success: sets `state: cancelled`, stamps `state_before_cancellation` (new
+  integer nullable column on `meetings`; §1 adds a separate column to
   `notification_settings`), fires the immediate unbatched `cancelled` mail through
-  `MeetingNotificationService` (which per §1 bypasses all muting). Agenda items, minutes,
-  and attachments untouched.
-- New "Restore" action: sets `state` back to `state_before_cancellation`, clears the
-  column, and sends the standard `invited` mail via
-  `MeetingNotificationService#call(:invited, force: true)` — the one `force:` caller (§1) —
-  so participants' calendars re-add the event the earlier `METHOD:CANCEL` removed, even on
-  muted meetings. Offered exactly when `cancelled?`. With the `editable?` change
-  below, Cancel and Restore can never both be offered; a `closed` meeting shows neither.
+  `MeetingNotificationService`. Agenda items, minutes, and attachments untouched.
+- `Meetings::RestoreService` — guards `cancelled?`. Restores `state_before_cancellation`,
+  clears the column, sends the standard `invited` mail via
+  `MeetingNotificationService#call(:invited, force: true)` — the one `force:` caller (§1)
+  — so participants' calendars re-add the event the earlier `METHOD:CANCEL` removed, even
+  on muted meetings. Because Cancel excludes drafts, a restored meeting is by construction
+  published — the forced re-invitation can never leak invitations to a draft. With the
+  `editable?` change below, Cancel and Restore can never both be offered; a `closed` or
+  `draft` meeting shows neither.
 - `Meeting#editable?` (`meeting.rb:222-224`) becomes
   `!closed? && !cancelled? && user.allowed_in_project?(:edit_meetings, project)` — making
   cancelled meetings read-only everywhere agenda editing already keys off `editable?`.
@@ -254,17 +285,31 @@ meetings: %i[... change_state cancel_dialog cancel restore ...]
 change like open/close, and it deliberately remains available to organizers who can't
 hard-delete. Hard delete stays under `delete_meetings`, unchanged.
 
-**Existing delete paths keep existing semantics, minus the mute loophole.** Hard delete
-(header menu entry, `header_component.rb:82-83`) remains available as the destructive
-option, distinct from Cancel — the doc's "cancel keeps data" rule describes Cancel, not a
-replacement of delete. But both delete services lose their `if model.notify?` gate
-(`meetings/delete_service.rb:36`, `recurring_meetings/delete_service.rb:40`): destroying
-a meeting or a whole series now *always* sends the cancellation/`cancelled_series` mail.
-Without this, the original symptom survives the whole spec — a muted meeting hard-deleted
-today still vanishes silently. These two inline sends stay where they are (they run
-mid-destroy against data that won't exist afterwards, so routing them through the service
-buys nothing); the invariant "cancellation mail is never muted" is enforced at all three
-sites and asserted by tests.
+**Existing destructive paths keep existing semantics, minus the mute loophole.** Hard
+delete (header menu entry, `header_component.rb:82-83`) remains available as the
+destructive option, distinct from Cancel — the doc's "cancel keeps data" rule describes
+Cancel, not a replacement of delete. Every path that removes meetings from participants'
+calendars loses its `notify?` gate on the courtesy mail:
+
+- `Meetings::DeleteService` (`delete_service.rb:36`) — `cancelled` mail now sent
+  `unless model.draft? || model.template?` instead of `if model.notify?`. The draft/
+  template guard exists for the same reason Cancel excludes them (§ above): a
+  never-published meeting has sent no invitations, so ungating its delete mail would
+  newly mail cancellations for events nobody knew about.
+- `RecurringMeetings::DeleteService` (`delete_service.rb:40`) — `cancelled_series` mail
+  unconditional.
+- `RecurringMeetings::EndService` (`end_service.rb:51,53`) — **both** of its gates go,
+  not just the per-occurrence one: `send_cancellation_for_future_instantiated_occurrences`
+  cancels the already-instantiated future occurrences, but it's `send_ended_mail` that
+  carries the re-issued series `.ics` truncating the recurrence rule — without it, muted
+  participants' calendars keep projecting *non-instantiated* future occurrences forever,
+  which is precisely the reported symptom.
+
+These inline sends stay where they are (they run mid-destroy against data that won't
+exist afterwards, so routing them through the meeting-bound service buys nothing); the
+invariant "removing an event from calendars always notifies" is enforced at all four
+sites — the three above plus `MeetingNotificationService#bypasses_mute?` — and asserted
+by tests.
 
 **Visibility.** Two existing behaviors actively hide the `cancelled` state and must both
 change (safe: nothing sets `state: cancelled` today, so no existing records change
@@ -307,18 +352,27 @@ behavior):
 - Service specs: cancellation bypasses both the org-level toggle and personal opt-out;
   `updated` respects both; recipient filter queries global rows only (a project-scoped
   row with `meeting_updated: false` does not suppress mail).
-- Delete service specs (both): cancellation mail sent even when `notify?` is false.
+- Destructive path specs: both delete services send cancellation mail even when `notify?`
+  is false; `EndService` with `notify?` false still sends both the per-occurrence
+  cancellations and the `ended_series` mail; deleting a draft sends no cancellation mail.
+- Contract spec: a generic `Meetings::UpdateService` write of `state: cancelled` (and a
+  write moving state *off* `cancelled`) is rejected by `BaseContract` — the non-UI bypass
+  path.
 - Job specs (both jobs, GoodJob test helpers): multiple edits in-window produce one send
   reflecting final state; enqueue during an executing job starts a new window; deleted
-  record discards cleanly; one-off job no-ops when meeting became cancelled/closed;
-  mail renders the enqueue-time actor, not the job runner.
+  meeting/series discards cleanly; a deleted *actor* does not discard — mail sends with
+  the `DeletedUser` fallback; one-off job no-ops when meeting became cancelled/closed;
+  mail renders the enqueue-time actor, not the job runner; series snapshot round-trips a
+  frequency and an end-date change (guards the string-key `SCHEDULE_ATTRS` slice — a
+  symbol list would silently produce an empty old-schedule).
 - Params contract spec: project-scoped payload with `meeting_updated: true` rejected via
   the existing `email_alerts_global` validation; `UserPreferences::UpdateService` persists
   an explicit `meeting_updated: false` (guards the upsert column list).
 - Feature specs: cancel → restore round trip (state, badge, read-only agenda, and the
-  forced re-invitation mail reaching participants of a muted meeting); cancelled meetings
-  visible in list and show page; permission mapping (user with `edit_meetings` can
-  cancel/restore, user without cannot; `delete_meetings` not required).
+  forced re-invitation mail reaching participants of a muted meeting); Cancel not offered
+  on draft or template meetings; cancelled meetings visible in list and show page;
+  permission mapping (user with `edit_meetings` can cancel/restore, user without cannot;
+  `delete_meetings` not required).
 - Frontend spec for the new email-alerts row.
 
 ## Out of scope
