@@ -135,6 +135,46 @@ RSpec.describe Meeting do
     end
   end
 
+  describe "cancelled state guard" do
+    let(:cancelled_meeting) do
+      create(:meeting, project:, title: "Original",
+                       state: "cancelled", state_before_cancellation: described_class.states["open"])
+    end
+
+    it "rejects attribute changes on a persisted cancelled meeting" do
+      cancelled_meeting.title = "Changed"
+
+      expect(cancelled_meeting).not_to be_valid
+      expect(cancelled_meeting.errors[:base]).to be_present
+    end
+
+    it "rejects state changes off cancelled without the transition flag" do
+      cancelled_meeting.state = "open"
+
+      expect(cancelled_meeting).not_to be_valid
+      expect(cancelled_meeting.errors[:state]).to be_present
+    end
+
+    it "rejects state changes to cancelled without the transition flag" do
+      meeting = create(:meeting, project:, state: "open")
+      meeting.state = "cancelled"
+
+      expect(meeting).not_to be_valid
+      expect(meeting.errors[:state]).to be_present
+    end
+
+    it "allows the transition when the dedicated services set the flag" do
+      cancelled_meeting.allow_cancelled_transition = true
+      cancelled_meeting.state = "open"
+
+      expect(cancelled_meeting).to be_valid
+    end
+
+    it "does not affect creating records (factories, seeds)" do
+      expect(build(:meeting, project:, state: "cancelled")).to be_valid
+    end
+  end
+
   describe "#send_emails?" do
     it "is true for a persisted, notifying, open meeting" do
       meeting = create(:meeting, project:, notify: true)

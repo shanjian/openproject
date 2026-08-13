@@ -122,7 +122,7 @@
           # Restore is the only exit from cancelled; the interactive status switcher
           # is deliberately not rendered here (state writes to/from cancelled are
           # rejected outside the dedicated services).
-          if edit_enabled?
+          if restore_enabled?
             section.with_footer_button(
               color: :accent,
               tag: :button,

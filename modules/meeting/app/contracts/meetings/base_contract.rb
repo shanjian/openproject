@@ -54,14 +54,14 @@ module Meetings
     private
 
     # The cancelled state is owned by Meetings::CancelService/RestoreService, which
-    # stamp state_before_cancellation and send the mandatory mails. Generic writes
-    # in either direction would silently break that invariant.
+    # stamp state_before_cancellation and send the mandatory mails. Persisted
+    # transitions are guarded by Meeting#guard_cancelled_state (which contract
+    # validation picks up via the model errors); this only rejects creating a
+    # meeting directly in the cancelled state.
     def validate_state_not_transitioning_cancelled
-      return unless model.state_changed?
+      return if model.persisted?
 
-      if model.state == "cancelled" || model.state_was == "cancelled"
-        errors.add :state, :invalid
-      end
+      errors.add :state, :invalid if model.state == "cancelled"
     end
 
     def validate_sharing_only_on_onetime_templates

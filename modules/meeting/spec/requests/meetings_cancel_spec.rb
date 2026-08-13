@@ -95,6 +95,33 @@ RSpec.describe "Meeting cancellation requests",
     end
   end
 
+  describe "hardening of the cancelled state" do
+    let(:meeting) do
+      create(:meeting, project:, author: user, notify: true, title: "Original title",
+                       state: :cancelled, state_before_cancellation: Meeting.states["open"])
+    end
+
+    it "rejects reopening through change_state (Restore is the only exit)" do
+      put change_state_project_meeting_path(project, meeting, state: "open"), as: :turbo_stream
+
+      expect(meeting.reload).to be_cancelled
+    end
+
+    it "rejects update_title" do
+      put update_title_project_meeting_path(project, meeting),
+          params: { meeting: { title: "New title" } }, as: :turbo_stream
+
+      expect(meeting.reload.title).to eq "Original title"
+    end
+
+    it "rejects update_details" do
+      put update_details_project_meeting_path(project, meeting),
+          params: { meeting: { duration: "2.5" } }, as: :turbo_stream
+
+      expect(meeting.reload.duration).to eq 1.0
+    end
+  end
+
   describe "POST /restore" do
     let(:meeting) do
       create(:meeting, project:, author: user, notify: true,

@@ -286,13 +286,11 @@ class MeetingsController < ApplicationController
   end
 
   def change_state
-    case params[:state]
-    when "open"
-      @meeting.open!
-    when "closed"
-      @meeting.closed!
-    when "in_progress"
-      @meeting.in_progress!
+    # Non-bang update: the model guard rejects transitions off "cancelled" here
+    # (Restore is the only exit), and the error renders like any validation error
+    # through the errors.any? branch below.
+    if params[:state].in?(%w[open closed in_progress])
+      @meeting.update(state: params[:state]) # rubocop:disable Rails/SaveBang
     end
 
     if @meeting.errors.any?

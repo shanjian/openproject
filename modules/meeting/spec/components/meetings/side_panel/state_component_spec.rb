@@ -28,45 +28,38 @@
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-module Meetings
-  class SidePanel::StateComponent < ApplicationComponent
-    include ApplicationHelper
-    include OpTurbo::Streamable
-    include OpPrimer::ComponentHelpers
+require "rails_helper"
 
-    def initialize(meeting:)
-      super
+RSpec.describe Meetings::SidePanel::StateComponent, type: :component do
+  shared_let(:project) { create(:project, enabled_module_names: %w[meetings]) }
+  let(:meeting) do
+    create(:meeting, project:,
+                     state: "cancelled", state_before_cancellation: Meeting.states["open"])
+  end
 
-      @meeting = meeting
-      @project = meeting.project
+  subject do
+    render_inline(described_class.new(meeting:))
+    page
+  end
+
+  before do
+    login_as(user)
+  end
+
+  context "with edit_meetings permission" do
+    let(:user) { create(:user, member_with_permissions: { project => %i[view_meetings edit_meetings] }) }
+
+    it "offers the Restore button on a cancelled meeting" do
+      expect(subject).to have_test_selector("restore-meeting-button")
     end
+  end
 
-    private
+  context "with only manage_agendas permission" do
+    let(:user) { create(:user, member_with_permissions: { project => %i[view_meetings manage_agendas] }) }
 
-    def edit_enabled?
-      User.current.allowed_in_project?(:manage_agendas, @project) ||
-        User.current.allowed_in_project?(:edit_meetings, @project)
-    end
-
-    # Unlike the other state buttons, the restore endpoint is authorized under
-    # edit_meetings only — don't offer it to users who would get a 403.
-    def restore_enabled?
-      User.current.allowed_in_project?(:edit_meetings, @project)
-    end
-
-    def status_button
-      render(Meetings::SidePanel::StatusButtonComponent.new(meeting: @meeting))
-    end
-
-    def href(state)
-      change_state_project_meeting_path(@project, @meeting, state: state)
-    end
-
-    def button_data_attributes(href)
-      {
-        action: "click->meetings--submit#intercept",
-        href: href
-      }
+    it "does not offer Restore (the endpoint requires edit_meetings)" do
+      expect(subject).to have_test_selector("meeting-cancelled-label")
+      expect(subject).not_to have_test_selector("restore-meeting-button")
     end
   end
 end

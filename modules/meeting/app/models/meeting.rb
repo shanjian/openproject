@@ -135,6 +135,15 @@ class Meeting < ApplicationRecord
   # Covers every close path (side panel, presentation mode). Reopening sends nothing.
   after_update :send_closed_mail, if: -> { saved_change_to_state? && closed? }
 
+  # Set by Meetings::CancelService/RestoreService, which own the cancelled state
+  # (they stamp state_before_cancellation and send the mandatory mails).
+  attr_accessor :allow_cancelled_transition
+
+  # Deepest guard for the cancelled state: any persisted write path (enum bangs,
+  # bare update, contract-driven services) must go through the dedicated services.
+  # New records are exempt so factories and imports can build cancelled meetings.
+  validate :guard_cancelled_state, if: -> { persisted? && changed? && !allow_cancelled_transition }
+
   enum :state, {
     open: 0, # 0 -> default, leave values for future states between open and closed
     draft: 1,
@@ -340,6 +349,14 @@ class Meeting < ApplicationRecord
     Meetings::SendUpdatedNotificationJob
       .set(wait: 5.minutes)
       .perform_later(self, actor_id: User.current.id, old_values: updated_mail_old_values)
+  end
+
+  def guard_cancelled_state
+    if state_changed? && (state == "cancelled" || state_was == "cancelled")
+      errors.add(:state, :invalid)
+    elsif cancelled?
+      errors.add(:base, :cancelled_readonly)
+    end
   end
 
   # Informational like the updated mail: gated by the organizer-level notify?
