@@ -6,7 +6,10 @@
 preference round-trip, global-only enforcement, delete-path gating, authorization/actor
 contracts) · 2026-08-13 (review round 2 — EndService gates, draft/template exclusion from
 Cancel, contract guard on generic state writes, `cancelled_series` removed from the
-meeting-bound service, string-key snapshot + deleted-actor fallback)
+meeting-bound service, string-key snapshot + deleted-actor fallback) · 2026-08-13 (review
+round 3 — recurring occurrences excluded from Cancel, participant-removal cancellation
+ungated, ended-series vs. queued-update-job race, draft-series delete guard, cancelled
+branches for the side-panel state components)
 
 ## Problem
 
@@ -228,7 +231,9 @@ today, calling `MeetingSeriesMailer.updated` with the stored actor. The org-leve
 update mail is still "update" mail, so the job also skips recipients whose global
 `meeting_updated` is false — the same global-rows-only query as §1's `opted_in_user_ids`,
 applied inline (this path doesn't go through `MeetingNotificationService`, which is bound
-to a single `Meeting`).
+to a single `Meeting`). The job opens with `return if series.has_ended?` — the second
+layer of the ended-series race guard (§3, which also has the destructive services delete
+pending jobs by concurrency key).
 
 Rejected: a dedicated pending-notification snapshot table. It would additionally support
 "reverted to the original value within the window → skip the email," which no test
@@ -249,12 +254,17 @@ generic `Meetings::UpdateService` call could write `state: cancelled` directly �
   outside that validation (their own contract, or direct attribute writes within the
   service — decided at implementation, both idiomatic here).
 - `Meetings::CancelService` — guards a new predicate
-  `Meeting#cancellable?` = `editable? && !draft? && !template?`. Drafts are excluded
-  because invitations are deliberately not sent until `exit_draft_mode`
+  `Meeting#cancellable?` = `editable? && !draft? && !template? && !recurring?`. Drafts are
+  excluded because invitations are deliberately not sent until `exit_draft_mode`
   (`meetings_controller.rb:378-393` is what triggers `deliver_invitation_mails`):
   "cancelling" a never-published meeting would mail a cancellation for an event nobody was
   invited to, and restoring it would force-send invitations to a still-draft meeting.
-  Drafts keep hard delete as their only exit, as today; templates aren't real events. The
+  Drafts keep hard delete as their only exit, as today; templates aren't real events.
+  Recurring occurrences (`recurring?`) are excluded because they already have a
+  cancellation flow — the `ScheduledMeeting#cancelled` tombstone with its own
+  restore — and letting them take this path would set `Meeting#state = cancelled`
+  instead, splitting one occurrence's cancellation across two unreconciled
+  representations. Occurrence cancellation stays exactly where it is. The
   `!closed?` inside `editable?` covers the doc's "closed meetings can't be cancelled"
   rule. On success: sets `state: cancelled`, stamps `state_before_cancellation` (new
   integer nullable column on `meetings`; §1 adds a separate column to
@@ -297,19 +307,44 @@ calendars loses its `notify?` gate on the courtesy mail:
   never-published meeting has sent no invitations, so ungating its delete mail would
   newly mail cancellations for events nobody knew about.
 - `RecurringMeetings::DeleteService` (`delete_service.rb:40`) — `cancelled_series` mail
-  unconditional.
+  sent `unless model.template.draft?` instead of `if model.notify?`. A draft series has
+  never sent invitations (`InitNextOccurrenceJob` is skipped while
+  `template.draft?`, `update_service.rb:200-201`), so the same never-published rule as
+  the one-off draft guard applies.
 - `RecurringMeetings::EndService` (`end_service.rb:51,53`) — **both** of its gates go,
   not just the per-occurrence one: `send_cancellation_for_future_instantiated_occurrences`
   cancels the already-instantiated future occurrences, but it's `send_ended_mail` that
   carries the re-issued series `.ics` truncating the recurrence rule — without it, muted
   participants' calendars keep projecting *non-instantiated* future occurrences forever,
   which is precisely the reported symptom.
+- `MeetingParticipants::DeleteService` (`delete_service.rb:35-46,82-84`) — removing a
+  participant sends *that participant* a personal `cancelled`/`cancelled_series` `.ics`
+  (their calendar-removal), currently gated behind `should_send_notification?` →
+  `send_emails?` → `notify?`. The gate splits: the removed participant's cancellation
+  mail keeps only the `Journal::NotificationConfiguration.active?` check (the system-wide
+  bulk-operation suppressor, not the mute toggle) plus the never-published guard
+  (`meeting.draft? || meeting.onetime_template?` — the latter also protects the
+  `meeting.recurring_meeting` access in `send_cancellation_notification`, which would be
+  `nil` for a onetime template and is only reachable today because `send_emails?` filters
+  those out first). The `participant_removed` mail to the *remaining* participants stays
+  gated by `send_emails?` as today — informational, consistent with §1.
+
+**Race with the queued update jobs.** `EndService` and `RecurringMeetings::DeleteService`
+run while a §2 series-update job may still be queued; without a guard, an edit followed
+minutes later by "end series" would deliver a stale "schedule changed" mail *after* the
+ended-series mail. Two-layer fix, both reusing existing idioms: the destructive services
+delete pending `RecurringMeetings::SendUpdatedNotificationJob` rows by concurrency key —
+the exact pattern `reschedule_init_job` already uses
+(`update_service.rb:194-198`) — and the job itself additionally guards
+`return if series.has_ended?` (`recurring_meeting.rb:125-127`) as a belt against jobs
+already past the queue. The one-off job's existing `cancelled?/closed?` guard is the same
+idea; `Meetings::CancelService` likewise clears that meeting's pending update job.
 
 These inline sends stay where they are (they run mid-destroy against data that won't
 exist afterwards, so routing them through the meeting-bound service buys nothing); the
-invariant "removing an event from calendars always notifies" is enforced at all four
-sites — the three above plus `MeetingNotificationService#bypasses_mute?` — and asserted
-by tests.
+invariant "removing an event from calendars always notifies (once published)" is enforced
+at all five sites — the four above plus `MeetingNotificationService#bypasses_mute?` — and
+asserted by tests.
 
 **Visibility.** Two existing behaviors actively hide the `cancelled` state and must both
 change (safe: nothing sets `state: cancelled` today, so no existing records change
@@ -327,6 +362,15 @@ behavior):
 - Cancelled badge + strikethrough title on the meeting list rows and show page, mirroring
   what `RecurringMeetings::RowComponent` renders for cancelled occurrences
   (`row_component.rb:77-85`). Restore button alongside, same visibility rule.
+- The side-panel state components need explicit `cancelled` branches — both currently
+  enumerate only draft/open/in_progress/closed, so a cancelled meeting would render an
+  empty state section: `Meetings::SidePanel::StateComponent`
+  (`state_component.html.erb:6-109`) gains a `when "cancelled"` branch (grey label,
+  description text, footer Restore button), and the interactive status switcher
+  (`Meetings::SidePanel::StatusButtonComponent`, `status_button_component.rb:68-77`) is
+  not rendered for cancelled meetings at all — Restore is the only exit from `cancelled`,
+  so offering open/in_progress/closed transitions there would fight the contract guard
+  from §3.
 - The personal opt-out checkbox goes in the **email alerts** section of the reminder
   settings page — that's where the `email_settings` bucket actually renders
   (`frontend/src/app/features/user-preferences/reminder-settings/email-alerts/email-alerts-settings.component.ts`,
@@ -354,7 +398,11 @@ behavior):
   row with `meeting_updated: false` does not suppress mail).
 - Destructive path specs: both delete services send cancellation mail even when `notify?`
   is false; `EndService` with `notify?` false still sends both the per-occurrence
-  cancellations and the `ended_series` mail; deleting a draft sends no cancellation mail.
+  cancellations and the `ended_series` mail; deleting a draft one-off sends no
+  cancellation mail; deleting a draft *series* sends no `cancelled_series` mail; removing
+  a participant from a muted meeting still sends that participant the cancellation `.ics`
+  (while the remaining-participants mail stays suppressed); ending a series with a queued
+  update job pending delivers no stale update mail afterwards.
 - Contract spec: a generic `Meetings::UpdateService` write of `state: cancelled` (and a
   write moving state *off* `cancelled`) is rejected by `BaseContract` — the non-UI bypass
   path.
@@ -368,11 +416,12 @@ behavior):
 - Params contract spec: project-scoped payload with `meeting_updated: true` rejected via
   the existing `email_alerts_global` validation; `UserPreferences::UpdateService` persists
   an explicit `meeting_updated: false` (guards the upsert column list).
-- Feature specs: cancel → restore round trip (state, badge, read-only agenda, and the
-  forced re-invitation mail reaching participants of a muted meeting); Cancel not offered
-  on draft or template meetings; cancelled meetings visible in list and show page;
-  permission mapping (user with `edit_meetings` can cancel/restore, user without cannot;
-  `delete_meetings` not required).
+- Feature specs: cancel → restore round trip (state, badge, read-only agenda, side-panel
+  cancelled branch with Restore and no status switcher, and the forced re-invitation mail
+  reaching participants of a muted meeting); Cancel not offered on draft, template, or
+  recurring-occurrence meetings (occurrences keep the ScheduledMeeting flow); cancelled
+  meetings visible in list and show page; permission mapping (user with `edit_meetings`
+  can cancel/restore, user without cannot; `delete_meetings` not required).
 - Frontend spec for the new email-alerts row.
 
 ## Out of scope
