@@ -106,6 +106,39 @@
             end
           end
         end
+
+      when "cancelled"
+        flex_layout(classes: "op-meeting-sidebar-state") do |cancelled_state|
+          cancelled_state.with_row do
+            render(Primer::Beta::Label.new(scheme: :severe, test_selector: "meeting-cancelled-label")) do
+              t("label_meeting_state_cancelled")
+            end
+          end
+
+          cancelled_state.with_row(mt: 3, classes: "hidden-for-mobile") do
+            render(Primer::Beta::Text.new(color: :subtle)) { t("text_meeting_cancelled_description") }
+          end
+
+          # Restore is the only exit from cancelled; the interactive status switcher
+          # is deliberately not rendered here (state writes to/from cancelled are
+          # rejected outside the dedicated services).
+          if edit_enabled?
+            section.with_footer_button(
+              color: :accent,
+              tag: :button,
+              classes: "hide-when-print",
+              test_selector: "restore-meeting-button",
+              data: {
+                action: "click->meetings--submit#intercept",
+                href: restore_project_meeting_path(@project, @meeting),
+                method: "POST"
+              }
+            ) do |button|
+              button.with_leading_visual_icon(icon: :history)
+              t("label_meeting_restore_action")
+            end
+          end
+        end
       end
     end
   end

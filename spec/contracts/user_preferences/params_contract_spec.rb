@@ -92,6 +92,36 @@ RSpec.describe UserPreferences::ParamsContract do
       it_behaves_like "contract is valid"
     end
 
+    context "when project settings enable the meeting email alert" do
+      let(:notification_settings) do
+        [
+          { project_id: 1234, meeting_updated: true }
+        ]
+      end
+
+      it_behaves_like "contract is invalid", notification_settings: :email_alerts_global
+    end
+
+    context "when project settings carry the meeting email alert disabled" do
+      let(:notification_settings) do
+        [
+          { project_id: 1234, meeting_updated: false }
+        ]
+      end
+
+      it_behaves_like "contract is valid"
+    end
+
+    context "when global settings disable the meeting email alert" do
+      let(:notification_settings) do
+        [
+          { project_id: nil, meeting_updated: false }
+        ]
+      end
+
+      it_behaves_like "contract is valid"
+    end
+
     context "without enterprise" do
       context "when global setting with start_date, due_date and overdue set" do
         let(:notification_settings) do

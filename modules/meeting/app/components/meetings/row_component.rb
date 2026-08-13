@@ -43,14 +43,27 @@ module Meetings
       elsif recurring_meeting.present?
         occurrence_title
       else
-        render(Primer::Beta::Link.new(href: project_meeting_path(project, model), font_weight: :bold)) { model.title }
+        one_time_title
       end
+    end
+
+    def one_time_title
+      link = render(Primer::Beta::Link.new(href: project_meeting_path(project, model), font_weight: :bold)) { model.title }
+      return link unless model.cancelled?
+
+      safe_join(
+        [link,
+         render(Primer::Beta::Label.new(scheme: :severe, ml: 1, test_selector: "meeting-cancelled-label")) do
+           t("label_meeting_state_cancelled")
+         end],
+        "  "
+      )
     end
 
     def occurrence_title
       safe_join(
-        [(render(Primer::Beta::Link.new(href: project_meeting_path(project, model), font_weight: :bold)) { model.title }),
-         (render(Primer::Beta::Link.new(href: project_recurring_meeting_path(project, recurring_meeting))) { recurring_label })],
+        [render(Primer::Beta::Link.new(href: project_meeting_path(project, model), font_weight: :bold)) { model.title },
+         render(Primer::Beta::Link.new(href: project_recurring_meeting_path(project, recurring_meeting))) { recurring_label }],
         "  "
       )
     end

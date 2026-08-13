@@ -29,39 +29,43 @@
 #++
 
 module Meetings
-  class DeleteService < ::BaseServices::Delete
-    protected
+  # Reverts a cancellation (see CancelService). The re-invitation is forced past the
+  # mute toggle: participants' calendars dropped the event on the earlier
+  # METHOD:CANCEL, so the fresh invite must reach them the same way the cancellation
+  # did. Cancel excludes drafts, so a restored meeting is by construction published.
+  class RestoreService < ::BaseServices::BaseCallable
+    attr_reader :meeting, :current_user
 
-    def after_validate(call)
-      # A queued batched update mail must not arrive after the cancellation mail
-      SendUpdatedNotificationJob.delete_jobs(model)
+    def initialize(meeting, current_user:)
+      super()
 
-      # Removing an event from participants' calendars always notifies — the mute
-      # toggle does not apply. Drafts and templates have never sent invitations,
-      # so there is nothing to cancel for them.
-      send_cancellation_mail(model) unless model.draft? || model.template?
-      cancel_scheduled_meeting(model)
-
-      call
+      @meeting = meeting
+      @current_user = current_user
     end
 
-    def send_cancellation_mail(meeting)
-      meeting.participants.where(invited: true).find_each do |participant|
-        MeetingMailer
-          .cancelled(meeting, participant.user, User.current)
-          .deliver_now
-      rescue StandardError => e
-        Rails.logger.error do
-          "Failed to deliver meeting cancellation for meeting #{meeting.id} to #{participant.user.mail}: #{e.message}"
-        end
+    def call # rubocop:disable Metrics/AbcSize
+      return ServiceResult.failure(result: meeting) unless allowed?
+      return ServiceResult.failure(result: meeting) unless meeting.cancelled?
+
+      meeting.state = restored_state
+      meeting.state_before_cancellation = nil
+
+      if meeting.save
+        MeetingNotificationService.new(meeting).call(:invited, actor: current_user, force: true)
+        ServiceResult.success(result: meeting)
+      else
+        ServiceResult.failure(result: meeting, errors: meeting.errors)
       end
     end
 
-    def cancel_scheduled_meeting(meeting)
-      schedule = meeting.scheduled_meeting
-      return if schedule.nil?
+    private
 
-      schedule.update_column(:cancelled, true)
+    def restored_state
+      Meeting.states.key(meeting.state_before_cancellation) || "open"
+    end
+
+    def allowed?
+      current_user.allowed_in_project?(:edit_meetings, meeting.project)
     end
   end
 end

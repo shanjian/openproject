@@ -12,7 +12,7 @@ import {
 
 export type EmailAlertType =
   'newsAdded'|'newsCommented'|'documentAdded'|'forumMessages'|'wikiPageAdded'|
-  'wikiPageUpdated'|'membershipAdded'|'membershipUpdated';
+  'wikiPageUpdated'|'membershipAdded'|'membershipUpdated'|'meetingUpdated';
 
 export const emailAlerts:EmailAlertType[] = [
   'newsAdded',
@@ -23,6 +23,7 @@ export const emailAlerts:EmailAlertType[] = [
   'wikiPageUpdated',
   'membershipAdded',
   'membershipUpdated',
+  'meetingUpdated',
 ];
 
 @Component({
@@ -47,6 +48,7 @@ export class EmailAlertsSettingsComponent implements OnInit {
     wikiPageUpdated: this.I18n.t('js.reminders.settings.alerts.wiki_page_updated'),
     membershipAdded: this.I18n.t('js.reminders.settings.alerts.membership_added'),
     membershipUpdated: this.I18n.t('js.reminders.settings.alerts.membership_updated'),
+    meetingUpdated: this.I18n.t('js.reminders.settings.alerts.meeting_updated'),
   };
 
   constructor(

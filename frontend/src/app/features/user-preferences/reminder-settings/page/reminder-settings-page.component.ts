@@ -69,6 +69,8 @@ export class ReminderSettingsPageComponent extends UntilDestroyedMixin implement
       wikiPageUpdated: this.fb.control(false),
       membershipAdded: this.fb.control(false),
       membershipUpdated: this.fb.control(false),
+      // Meeting update mails are opt-out (default on)
+      meetingUpdated: this.fb.control(true),
     }),
   });
 

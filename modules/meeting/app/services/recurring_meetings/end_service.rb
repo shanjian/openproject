@@ -48,9 +48,16 @@ module RecurringMeetings
         .call(end_after: "specific_date", end_date: Time.zone.yesterday)
 
       result.on_success do
-        send_cancellation_for_future_instantiated_occurrences if recurring_meeting.notify?
+        # A queued batched update mail must not arrive after the ended-series mail
+        SendUpdatedNotificationJob.delete_jobs(recurring_meeting)
+
+        # Both mails go out regardless of the mute toggle: the per-occurrence
+        # cancellations remove instantiated meetings from calendars, and the ended
+        # mail carries the re-issued series .ics truncating the recurrence rule —
+        # without it, calendars keep projecting non-instantiated future occurrences.
+        send_cancellation_for_future_instantiated_occurrences
         remove_scheduled_meetings
-        send_ended_mail if recurring_meeting.notify?
+        send_ended_mail
       end
 
       result

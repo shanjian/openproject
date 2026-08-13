@@ -72,11 +72,8 @@ class MeetingsController < ApplicationController
       format.pdf { export_pdf }
       format.html do
         html_title "#{t(:label_meeting)}: #{@meeting.title}"
-        if @meeting.state == "cancelled"
-          render_404
-        else
-          render(Meetings::ShowComponent.new(meeting: @meeting, state: show_edit_state), layout: true)
-        end
+        # Cancelled meetings stay visible (read-only, with a Restore action)
+        render(Meetings::ShowComponent.new(meeting: @meeting, state: show_edit_state), layout: true)
       end
     end
   end
@@ -192,6 +189,22 @@ class MeetingsController < ApplicationController
       meeting: @meeting,
       back_url: params[:back_url]
     )
+  end
+
+  def cancel_dialog
+    respond_with_dialog Meetings::CancelDialogComponent.new(meeting: @meeting)
+  end
+
+  def cancel
+    call = ::Meetings::CancelService.new(@meeting, current_user:).call
+
+    respond_to_state_service_call(call)
+  end
+
+  def restore
+    call = ::Meetings::RestoreService.new(@meeting, current_user:).call
+
+    respond_to_state_service_call(call)
   end
 
   def update
@@ -315,7 +328,7 @@ class MeetingsController < ApplicationController
       .call
       .on_failure { |call| render_500(message: call.message) }
       .on_success do |call|
-        send_data call.result, filename: filename_for_content_disposition("#{@meeting.title}.ics")
+      send_data call.result, filename: filename_for_content_disposition("#{@meeting.title}.ics")
     end
   end
 
@@ -394,6 +407,16 @@ class MeetingsController < ApplicationController
 
   private
 
+  def respond_to_state_service_call(call)
+    # rubocop:disable Rails/ActionControllerFlashBeforeRender
+    call
+      .on_success { flash[:notice] = I18n.t(:notice_successful_update) }
+      .on_failure { flash[:error] = call.errors.try(:full_messages)&.to_sentence.presence || I18n.t(:notice_bad_request) }
+    # rubocop:enable Rails/ActionControllerFlashBeforeRender
+
+    redirect_to project_meeting_path(@project, @meeting), status: :see_other
+  end
+
   def check_for_enterprise_token
     return unless @copy_from&.onetime_template? && !EnterpriseToken.allows_to?(:meeting_templates)
 
@@ -417,11 +440,11 @@ class MeetingsController < ApplicationController
       .participants
       .invited
       .find_each do |participant|
-        MeetingMailer.invited(
-          @meeting,
-          participant.user,
-          User.current
-        ).deliver_later
+      MeetingMailer.invited(
+        @meeting,
+        participant.user,
+        User.current
+      ).deliver_later
     end
   end
 
@@ -667,11 +690,11 @@ class MeetingsController < ApplicationController
       .participants
       .invited
       .find_each do |participant|
-        MeetingSeriesMailer.invited(
-          recurring_meeting,
-          participant.user,
-          User.current
-        ).deliver_later
+      MeetingSeriesMailer.invited(
+        recurring_meeting,
+        participant.user,
+        User.current
+      ).deliver_later
     end
 
     render_success_flash_message_via_turbo_stream(message: I18n.t(:notice_successful_notification))

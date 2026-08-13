@@ -108,6 +108,110 @@ RSpec.describe Meeting do
     end
   end
 
+  describe "#editable?" do
+    let(:user) { create(:user, member_with_permissions: { project => %i[view_meetings edit_meetings] }) }
+
+    it "is false for cancelled meetings" do
+      meeting = create(:meeting, project:, state: "cancelled")
+
+      expect(meeting.editable?(user)).to be false
+    end
+  end
+
+  describe "#cancellable?" do
+    it "is true for open and in_progress one-off meetings" do
+      expect(create(:meeting, project:, state: "open")).to be_cancellable
+      expect(create(:meeting, project:, state: "in_progress")).to be_cancellable
+    end
+
+    it "is false for closed, draft, cancelled, template, and recurring meetings" do
+      series = create(:recurring_meeting, project:)
+
+      expect(create(:meeting, project:, state: "closed")).not_to be_cancellable
+      expect(create(:meeting, project:, state: "draft")).not_to be_cancellable
+      expect(create(:meeting, project:, state: "cancelled")).not_to be_cancellable
+      expect(create(:onetime_template, project:)).not_to be_cancellable
+      expect(create(:meeting, project:, recurring_meeting: series)).not_to be_cancellable
+    end
+  end
+
+  describe "#send_emails?" do
+    it "is true for a persisted, notifying, open meeting" do
+      meeting = create(:meeting, project:, notify: true)
+
+      expect(meeting.send_emails?).to be true
+    end
+
+    it "is false for closed meetings" do
+      meeting = create(:meeting, project:, notify: true, state: "closed")
+
+      expect(meeting.send_emails?).to be false
+    end
+  end
+
+  describe "close notification" do
+    let(:participant_user) { create(:user, member_with_permissions: { project => %i[view_meetings] }) }
+    let(:notify) { true }
+    let(:meeting) { create(:meeting, project:, notify:, state: "in_progress") }
+
+    before do
+      create(:meeting_participant, meeting:, user: participant_user, invited: true)
+      ActionMailer::Base.deliveries.clear
+    end
+
+    it "mails the participants when the meeting is closed" do
+      meeting.closed!
+      perform_enqueued_jobs
+
+      expect(ActionMailer::Base.deliveries.flat_map(&:to)).to contain_exactly(participant_user.mail)
+      expect(ActionMailer::Base.deliveries.first.subject).to include("Closed")
+    end
+
+    it "sends nothing when reopening" do
+      meeting.update_column(:state, described_class.states[:closed])
+
+      meeting.open!
+      perform_enqueued_jobs
+
+      expect(ActionMailer::Base.deliveries).to be_empty
+    end
+
+    context "when the meeting is muted" do
+      let(:notify) { false }
+
+      it "sends nothing" do
+        meeting.closed!
+        perform_enqueued_jobs
+
+        expect(ActionMailer::Base.deliveries).to be_empty
+      end
+    end
+
+    it "skips recipients who globally opted out of meeting updates" do
+      participant_user.notification_settings.where(project: nil).update_all(meeting_updated: false)
+
+      meeting.closed!
+      perform_enqueued_jobs
+
+      expect(ActionMailer::Base.deliveries).to be_empty
+    end
+  end
+
+  describe "update mail batching" do
+    it "enqueues the delayed job carrying the pre-edit baseline" do
+      meeting = create(:meeting, project:, notify: true, title: "Old title")
+
+      # rubocop:disable Style/MultilineBlockChain
+      expect do
+        meeting.update(title: "New title")
+      end.to have_enqueued_job(Meetings::SendUpdatedNotificationJob).with do |_meeting, actor_id:, old_values:|
+        expect(actor_id).to eq User.current.id
+        expect(old_values[:old_title]).to eq "Old title"
+      end
+      # rubocop:enable Style/MultilineBlockChain
+    end
+  end
+
   describe "participants and author as watchers" do
     let(:project_members) { { user1 => role, user2 => role } }
 

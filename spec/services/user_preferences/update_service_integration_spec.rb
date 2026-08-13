@@ -98,6 +98,24 @@ RSpec.describe UserPreferences::UpdateService, "integration", type: :model do
       end
     end
 
+    context "with an update disabling meeting update mails" do
+      let(:attributes) do
+        {
+          notification_settings: [
+            { project_id: nil, meeting_updated: false }
+          ]
+        }
+      end
+
+      it "persists the opt-out on the existing global setting" do
+        expect(current_user.notification_settings.first.meeting_updated).to be true
+
+        expect(subject.count).to eq 1
+        expect(subject.first.project_id).to be_nil
+        expect(subject.first.meeting_updated).to be false
+      end
+    end
+
     context "with a full replacement" do
       let(:project) { create(:project) }
       let(:attributes) do
@@ -122,7 +140,9 @@ RSpec.describe UserPreferences::UpdateService, "integration", type: :model do
           NotificationSetting::ASSIGNEE => true,
           NotificationSetting::RESPONSIBLE => true,
           NotificationSetting::WATCHED => true,
-          NotificationSetting::SHARED => true
+          NotificationSetting::SHARED => true,
+          # Opt-out semantics: meeting update mails stay on unless disabled explicitly
+          NotificationSetting::MEETING_UPDATED => true
         }
 
         NotificationSetting.all_settings.each do |key|

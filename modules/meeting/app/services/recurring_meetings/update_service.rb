@@ -152,8 +152,8 @@ module RecurringMeetings
         .where(recurring_meeting:)
         .cancelled
         .find_each do |scheduled|
-          occurring = recurring_meeting.schedule.occurs_at?(scheduled.start_time)
-          scheduled.delete unless occurring
+        occurring = recurring_meeting.schedule.occurs_at?(scheduled.start_time)
+        scheduled.delete unless occurring
       end
     end
 
@@ -170,25 +170,14 @@ module RecurringMeetings
     end
 
     def send_updated_mail(recurring_meeting)
-      return unless recurring_meeting.notify?
-
-      recurring_meeting
-        .template
-        .participants
-        .invited
-        .find_each do |participant|
-          # Generate old schedule in each participant's locale
-          old_schedule = User.execute_as(participant.user) do
-            @old_schedule_model.full_schedule_in_words
-          end
-
-          MeetingSeriesMailer.updated(
-            recurring_meeting,
-            participant.user,
-            User.current,
-            changes: { old_schedule:, old_location: @old_location }
-          ).deliver_now
-      end
+      # The notify? gate moves into the job (checked at send time, not enqueue time).
+      SendUpdatedNotificationJob
+        .set(wait: 5.minutes)
+        .perform_later(recurring_meeting,
+                       actor_id: user.id,
+                       old_schedule_attributes: @old_schedule_model.attributes
+                                                                   .slice(*SendUpdatedNotificationJob::SCHEDULE_ATTRS),
+                       old_location: @old_location)
     end
 
     def reschedule_init_job(recurring_meeting)

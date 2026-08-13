@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 #-- copyright
 # OpenProject is an open source project management software.
 # Copyright (C) the OpenProject GmbH
@@ -42,9 +43,11 @@ module Queries::Meetings
     end
 
     def default_scope
+      # Cancelled meetings stay listed (with a badge) so participants see the
+      # cancellation; recurring occurrences are unaffected, since cancelling those
+      # deletes the Meeting row outright.
       Meeting
         .not_templated
-        .not_cancelled
         .visible(user)
         .unscope(:order) # remove default scope order
     end

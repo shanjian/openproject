@@ -742,6 +742,7 @@ en:
           wiki_page_updated: "Wiki page updated"
           membership_added: "Membership added"
           membership_updated: "Membership updated"
+          meeting_updated: "Meeting updated or closed"
         title: "Email reminders"
         pause:
           label: "Temporarily pause daily email reminders"
