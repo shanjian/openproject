@@ -191,6 +191,47 @@ RSpec.describe GitlabIntegration::CreateBranchService do
       end
     end
 
+    # Type#name allows up to 255 characters, which overruns the whole limit on its
+    # own, so trimming the subject alone is not enough to stay within it.
+    context "when the work package type name alone is longer than the limit" do
+      shared_let(:long_type) { create(:type, name: "T" * 255) }
+      shared_let(:long_type_work_package) do
+        create(:work_package, project:, type: long_type, subject: "Premium Report #{'and a long tail ' * 20}")
+      end
+
+      subject(:result) do
+        described_class.new(user:, work_package: long_type_work_package, mapping:, branch_name: nil).call
+      end
+
+      it "trims the type as well, keeping the name within the limit" do
+        allow(api_client).to receive(:create_branch).and_return(response(status: 201, body: {}))
+
+        expect(result).to be_success
+
+        branch = result.result[:branch]
+        expect(branch.length).to be <= described_class::MAX_LENGTH
+        expect(branch).to match(described_class::BRANCH_NAME_PATTERN)
+        expect(branch).to match(%r{(?:\A|/)#{long_type_work_package.id}-})
+        expect(branch).to start_with("t" * 100)
+      end
+    end
+
+    context "when the subject sanitizes to nothing" do
+      shared_let(:blank_subject_work_package) { create(:work_package, project:, type:, subject: "###") }
+
+      subject(:result) do
+        described_class.new(user:, work_package: blank_subject_work_package, mapping:, branch_name: nil).call
+      end
+
+      it "keeps the id separator so the branch still matches the work package" do
+        allow(api_client).to receive(:create_branch).and_return(response(status: 201, body: {}))
+
+        expect(result).to be_success
+        expect(result.result[:branch]).to eq("feature/#{blank_subject_work_package.id}-")
+        expect(result.result[:branch]).to match(%r{(?:\A|/)#{blank_subject_work_package.id}-})
+      end
+    end
+
     context "when the client-supplied branch name does not reference this work package's id" do
       let(:client_branch_name) { "feature/#{work_package.id + 1}-someone-elses-wp" }
 

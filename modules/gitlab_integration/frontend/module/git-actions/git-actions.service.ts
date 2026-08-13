@@ -78,26 +78,43 @@ export class GitActionsService {
     return `${month}${day}-${hours}${minutes}`;
   }
 
-  // Only the title slug is shortened when the name would exceed
-  // MAX_BRANCH_NAME_LENGTH: the `<type>/<id>-` prefix is what
-  // NotificationHandler::Helper#branch_follows_convention? matches branches back
-  // to work packages with, and the suffix is what keeps follow-up branches for
-  // the same work package distinct, so both keep their full length.
-  public branchName(workPackage:WorkPackageResource, suffix?:string):string {
-    const { type, id, title } = this.formattingInput(workPackage);
-    const prefix = `${this.sanitizeBranchString(type)}/${id}-`.toLocaleLowerCase();
-    const tail = suffix ? `-${suffix}` : '';
-    const slug = this.sanitizeBranchString(title).toLocaleLowerCase();
-    const room = GitActionsService.MAX_BRANCH_NAME_LENGTH - prefix.length - tail.length;
-
-    if (slug.length <= room) {
-      return `${prefix}${slug}${tail}`;
+  // Cuts a slug down to `room` characters, dropping it entirely when there is no
+  // room, and never leaving the dangling dash a mid-word cut would produce.
+  private trimSegment(slug:string, room:number):string {
+    if (room <= 0) {
+      return '';
     }
 
-    // Trailing dashes would otherwise be left behind by cutting mid-word, and an
-    // empty slug would leave the prefix's dash doubled up against the suffix.
-    const trimmed = slug.slice(0, Math.max(room, 0)).replace(/-+$/, '');
-    return trimmed ? `${prefix}${trimmed}${tail}` : `${prefix.replace(/-$/, '')}${tail}`;
+    return (slug.length <= room ? slug : slug.slice(0, room)).replace(/-+$/, '');
+  }
+
+  // The whole name is held to MAX_BRANCH_NAME_LENGTH, giving up the least
+  // load-bearing part first. `<id>-` is what
+  // NotificationHandler::Helper#branch_follows_convention? matches branches back
+  // to work packages with, and the suffix is what keeps follow-up branches for
+  // the same work package distinct, so those two are never shortened. The title
+  // is trimmed first and the type only if that alone is not enough — a type name
+  // may be up to 255 characters (Type validates length maximum: 255), which on
+  // its own overruns the whole budget.
+  public branchName(workPackage:WorkPackageResource, suffix?:string):string {
+    const { type, id, title } = this.formattingInput(workPackage);
+    const tail = suffix ? `-${suffix}` : '';
+    const budget = GitActionsService.MAX_BRANCH_NAME_LENGTH - `${id}-`.length - tail.length;
+
+    // -1 leaves room for the slash that joins the type to the id
+    const typeSlug = this.trimSegment(this.sanitizeBranchString(type).toLocaleLowerCase(), budget - 1);
+    const prefix = typeSlug ? `${typeSlug}/${id}-` : `${id}-`;
+    const titleSlug = this.trimSegment(this.sanitizeBranchString(title).toLocaleLowerCase(),
+      budget - (typeSlug ? typeSlug.length + 1 : 0));
+
+    if (titleSlug) {
+      return `${prefix}${titleSlug}${tail}`;
+    }
+
+    // With no title the prefix's trailing dash would double up against the
+    // suffix's leading one, so the suffix supplies the separator. With no suffix
+    // either, that dash has to stay: the server matches on `<id>-`.
+    return tail ? `${prefix}${tail.slice(1)}` : prefix;
   }
 
   public commitMessage(workPackage:WorkPackageResource):string {

@@ -130,10 +130,51 @@ describe('GitActionsService', function() {
       expect(service.branchName(wp, '0813-1200')).not.toMatch(/--0813-1200$/);
     });
 
-    it('does not double up the prefix dash when no room is left for the title', () => {
-      const wp = createWorkPackage({ id: '76954', subject: longSubject, type: { name: 'a'.repeat(200) } });
+    // A type name may be up to 255 characters, which overruns the whole budget on
+    // its own, so trimming the title alone is not enough to stay within it.
+    it('trims the type too when the type name alone overruns the limit', () => {
+      const wp = createWorkPackage({ id: '76954', subject: longSubject, type: { name: 'T'.repeat(255) } });
+      const name = service.branchName(wp, '0813-1200');
 
-      expect(service.branchName(wp, '0813-1200')).toEqual(`${'a'.repeat(200)}/76954-0813-1200`);
+      expect(name.length).toBeLessThanOrEqual(GitActionsService.MAX_BRANCH_NAME_LENGTH);
+      expect(name).toMatch(/^t+\/76954-/);
+      expect(name.endsWith('-0813-1200')).toBe(true);
+    });
+
+    it('keeps the whole name within the limit for every type name length', () => {
+      for (let typeLength = 1; typeLength <= 255; typeLength += 1) {
+        const wp = createWorkPackage({ id: '76954', subject: longSubject, type: { name: 'T'.repeat(typeLength) } });
+        const name = service.branchName(wp, '0813-1200');
+
+        expect(name.length).toBeLessThanOrEqual(GitActionsService.MAX_BRANCH_NAME_LENGTH);
+        // The server rejects any name that does not carry `<id>-` as a segment start
+        expect(name).toMatch(/(^|\/)76954-/);
+        expect(name).toMatch(/^[a-z0-9][a-z0-9\-/]*$/);
+        expect(name.endsWith('-0813-1200')).toBe(true);
+      }
+    });
+
+    it('does not double up the prefix dash when no room is left for the title', () => {
+      const wp = createWorkPackage({ id: '76954', subject: longSubject, type: { name: 'a'.repeat(188) } });
+      const name = service.branchName(wp, '0813-1200');
+
+      expect(name).toEqual(`${'a'.repeat(183)}/76954-0813-1200`);
+      expect(name.length).toBeLessThanOrEqual(GitActionsService.MAX_BRANCH_NAME_LENGTH);
+    });
+  });
+
+  describe('with a subject that sanitizes to nothing', () => {
+    it('keeps the id separator so the server still matches the work package', () => {
+      const wp = createWorkPackage({ subject: '###' });
+
+      expect(service.branchName(wp)).toEqual('story/76954-');
+      expect(service.branchName(wp)).toMatch(/(^|\/)76954-/);
+    });
+
+    it('lets the suffix supply the separator when one is given', () => {
+      const wp = createWorkPackage({ subject: '###' });
+
+      expect(service.branchName(wp, '0813-1200')).toEqual('story/76954-0813-1200');
     });
   });
 

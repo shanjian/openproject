@@ -74,13 +74,32 @@ module GitlabIntegration
 
     private
 
-    # Trims the title the same way GitActionsService#branchName does, so a long
-    # subject yields a usable name rather than a ref GitLab rejects.
+    # Holds the whole name to MAX_LENGTH the same way GitActionsService#branchName
+    # does, so a long subject or type name yields a usable name rather than a ref
+    # GitLab rejects. `<id>-` is never shortened, the title gives way first, and
+    # the type only if that alone is not enough (it may be up to 255 characters).
     def default_branch_name
-      prefix = "#{sanitize(@work_package.type&.name)}/#{@work_package.id}-".downcase
-      slug = sanitize(@work_package.subject).downcase[0, [MAX_LENGTH - prefix.length, 0].max].to_s.sub(/-+\z/, "")
+      budget = MAX_LENGTH - "#{@work_package.id}-".length
+      # -1 leaves room for the slash that joins the type to the id
+      type = trim_segment(sanitize(@work_package.type&.name).downcase, budget - 1)
 
-      slug.present? ? "#{prefix}#{slug}" : prefix.delete_suffix("-")
+      "#{type_prefix(type)}#{@work_package.id}-#{default_title_slug(budget, type)}"
+    end
+
+    def type_prefix(type)
+      type.present? ? "#{type}/" : ""
+    end
+
+    def default_title_slug(budget, type)
+      trim_segment(sanitize(@work_package.subject).downcase, budget - type_prefix(type).length)
+    end
+
+    # Cuts a slug down to +room+ characters, dropping it entirely when there is no
+    # room, and never leaving the dangling dash a mid-word cut would produce.
+    def trim_segment(slug, room)
+      return "" if room <= 0
+
+      slug[0, room].to_s.sub(/-+\z/, "")
     end
 
     # Guards against arbitrary/malicious ref names being created via this
