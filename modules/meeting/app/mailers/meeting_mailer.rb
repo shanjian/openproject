@@ -61,6 +61,20 @@ class MeetingMailer < UserMailer
     end
   end
 
+  # Informational mail when a meeting is closed. No .ics attachment: the meeting
+  # took place as scheduled; this only tells participants the minutes are final.
+  def closed(meeting, user, actor)
+    @actor = actor
+    @user = user
+    @meeting = meeting
+
+    open_project_headers "Project" => @meeting.project.identifier,
+                         "Meeting-Id" => @meeting.id
+
+    subject = I18n.t("meeting.email.closed.header", title: @meeting.title)
+    mail(to: user, subject: "[#{@meeting.project.name}] #{subject}")
+  end
+
   def cancelled(meeting, user, actor)
     @actor = actor
     @user = user

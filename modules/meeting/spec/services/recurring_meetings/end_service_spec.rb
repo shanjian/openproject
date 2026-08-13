@@ -48,6 +48,53 @@ RSpec.describe RecurringMeetings::EndService, type: :model do
 
   let(:service) { described_class.new(recurring_meeting, current_user: user) }
 
+  describe "mails on a muted series" do
+    shared_let(:participant_user) { create(:user, member_with_permissions: { project => %i[view_meetings] }) }
+
+    let(:recurring_meeting) do
+      create(:recurring_meeting,
+             project:,
+             start_time: 1.week.ago.beginning_of_day + 10.hours,
+             frequency: "daily",
+             interval: 1,
+             end_after: "specific_date",
+             end_date: 1.month.from_now)
+    end
+
+    before do
+      recurring_meeting.template.update_column(:notify, false)
+      recurring_meeting.template.participants.delete_all
+      recurring_meeting.template.participants << MeetingParticipant.new(user: participant_user, invited: true)
+
+      # An instantiated future occurrence whose participants must get a cancellation
+      scheduled = create(:scheduled_meeting, :persisted,
+                         recurring_meeting:,
+                         start_time: 1.day.from_now.beginning_of_day + 10.hours)
+      create(:meeting_participant, meeting: scheduled.meeting, user: participant_user, invited: true)
+
+      ActionMailer::Base.deliveries.clear
+    end
+
+    it "still sends the occurrence cancellations and the ended-series mail" do
+      expect(service.call).to be_success
+      perform_enqueued_jobs
+
+      recipients = ActionMailer::Base.deliveries.flat_map(&:to)
+      expect(recipients.count(participant_user.mail)).to eq 2
+
+      subjects = ActionMailer::Base.deliveries.map(&:subject)
+      expect(subjects).to include(a_string_matching(/cancelled/i))
+    end
+
+    it "clears a pending batched series update job" do
+      allow(RecurringMeetings::SendUpdatedNotificationJob).to receive(:delete_jobs)
+
+      expect(service.call).to be_success
+
+      expect(RecurringMeetings::SendUpdatedNotificationJob).to have_received(:delete_jobs).with(recurring_meeting)
+    end
+  end
+
   describe "#call" do
     context "when the service is successful" do
       let(:update_service_instance) { instance_double(RecurringMeetings::UpdateService) }

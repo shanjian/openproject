@@ -83,6 +83,10 @@ module Meetings
       !@meeting.series_template? && User.current.allowed_in_project?(:delete_meetings, @meeting.project)
     end
 
+    def cancel_enabled?
+      @meeting.cancellable? && User.current.allowed_in_project?(:edit_meetings, @meeting.project)
+    end
+
     def finish_setup_enabled?
       @meeting.draft? &&
         !@meeting.onetime_template? &&

@@ -28,40 +28,10 @@
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-module Meetings
-  class DeleteService < ::BaseServices::Delete
-    protected
-
-    def after_validate(call)
-      # A queued batched update mail must not arrive after the cancellation mail
-      SendUpdatedNotificationJob.delete_jobs(model)
-
-      # Removing an event from participants' calendars always notifies — the mute
-      # toggle does not apply. Drafts and templates have never sent invitations,
-      # so there is nothing to cancel for them.
-      send_cancellation_mail(model) unless model.draft? || model.template?
-      cancel_scheduled_meeting(model)
-
-      call
-    end
-
-    def send_cancellation_mail(meeting)
-      meeting.participants.where(invited: true).find_each do |participant|
-        MeetingMailer
-          .cancelled(meeting, participant.user, User.current)
-          .deliver_now
-      rescue StandardError => e
-        Rails.logger.error do
-          "Failed to deliver meeting cancellation for meeting #{meeting.id} to #{participant.user.mail}: #{e.message}"
-        end
-      end
-    end
-
-    def cancel_scheduled_meeting(meeting)
-      schedule = meeting.scheduled_meeting
-      return if schedule.nil?
-
-      schedule.update_column(:cancelled, true)
-    end
+class AddMeetingUpdatedToNotificationSettings < ActiveRecord::Migration[8.0]
+  def change
+    # Default true: participants receive meeting change notifications unless they
+    # individually opt out (unlike the opt-in news/wiki email alerts).
+    add_column :notification_settings, :meeting_updated, :boolean, default: true # rubocop:disable Rails/ThreeStateBooleanColumn
   end
 end

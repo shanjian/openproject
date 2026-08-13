@@ -51,6 +51,28 @@ RSpec.describe MeetingParticipants::DeleteService do
       end
     end
 
+    context "when the meeting is muted" do
+      shared_let(:other_participant_user) do
+        create(:user, member_with_permissions: { project => %i[view_meetings] })
+      end
+
+      before do
+        meeting.update_column(:notify, false)
+        create(:meeting_participant, meeting:, user: other_participant_user, invited: true)
+        participant.update_column(:invited, true)
+        ActionMailer::Base.deliveries.clear
+      end
+
+      it "still sends the removed participant their personal cancellation, but not the informational mail" do
+        expect(subject).to be_success
+        perform_enqueued_jobs
+
+        recipients = ActionMailer::Base.deliveries.flat_map(&:to)
+        expect(recipients).to include(participant_user.mail)
+        expect(recipients).not_to include(other_participant_user.mail)
+      end
+    end
+
     context "when user does not have edit permissions" do
       let(:current_user) { create(:user, member_with_permissions: { project => %i[view_meetings] }) }
 

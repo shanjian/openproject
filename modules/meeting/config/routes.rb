@@ -77,6 +77,9 @@ Rails.application.routes.draw do
         post :notify
         get :history
         get :delete_dialog
+        get :cancel_dialog
+        post :cancel
+        post :restore
         get :generate_pdf_dialog
         get :toggle_notifications_dialog
         post :toggle_notifications

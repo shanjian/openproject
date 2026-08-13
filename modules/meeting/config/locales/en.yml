@@ -267,6 +267,9 @@ en:
         new_schedule: "New schedule"
       invited:
         summary: "%{actor} has sent you an invitation for the meeting '%{title}'"
+      closed:
+        header: "Closed: Meeting '%{title}'"
+        summary: "'%{title}' has been closed by %{actor}. Agenda and outcomes are final now."
       cancelled:
         header: "Cancelled: Meeting '%{title}'"
         header_occurrence: "Cancelled: Meeting occurrence '%{title}'"
@@ -306,6 +309,13 @@ en:
       structured_text: "Organize your meeting as a dynamic list of agenda items, optionally linking them to a work package."
       structured_text_copy: "Copying a meeting will currently not copy the associated meeting agenda items, just the details"
     copied: "Copied from Meeting #%{id}"
+    cancel_dialog:
+      title: "Cancel meeting"
+      heading: "Cancel this meeting?"
+      confirmation_message_html: >
+        All participants will be notified and the meeting will be removed from their calendars.
+        Agenda items and outcomes are kept, and the meeting can be restored later.
+      confirm_button: "Cancel meeting"
     delete_dialog:
       one_time:
         title: "Delete meeting"
@@ -720,11 +730,13 @@ en:
   label_meeting_state_skipped: "Skipped"
   label_meeting_state_in_progress: "In progress"
   label_meeting_reopen_action: "Reopen meeting"
+  label_meeting_restore_action: "Restore meeting"
   label_meeting_close_action: "Close meeting"
   label_meeting_in_progress_action: "Start meeting"
   label_meeting_open_action: "Open meeting"
   text_meeting_draft_description: "Prepare your agenda in draft mode. This meeting will not send out any calendar updates or invites, even if you change meeting details or add/remove participants."
   text_meeting_open_description: "You can add/remove agenda items and participants. Once the agenda is ready, mark it as in progress to document outcomes."
+  text_meeting_cancelled_description: "This meeting has been cancelled. Agenda and outcomes are kept, and the meeting can be restored."
   text_meeting_closed_description: "This meeting is closed. You cannot add/remove agenda items anymore."
   text_meeting_in_progress_description: "You can modify the agenda, document outcomes for each item and track attendance for participants. Once the meeting is complete, you can mark it as closed to lock it."
   text_meeting_open_dropdown_description: "Any existing outcomes will remain but users will not be able to add new outcomes."

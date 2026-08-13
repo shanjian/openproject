@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 #-- copyright
 # OpenProject is an open source project management software.
 # Copyright (C) the OpenProject GmbH
@@ -38,7 +39,9 @@ module Meetings
     attribute :project_id
     attribute :location
     attribute :duration
-    attribute :state
+    attribute :state do
+      validate_state_not_transitioning_cancelled
+    end
     attribute :start_date
     attribute :start_time
     attribute :start_time_hour
@@ -49,6 +52,17 @@ module Meetings
     end
 
     private
+
+    # The cancelled state is owned by Meetings::CancelService/RestoreService, which
+    # stamp state_before_cancellation and send the mandatory mails. Generic writes
+    # in either direction would silently break that invariant.
+    def validate_state_not_transitioning_cancelled
+      return unless model.state_changed?
+
+      if model.state == "cancelled" || model.state_was == "cancelled"
+        errors.add :state, :invalid
+      end
+    end
 
     def validate_sharing_only_on_onetime_templates
       return if model.onetime_template?

@@ -33,6 +33,10 @@ module MeetingParticipants
     protected
 
     def after_validate(call)
+      # The removed participant's personal cancellation carries the .ics removing
+      # the event from their calendar — the mute toggle does not apply to it. Only
+      # the system-wide bulk suppressor and the never-published guard do.
+      send_cancellation_notification(model) if send_removed_participant_cancellation?
       send_notifications if should_send_notification?
 
       call
@@ -41,8 +45,13 @@ module MeetingParticipants
     def send_notifications
       remaining_participants = fetch_remaining_participants
 
-      send_cancellation_notification(model)
       notify_remaining_participants(model.meeting, remaining_participants, model.user)
+    end
+
+    def send_removed_participant_cancellation?
+      Journal::NotificationConfiguration.active? &&
+        !model.meeting.draft? &&
+        !model.meeting.onetime_template?
     end
 
     def fetch_remaining_participants

@@ -1,0 +1,72 @@
+# frozen_string_literal: true
+
+#-- copyright
+# OpenProject is an open source project management software.
+# Copyright (C) the OpenProject GmbH
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License version 3.
+#
+# OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+# Copyright (C) 2006-2013 Jean-Philippe Lang
+# Copyright (C) 2010-2013 the ChiliProject Team
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+#
+# See COPYRIGHT and LICENSE files for more details.
+#++
+
+module Meetings
+  # Soft-cancels a one-off meeting: keeps agenda, minutes, and attachments, badges the
+  # meeting as cancelled, and always mails participants — the cancellation mail carries
+  # the METHOD:CANCEL .ics that removes the event from their calendars, so it must not
+  # be silenced by the organizer-level mute toggle.
+  #
+  # The cancelled state is owned by this service and RestoreService; generic state
+  # writes to/from cancelled are rejected by Meetings::BaseContract.
+  class CancelService < ::BaseServices::BaseCallable
+    attr_reader :meeting, :current_user
+
+    def initialize(meeting, current_user:)
+      super()
+
+      @meeting = meeting
+      @current_user = current_user
+    end
+
+    def call # rubocop:disable Metrics/AbcSize
+      return ServiceResult.failure(result: meeting) unless allowed?
+      return ServiceResult.failure(result: meeting) unless meeting.cancellable?
+
+      meeting.state_before_cancellation = Meeting.states[meeting.state]
+      meeting.state = "cancelled"
+
+      if meeting.save
+        # A queued batched update mail would arrive after the cancellation mail
+        SendUpdatedNotificationJob.delete_jobs(meeting)
+        MeetingNotificationService.new(meeting).call(:cancelled, actor: current_user)
+        ServiceResult.success(result: meeting)
+      else
+        ServiceResult.failure(result: meeting, errors: meeting.errors)
+      end
+    end
+
+    private
+
+    def allowed?
+      current_user.allowed_in_project?(:edit_meetings, meeting.project)
+    end
+  end
+end

@@ -37,7 +37,12 @@ module RecurringMeetings
     end
 
     def after_validate(call)
-      send_cancellation_mail(model) if model.notify?
+      # A queued batched update mail must not arrive after the cancellation mail
+      SendUpdatedNotificationJob.delete_jobs(model)
+
+      # Removing the series from participants' calendars always notifies — the mute
+      # toggle does not apply. A draft series has never sent invitations.
+      send_cancellation_mail(model) unless model.template.draft?
 
       call
     end

@@ -59,6 +59,26 @@ RSpec.describe Meetings::UpdateContract do
       it_behaves_like "contract is valid"
     end
 
+    context "when writing state to cancelled" do
+      before { meeting.state = "cancelled" }
+
+      it_behaves_like "contract is invalid", state: :invalid
+    end
+
+    context "when writing state off cancelled" do
+      let(:meeting) { create(:meeting, project:, state: "cancelled") }
+
+      before { meeting.state = "open" }
+
+      it_behaves_like "contract is invalid", state: :invalid
+    end
+
+    context "when changing state between regular values" do
+      before { meeting.state = "in_progress" }
+
+      it_behaves_like "contract is valid"
+    end
+
     context "when lock_version is changed" do
       before do
         allow(meeting).to receive(:lock_version_changed?).and_return(true)

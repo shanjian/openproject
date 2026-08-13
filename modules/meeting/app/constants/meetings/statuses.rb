@@ -36,12 +36,14 @@ module Meetings
     OPEN = RECORD.new(id: "open", color: Color.new(hexcode: "#006edb"))
     IN_PROGRESS = RECORD.new(id: "in_progress", color: Color.new(hexcode: "#894ceb"))
     CLOSED = RECORD.new(id: "closed", color: Color.new(hexcode: "#25292e"))
+    CANCELLED = RECORD.new(id: "cancelled", color: Color.new(hexcode: "#a40e26"))
 
     AVAILABLE = [
       DRAFT,
       OPEN,
       IN_PROGRESS,
-      CLOSED
+      CLOSED,
+      CANCELLED
     ].freeze
 
     def self.find_by_id(id)

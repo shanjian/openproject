@@ -132,6 +132,9 @@ class Meeting < ApplicationRecord
     saved_change_to_start_time? || saved_change_to_duration? || saved_change_to_location? || saved_change_to_title?
   }
 
+  # Covers every close path (side panel, presentation mode). Reopening sends nothing.
+  after_update :send_closed_mail, if: -> { saved_change_to_state? && closed? }
+
   enum :state, {
     open: 0, # 0 -> default, leave values for future states between open and closed
     draft: 1,
@@ -220,7 +223,15 @@ class Meeting < ApplicationRecord
   end
 
   def editable?(user = User.current)
-    !closed? && user.allowed_in_project?(:edit_meetings, project)
+    !closed? && !cancelled? && user.allowed_in_project?(:edit_meetings, project)
+  end
+
+  # Whether the meeting can take the cancelled state (Meetings::CancelService).
+  # Drafts have never sent invitations, so cancelling would mail a cancellation for
+  # an event nobody was invited to; templates aren't real events; recurring
+  # occurrences already have their own cancellation flow (ScheduledMeeting tombstone).
+  def cancellable?
+    (open? || in_progress?) && !template? && !recurring?
   end
 
   def notify?
@@ -294,6 +305,7 @@ class Meeting < ApplicationRecord
   def send_emails?
     return false if onetime_template?
     return false if template? && recurring_meeting.scheduled_meetings.none?
+    return false if closed?
 
     persisted? && notify?
   end
@@ -319,25 +331,31 @@ class Meeting < ApplicationRecord
     end
   end
 
+  # Enqueues the debounced update mail. The first edit in a burst captures the
+  # pre-edit baseline; edits within the window are dropped by the job's
+  # concurrency guard, so one mail describes the overall change.
   def send_updated_mail
     return unless send_emails?
 
-    MeetingNotificationService
-      .new(self)
-      .call :updated,
-            changes: updated_mail_changes
+    Meetings::SendUpdatedNotificationJob
+      .set(wait: 5.minutes)
+      .perform_later(self, actor_id: User.current.id, old_values: updated_mail_old_values)
   end
 
-  def updated_mail_changes # rubocop:disable Metrics/AbcSize
+  # Informational like the updated mail: gated by the organizer-level notify?
+  # toggle (inside the service) and the per-user meeting_updated preference.
+  def send_closed_mail
+    return if template?
+
+    MeetingNotificationService.new(self).call(:closed)
+  end
+
+  def updated_mail_old_values
     {
       old_start: saved_change_to_start_time? ? saved_change_to_start_time.first : start_time,
-      new_start: start_time,
       old_duration: saved_change_to_duration? ? saved_change_to_duration.first : duration,
-      new_duration: duration,
       old_location: saved_change_to_location? ? saved_change_to_location.first : location,
-      new_location: location,
-      old_title: saved_change_to_title? ? saved_change_to_title.first : title,
-      new_title: title
+      old_title: saved_change_to_title? ? saved_change_to_title.first : title
     }
   end
 end

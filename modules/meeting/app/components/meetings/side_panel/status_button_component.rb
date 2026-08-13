@@ -47,8 +47,9 @@ module Meetings
         OpPrimer::StatusButtonComponent.new(
           current_status: current_status,
           items: [open_status, in_progress_status, closed_status],
-          readonly: !edit_enabled? || @meeting.draft?,
-          disabled: !edit_enabled? || @meeting.draft?,
+          # Cancelled is read-only here: Restore is its only exit (dedicated service)
+          readonly: !edit_enabled? || @meeting.draft? || @meeting.cancelled?,
+          disabled: !edit_enabled? || @meeting.draft? || @meeting.cancelled?,
           button_arguments: {
             title: t("label_meeting_state"),
             size: @size
@@ -75,7 +76,17 @@ module Meetings
         in_progress_status
       when "closed"
         closed_status
+      when "cancelled"
+        cancelled_status
       end
+    end
+
+    def cancelled_status
+      OpPrimer::StatusButtonOption.new(name: t("label_meeting_state_cancelled"),
+                                       color_ref: Meetings::Statuses::CANCELLED.id,
+                                       color_namespace: :meeting_status,
+                                       icon: :"circle-slash",
+                                       tag: :a)
     end
 
     def draft_status

@@ -132,6 +132,20 @@
           item.with_leading_visual_icon(icon: :clock) # or :check TBD
         end
 
+        if cancel_enabled?
+          menu.with_item(
+            label: t("meeting.cancel_dialog.title"),
+            scheme: :danger,
+            href: cancel_dialog_project_meeting_path(@project, @meeting),
+            tag: :a,
+            content_arguments: {
+              data: { controller: "async-dialog" }
+            }
+          ) do |item|
+            item.with_leading_visual_icon(icon: :"circle-slash")
+          end
+        end
+
         if delete_enabled?
           menu.with_item(
             label: delete_label,
