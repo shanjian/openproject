@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 #-- copyright
 # OpenProject is an open source project management software.
 # Copyright (C) 2023 Ben Tey
@@ -116,8 +118,38 @@ module OpenProject::GitlabIntegration
       # may carry a trailing `-MMDD-HHmm` timestamp suffix (for follow-up branches);
       # since this is a prefix (start_with?) check, that suffix doesn't affect it.
       def branch_follows_convention?(branch_name, work_package)
-        prefix = "#{sanitize_branch_segment(work_package.type&.name)}/#{work_package.id}-"
-        branch_name.to_s.downcase.start_with?(prefix.downcase)
+        branch_name = branch_name.to_s.downcase
+
+        branch_convention_prefixes(branch_name, work_package).any? do |prefix|
+          branch_name.start_with?(prefix)
+        end
+      end
+
+      # The frontend reserves space for its timestamp suffix before truncating
+      # the type. Accept both the default (no suffix) and timestamp budgets so
+      # convention matching remains consistent for generated branches whose
+      # subject happens to end in a timestamp-shaped string.
+      def branch_convention_prefixes(branch_name, work_package)
+        suffix_lengths = branch_name.match?(/-\d{4}-\d{4}\z/) ? [0, 10] : [0]
+
+        suffix_lengths.map do |suffix_length|
+          branch_convention_prefix(work_package, suffix_length)
+        end.uniq
+      end
+
+      def branch_convention_prefix(work_package, suffix_length)
+        budget = ::GitlabIntegration::CreateBranchService::MAX_LENGTH -
+                 "#{work_package.id}-".length - suffix_length
+        type_room = [budget - 1, 0].max
+        type = truncated_branch_type(work_package, type_room)
+        type_prefix = type.present? ? "#{type}/" : ""
+
+        "#{type_prefix}#{work_package.id}-".downcase
+      end
+
+      def truncated_branch_type(work_package, type_room)
+        sanitize_branch_segment(work_package.type&.name).downcase[0, type_room].to_s
+          .sub(/-+\z/, "")
       end
 
       def sanitize_branch_segment(str)

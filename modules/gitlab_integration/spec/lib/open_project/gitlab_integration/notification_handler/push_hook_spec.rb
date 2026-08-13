@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 #-- copyright
 # OpenProject is an open source project management software.
 # Copyright (C) the OpenProject GmbH
@@ -220,6 +222,35 @@ RSpec.describe OpenProject::GitlabIntegration::NotificationHandler::PushHook do
         expect(branch.last_commit_sha).to eq("a265d6b7bcf836b77ed9e32f824b231585c6a355")
         expect(branch.last_commit_author).to eq("Some committer")
         expect(branch.work_packages).to contain_exactly(branch_work_package)
+      end
+    end
+
+    context "when the type is truncated to fit the branch name limit" do
+      shared_let(:long_branch_type) { create(:type, name: "T" * 255) }
+      shared_let(:long_branch_work_package) { create(:work_package, type: long_branch_type) }
+
+      let(:type_length) do
+        GitlabIntegration::CreateBranchService::MAX_LENGTH -
+          long_branch_work_package.id.to_s.length - "-".length - "-0813-1200".length - "/".length
+      end
+      let(:branch_name) { "#{'t' * type_length}/#{long_branch_work_package.id}-0813-1200" }
+
+      it "persists the branch and links it to the work package" do
+        expect { process }.to change(GitlabBranch, :count).by(1)
+        expect(GitlabBranch.last.work_packages).to contain_exactly(long_branch_work_package)
+      end
+
+      context "without a timestamp suffix" do
+        let(:type_length) do
+          GitlabIntegration::CreateBranchService::MAX_LENGTH -
+            long_branch_work_package.id.to_s.length - "-".length - "/".length
+        end
+        let(:branch_name) { "#{'t' * type_length}/#{long_branch_work_package.id}-" }
+
+        it "persists the branch and links it to the work package" do
+          expect { process }.to change(GitlabBranch, :count).by(1)
+          expect(GitlabBranch.last.work_packages).to contain_exactly(long_branch_work_package)
+        end
       end
     end
 
