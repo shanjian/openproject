@@ -33,10 +33,14 @@ module GitlabIntegration
   # named after the work package, using the acting user's Personal Access Token.
   # See GITLAB_CREATE_BRANCH_DESIGN.md §3.
   class CreateBranchService
+    # Mirrored by GitActionsService.MAX_BRANCH_NAME_LENGTH, which trims the title
+    # slug so a long work package subject stays within it.
+    MAX_LENGTH = 200
+
     # Matches the shape GitActionsService#branchName / #sanitizeBranchString
     # produce on the frontend: lowercase word segments joined by single dashes
     # or slashes, optionally ending in a `-MMDD-HHmm` timestamp suffix.
-    BRANCH_NAME_PATTERN = %r{\A[a-z0-9][a-z0-9\-/]{0,199}\z}
+    BRANCH_NAME_PATTERN = %r{\A[a-z0-9][a-z0-9\-/]{0,#{MAX_LENGTH - 1}}\z}
 
     def initialize(user:, work_package:, mapping:, branch_name: nil)
       @user = user
@@ -70,10 +74,13 @@ module GitlabIntegration
 
     private
 
+    # Trims the title the same way GitActionsService#branchName does, so a long
+    # subject yields a usable name rather than a ref GitLab rejects.
     def default_branch_name
-      type = sanitize(@work_package.type&.name)
-      title = sanitize(@work_package.subject)
-      "#{type}/#{@work_package.id}-#{title}".downcase
+      prefix = "#{sanitize(@work_package.type&.name)}/#{@work_package.id}-".downcase
+      slug = sanitize(@work_package.subject).downcase[0, [MAX_LENGTH - prefix.length, 0].max].to_s.sub(/-+\z/, "")
+
+      slug.present? ? "#{prefix}#{slug}" : prefix.delete_suffix("-")
     end
 
     # Guards against arbitrary/malicious ref names being created via this

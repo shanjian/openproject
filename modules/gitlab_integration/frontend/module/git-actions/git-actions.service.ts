@@ -35,6 +35,11 @@ import { WorkPackageResource } from "core-app/features/hal/resources/work-packag
   providedIn: 'root',
 })
 export class GitActionsService {
+  // Mirrors the length allowed by CreateBranchService::BRANCH_NAME_PATTERN. Long
+  // work package subjects have to be trimmed here rather than rejected on
+  // submit, since this name is what gets displayed, copied and created.
+  public static readonly MAX_BRANCH_NAME_LENGTH = 200;
+
   private sanitizeBranchString(str:string):string {
     // See https://stackoverflow.com/a/3651867 for how these rules came in.
     // This sanitization tries to be harsher than those rules
@@ -73,10 +78,26 @@ export class GitActionsService {
     return `${month}${day}-${hours}${minutes}`;
   }
 
+  // Only the title slug is shortened when the name would exceed
+  // MAX_BRANCH_NAME_LENGTH: the `<type>/<id>-` prefix is what
+  // NotificationHandler::Helper#branch_follows_convention? matches branches back
+  // to work packages with, and the suffix is what keeps follow-up branches for
+  // the same work package distinct, so both keep their full length.
   public branchName(workPackage:WorkPackageResource, suffix?:string):string {
     const { type, id, title } = this.formattingInput(workPackage);
-    const base = `${this.sanitizeBranchString(type)}/${id}-${this.sanitizeBranchString(title)}`.toLocaleLowerCase();
-    return suffix ? `${base}-${suffix}` : base;
+    const prefix = `${this.sanitizeBranchString(type)}/${id}-`.toLocaleLowerCase();
+    const tail = suffix ? `-${suffix}` : '';
+    const slug = this.sanitizeBranchString(title).toLocaleLowerCase();
+    const room = GitActionsService.MAX_BRANCH_NAME_LENGTH - prefix.length - tail.length;
+
+    if (slug.length <= room) {
+      return `${prefix}${slug}${tail}`;
+    }
+
+    // Trailing dashes would otherwise be left behind by cutting mid-word, and an
+    // empty slug would leave the prefix's dash doubled up against the suffix.
+    const trimmed = slug.slice(0, Math.max(room, 0)).replace(/-+$/, '');
+    return trimmed ? `${prefix}${trimmed}${tail}` : `${prefix.replace(/-$/, '')}${tail}`;
   }
 
   public commitMessage(workPackage:WorkPackageResource):string {
