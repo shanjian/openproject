@@ -106,6 +106,66 @@ RSpec.describe "Recurring meetings schedule text",
         end
       end
     end
+
+    describe "occurrence preview", with_settings: { date_format: "%Y-%m-%d" } do
+      let(:format) { :turbo_stream }
+      let(:start_date) { "2026-09-04" } # a Friday
+
+      context "with weekly multi-weekday params" do
+        let(:params) do
+          { meeting: { start_time_hour:, start_date:, frequency: "weekly", interval: "2",
+                       weekdays: %w[1 3 5] } }
+        end
+
+        it "lists the next five occurrences" do
+          expect(subject).to have_http_status(:ok)
+          expect(subject.body).to include("2026-09-04")
+          expect(subject.body).to include("2026-09-14")
+          expect(subject.body).to include("2026-09-16")
+          expect(subject.body).to include("2026-09-18")
+          expect(subject.body).to include("2026-09-28")
+          expect(subject.body).not_to include("schedule-preview-first-differs")
+        end
+      end
+
+      context "with a last-weekday rule starting on the first weekday (trap 1)" do
+        let(:params) do
+          { meeting: { start_time_hour:, start_date:, frequency: "monthly",
+                       schedule_mode_option: "last_weekday", interval: "1" } }
+        end
+
+        it "warns that the first occurrence differs from the start date" do
+          expect(subject).to have_http_status(:ok)
+          expect(subject.body).to include("schedule-preview-first-differs")
+          expect(subject.body).to include("2026-09-25")
+        end
+      end
+
+      context "with a day-31 rule (trap 2)" do
+        let(:params) do
+          { meeting: { start_time_hour:, start_date: "2026-10-31", frequency: "monthly",
+                       schedule_mode_option: "day_of_month", interval: "1" } }
+        end
+
+        it "warns that short months are skipped" do
+          expect(subject).to have_http_status(:ok)
+          expect(subject.body).to include("schedule-preview-short-months")
+        end
+      end
+
+      context "with a preset overriding custom fields" do
+        let(:params) do
+          { meeting: { start_time_hour:, start_date:, preset: "monthly_nth_weekday",
+                       frequency: "daily", interval: "7" } }
+        end
+
+        it "previews the preset, not the submitted custom fields" do
+          expect(subject).to have_http_status(:ok)
+          expect(subject.body).to include("2026-10-02")
+          expect(subject.body).to include("2026-11-06")
+        end
+      end
+    end
   end
 
   context "when not logged in" do

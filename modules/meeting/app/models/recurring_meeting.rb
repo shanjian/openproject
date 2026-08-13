@@ -33,6 +33,12 @@ class RecurringMeeting < ApplicationRecord
   MAX_ITERATIONS = 1000
   # Magical maximum of interval, derived from other calendars
   MAX_INTERVAL = 100
+  # ISO weekday numbers as ice_cube symbols (1 = Monday .. 7 = Sunday)
+  ISO_WEEKDAY_SYMBOLS = {
+    1 => :monday, 2 => :tuesday, 3 => :wednesday, 4 => :thursday,
+    5 => :friday, 6 => :saturday, 7 => :sunday
+  }.freeze
+
   include ::Meeting::VirtualStartTime
   include ::Meeting::MeetingUid
   include Redmine::I18n
@@ -56,10 +62,20 @@ class RecurringMeeting < ApplicationRecord
   validate :end_date_constraints,
            if: -> { end_after_specific_date? }
 
+  validate :weekdays_constraints,
+           if: -> { frequency_weekly? }
+  validates :month_day,
+            inclusion: { in: [-1, *1..31], allow_nil: true }
+  validates :week_ordinal,
+            inclusion: { in: [-1, *1..4], allow_nil: true }
+
   after_initialize :set_defaults
 
   # Unset any previously set schedule before running validations
   before_validation :unset_schedule
+  before_validation :apply_preset
+  before_validation :apply_schedule_mode_option
+  before_validation :normalize_schedule_fields
 
   before_destroy :remove_jobs
   after_save :unset_schedule
@@ -68,10 +84,20 @@ class RecurringMeeting < ApplicationRecord
        {
          daily: 0,
          working_days: 1,
-         weekly: 2
+         weekly: 2,
+         monthly: 3,
+         yearly: 4
        },
        prefix: true,
        default: "weekly"
+
+  enum :schedule_mode,
+       {
+         day_of_month: 0,
+         nth_weekday: 1
+       },
+       prefix: true,
+       default: "day_of_month"
 
   enum :end_after,
        {
@@ -197,12 +223,25 @@ class RecurringMeeting < ApplicationRecord
     when "working_days"
       I18n.t("recurring_meeting.in_words.working_days")
     when "weekly"
-      if interval == 1
-        I18n.t("recurring_meeting.in_words.weekly", weekday:)
-      else
-        I18n.t("recurring_meeting.in_words.weekly_interval", interval:, weekday:)
-      end
+      weekly_schedule_in_words
+    when "monthly"
+      monthly_schedule_in_words
+    when "yearly"
+      yearly_schedule_in_words
     end
+  end
+
+  def human_weekdays
+    days = weekdays.presence || default_weekdays
+    days.map { |day| weekday_name(day) }.join(", ")
+  end
+
+  def weekday_name(iso_day)
+    I18n.t("date.day_names")[iso_day % 7]
+  end
+
+  def human_ordinal
+    I18n.t("recurring_meeting.ordinal.#{effective_week_ordinal}")
   end
 
   def full_schedule_in_words # rubocop:disable Metrics/AbcSize
@@ -235,7 +274,77 @@ class RecurringMeeting < ApplicationRecord
   def reschedule_required?(previous: false)
     (previous ? previous_changes : changes)
       .keys
-      .intersect?(%w[frequency start_date start_time start_time_hour iterations interval end_after end_date location])
+      .intersect?(%w[frequency start_date start_time start_time_hour iterations interval end_after end_date location
+                     weekdays schedule_mode month_day week_ordinal])
+  end
+
+  # The form preset (R1) this schedule corresponds to, or "custom" when the stored
+  # fields express something no preset can.
+  def matching_preset # rubocop:disable Metrics/PerceivedComplexity, Metrics/AbcSize
+    return "custom" unless interval == 1
+
+    case frequency
+    when "daily", "working_days"
+      frequency
+    when "weekly"
+      (weekdays.presence || default_weekdays) == default_weekdays ? "weekly" : "custom"
+    when "monthly"
+      if schedule_mode_nth_weekday? && effective_week_ordinal == start_ordinal_in_month
+        "monthly_nth_weekday"
+      else
+        "custom"
+      end
+    when "yearly"
+      if schedule_mode_day_of_month? && effective_month_day == start_time.day
+        "yearly"
+      else
+        "custom"
+      end
+    end
+  end
+
+  def default_weekdays
+    start_time.present? ? [start_time.to_date.cwday] : []
+  end
+
+  def effective_month_day
+    month_day || start_time.day
+  end
+
+  def effective_week_ordinal
+    week_ordinal || start_ordinal_in_month
+  end
+
+  # Which occurrence of its weekday the start date is within its month (1..5)
+  def start_ordinal_in_month
+    ((start_time.day - 1) / 7) + 1
+  end
+
+  # Form-level virtual attribute (R1): a named preset that expands to concrete
+  # schedule fields in a before_validation callback, so it wins regardless of
+  # the order form fields are assigned in.
+  def preset=(value)
+    @preset = value.presence
+  end
+
+  def preset
+    @preset || matching_preset
+  end
+
+  # Form-level virtual attribute: composite mode select for monthly/yearly
+  # ("on day 4" / "on the first Friday" / "on the last Friday" / "on the last day").
+  def schedule_mode_option=(value)
+    @schedule_mode_option = value.presence
+  end
+
+  def schedule_mode_option
+    return @schedule_mode_option if @schedule_mode_option
+
+    if schedule_mode_nth_weekday?
+      week_ordinal == -1 ? "last_weekday" : "nth_weekday"
+    else
+      month_day == -1 ? "last_day" : "day_of_month"
+    end
   end
 
   def scheduled_occurrences(limit:, from_time: Time.current)
@@ -342,16 +451,120 @@ class RecurringMeeting < ApplicationRecord
     end
   end
 
+  def weekdays_constraints
+    errors.add(:weekdays, :invalid) unless weekdays.all? { |day| ISO_WEEKDAY_SYMBOLS.key?(day) }
+  end
+
+  def weekly_schedule_in_words # rubocop:disable Metrics/AbcSize
+    days = weekdays.presence || default_weekdays
+
+    if days.length > 1
+      key = interval == 1 ? "weekly_days" : "weekly_interval_days"
+      I18n.t("recurring_meeting.in_words.#{key}", interval:, weekdays: human_weekdays)
+    elsif interval == 1
+      I18n.t("recurring_meeting.in_words.weekly", weekday: weekday_name(days.first))
+    else
+      I18n.t("recurring_meeting.in_words.weekly_interval", interval:, weekday: weekday_name(days.first))
+    end
+  end
+
+  def monthly_schedule_in_words # rubocop:disable Metrics/AbcSize
+    if schedule_mode_nth_weekday?
+      key = interval == 1 ? "monthly_nth_weekday" : "monthly_nth_weekday_interval"
+      I18n.t("recurring_meeting.in_words.#{key}",
+             interval:, ordinal: human_ordinal, weekday: weekday_name(start_time.to_date.cwday))
+    elsif effective_month_day == -1
+      I18n.t("recurring_meeting.in_words.monthly_last_day")
+    else
+      key = interval == 1 ? "monthly_day" : "monthly_day_interval"
+      I18n.t("recurring_meeting.in_words.#{key}", interval:, day: effective_month_day)
+    end
+  end
+
+  def yearly_schedule_in_words
+    month = I18n.t("date.month_names")[start_time.month]
+
+    if schedule_mode_nth_weekday?
+      I18n.t("recurring_meeting.in_words.yearly_nth_weekday",
+             ordinal: human_ordinal, weekday: weekday_name(start_time.to_date.cwday), month:)
+    else
+      date = "#{month} #{effective_month_day}"
+      if interval == 1
+        I18n.t("recurring_meeting.in_words.yearly", date:)
+      else
+        I18n.t("recurring_meeting.in_words.yearly_interval", interval:, date:)
+      end
+    end
+  end
+
+  def apply_preset # rubocop:disable Metrics/AbcSize
+    return if @preset.blank? || @preset == "custom"
+
+    self.interval = 1
+    case @preset
+    when "daily", "working_days"
+      self.frequency = @preset
+    when "weekly"
+      self.frequency = "weekly"
+      self.weekdays = [] # normalized to the start date's weekday below
+    when "monthly_nth_weekday"
+      self.frequency = "monthly"
+      self.schedule_mode = "nth_weekday"
+      self.month_day = nil
+      self.week_ordinal = nil
+    when "yearly"
+      self.frequency = "yearly"
+      self.schedule_mode = "day_of_month"
+      self.month_day = nil
+      self.week_ordinal = nil
+    end
+  end
+
+  def apply_schedule_mode_option
+    # Only relevant when the custom fields are authoritative
+    return if @schedule_mode_option.blank?
+    return unless @preset.blank? || @preset == "custom"
+
+    case @schedule_mode_option
+    when "day_of_month"
+      self.schedule_mode = "day_of_month"
+      self.month_day = nil
+    when "last_day"
+      self.schedule_mode = "day_of_month"
+      self.month_day = -1
+    when "nth_weekday"
+      self.schedule_mode = "nth_weekday"
+      self.week_ordinal = nil
+    when "last_weekday"
+      self.schedule_mode = "nth_weekday"
+      self.week_ordinal = -1
+    end
+  end
+
+  def normalize_schedule_fields
+    self.weekdays = if frequency_weekly?
+                      weekdays.compact_blank.map(&:to_i).uniq.sort.presence || default_weekdays
+                    else
+                      []
+                    end
+
+    unless frequency_monthly? || frequency_yearly?
+      self.schedule_mode = "day_of_month"
+      self.month_day = nil
+      self.week_ordinal = nil
+    end
+  end
+
   def exclude_non_working_days(schedule)
     NonWorkingDay
       .where(date: start_date...)
       .pluck(:date)
       .each do |date|
-        schedule.add_exception_time(date.to_time(:utc))
+      schedule.add_exception_time(date.to_time(:utc))
     end
   end
 
-  def frequency_rule
+  def frequency_rule # rubocop:disable Metrics/AbcSize
     case frequency
     when "daily"
       IceCube::Rule.daily(interval)
@@ -360,10 +573,37 @@ class RecurringMeeting < ApplicationRecord
         .weekly(interval)
         .day(*Setting.working_day_names)
     when "weekly"
-      IceCube::Rule.weekly(interval)
+      rule = IceCube::Rule.weekly(interval)
+      rule = rule.day(*weekday_symbols) if weekdays.any?
+      rule
+    when "monthly"
+      if schedule_mode_nth_weekday?
+        IceCube::Rule.monthly(interval)
+                     .day_of_week(start_weekday_symbol => [effective_week_ordinal])
+      else
+        IceCube::Rule.monthly(interval).day_of_month(effective_month_day)
+      end
+    when "yearly"
+      if schedule_mode_nth_weekday?
+        IceCube::Rule.yearly(interval)
+                     .month_of_year(start_time.month)
+                     .day_of_week(start_weekday_symbol => [effective_week_ordinal])
+      else
+        IceCube::Rule.yearly(interval)
+                     .month_of_year(start_time.month)
+                     .day_of_month(effective_month_day)
+      end
     else
       raise NotImplementedError
     end
+  end
+
+  def weekday_symbols
+    weekdays.map { |number| ISO_WEEKDAY_SYMBOLS.fetch(number) }
+  end
+
+  def start_weekday_symbol
+    ISO_WEEKDAY_SYMBOLS.fetch(start_time.to_date.cwday)
   end
 
   def count_rule(rule, only_upcoming_iterations: false)

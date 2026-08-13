@@ -59,34 +59,70 @@
 
         if !@template && @meeting.is_a?(RecurringMeeting)
           modal_body.with_row(mt: 3) do
-            flex_layout(classes: "FormControl-horizontalGroup") do |frequency_row|
-              frequency_row.with_column(flex: 1) do
-                render(RecurringMeeting::Frequency.new(f))
+            render(RecurringMeeting::Preset.new(f, meeting: @meeting))
+          end
+
+          modal_body.with_row(
+            mt: 3,
+            hidden: @meeting.matching_preset != "custom",
+            data: {
+              value: "custom",
+              target_name: "preset",
+              "show-when-value-selected-target": "effect"
+            }
+          ) do
+            flex_layout do |custom_area|
+              custom_area.with_row do
+                flex_layout(classes: "FormControl-horizontalGroup") do |frequency_row|
+                  frequency_row.with_column(flex: 1) do
+                    render(RecurringMeeting::Frequency.new(f))
+                  end
+
+                  frequency_row.with_column(
+                    flex: 1,
+                    style: "visibility: #{@meeting.frequency_working_days? ? 'hidden' : 'visible'}",
+                    data: {
+                      target_name: "frequency",
+                      not_value: "working_days",
+                      set_visibility: "true",
+                      "show-when-value-selected-target": "effect"
+                    }
+                  ) do
+                    render(RecurringMeeting::Interval.new(f))
+                  end
+                end
               end
 
-              frequency_row.with_column(
-                flex: 1,
-                style: "visibility: #{@meeting.frequency_working_days? ? 'hidden' : 'visible'}",
+              custom_area.with_row(
+                mt: 3,
+                hidden: !@meeting.frequency_weekly?,
                 data: {
+                  value: "weekly",
                   target_name: "frequency",
-                  not_value: "working_days",
-                  set_visibility: "true",
                   "show-when-value-selected-target": "effect"
                 }
               ) do
-                render(RecurringMeeting::Interval.new(f))
+                render(RecurringMeeting::Weekdays.new(f, meeting: @meeting))
+              end
+
+              custom_area.with_row(
+                mt: 3,
+                hidden: !(@meeting.frequency_monthly? || @meeting.frequency_yearly?),
+                data: {
+                  value: "monthly yearly",
+                  target_name: "frequency",
+                  "show-when-value-selected-target": "effect"
+                }
+              ) do
+                render(RecurringMeeting::ScheduleMode.new(f, meeting: @meeting))
               end
             end
           end
 
           modal_body.with_row(mt: 1) do
-            render(
-              Primer::Beta::Text.new(
-                id: "recurring-meeting-frequency-schedule",
-                font_size: :small,
-                color: :subtle
-              )
-            ) { @meeting.human_frequency_schedule }
+            render(Primer::BaseComponent.new(tag: :div, id: "recurring-meeting-frequency-schedule")) do
+              render(RecurringMeetings::SchedulePreviewComponent.new(meeting: @meeting))
+            end
           end
 
           modal_body.with_row(mt: 3) do

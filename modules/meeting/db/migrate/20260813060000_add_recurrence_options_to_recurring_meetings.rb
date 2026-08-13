@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 #-- copyright
 # OpenProject is an open source project management software.
 # Copyright (C) the OpenProject GmbH
@@ -27,36 +28,35 @@
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-module RecurringMeetings
-  class BaseContract < ::ModelContract
-    def self.model
-      RecurringMeeting
+class AddRecurrenceOptionsToRecurringMeetings < ActiveRecord::Migration[8.0]
+  def up
+    change_table :recurring_meetings, bulk: true do |t|
+      t.integer :weekdays, array: true, default: [], null: false
+      t.integer :schedule_mode, default: 0, null: false
+      t.integer :month_day, null: true
+      t.integer :week_ordinal, null: true
     end
 
-    attribute :title
-    attribute :author_id
-    attribute :project_id
-    attribute :start_time
-    attribute :start_date
-    attribute :start_time_hour
-    attribute :frequency
-    attribute :end_after
-    attribute :end_date
-    attribute :iterations
-    attribute :interval
-    attribute :weekdays
-    attribute :schedule_mode
-    attribute :month_day
-    attribute :week_ordinal
-    attribute :time_zone
-    attribute :notify
+    # Existing weekly series recur on their start date's weekday. Make that explicit so
+    # the weekly rule can always be built from the weekdays column.
+    # frequency = 2 is "weekly"; ISODOW matches our 1 = Monday .. 7 = Sunday convention.
+    # start_time is stored as UTC; the weekday must be taken in the series' own zone
+    # (a series starting Friday 01:00 AEST is still Thursday in UTC).
+    execute <<~SQL.squish
+      UPDATE recurring_meetings
+      SET weekdays = ARRAY[
+        EXTRACT(ISODOW FROM (start_time AT TIME ZONE 'UTC') AT TIME ZONE time_zone)::integer
+      ]
+      WHERE frequency = 2 AND start_time IS NOT NULL
+    SQL
+  end
 
-    # Virtual attributes for the form (expanded by the model before validation)
-    attribute :preset
-    attribute :schedule_mode_option
-
-    # Virtual attributes for the form
-    attribute :duration
-    attribute :location
+  def down
+    change_table :recurring_meetings, bulk: true do |t|
+      t.remove :weekdays
+      t.remove :schedule_mode
+      t.remove :month_day
+      t.remove :week_ordinal
+    end
   end
 end

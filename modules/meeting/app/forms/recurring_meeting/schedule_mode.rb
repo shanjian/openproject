@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 #-- copyright
 # OpenProject is an open source project management software.
 # Copyright (C) the OpenProject GmbH
@@ -27,36 +28,40 @@
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-module RecurringMeetings
-  class BaseContract < ::ModelContract
-    def self.model
-      RecurringMeeting
+class RecurringMeeting::ScheduleMode < ApplicationForm
+  form do |meeting_form|
+    meeting_form.select_list(
+      name: "schedule_mode_option",
+      label: I18n.t("activerecord.attributes.recurring_meeting.schedule_mode"),
+      data: {
+        action: "input->recurring-meetings--form#updateFrequencyText"
+      }
+    ) do |list|
+      options.each do |value, label|
+        list.option(label:, value:, selected: value == @meeting.schedule_mode_option)
+      end
     end
+  end
 
-    attribute :title
-    attribute :author_id
-    attribute :project_id
-    attribute :start_time
-    attribute :start_date
-    attribute :start_time_hour
-    attribute :frequency
-    attribute :end_after
-    attribute :end_date
-    attribute :iterations
-    attribute :interval
-    attribute :weekdays
-    attribute :schedule_mode
-    attribute :month_day
-    attribute :week_ordinal
-    attribute :time_zone
-    attribute :notify
+  def initialize(meeting:)
+    super()
 
-    # Virtual attributes for the form (expanded by the model before validation)
-    attribute :preset
-    attribute :schedule_mode_option
+    @meeting = meeting
+  end
 
-    # Virtual attributes for the form
-    attribute :duration
-    attribute :location
+  private
+
+  def options
+    start_date = @meeting.start_time&.to_date || Date.tomorrow
+    weekday = I18n.t("date.day_names")[start_date.cwday % 7]
+    ordinal = I18n.t("recurring_meeting.ordinal.#{((start_date.day - 1) / 7) + 1}")
+
+    [
+      ["day_of_month", I18n.t("recurring_meeting.schedule_mode.day_of_month", day: start_date.day)],
+      ["nth_weekday", I18n.t("recurring_meeting.schedule_mode.nth_weekday", ordinal:, weekday:)],
+      ["last_weekday", I18n.t("recurring_meeting.schedule_mode.nth_weekday",
+                              ordinal: I18n.t("recurring_meeting.ordinal.-1"), weekday:)],
+      ["last_day", I18n.t("recurring_meeting.schedule_mode.last_day_of_month")]
+    ]
   end
 end

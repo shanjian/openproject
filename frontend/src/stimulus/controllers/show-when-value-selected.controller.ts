@@ -40,6 +40,7 @@ export default class OpShowWhenValueSelectedController extends ApplicationContro
       return el.dataset.notValue === value;
     }
 
-    return !(el.dataset.value === value);
+    // data-value may hold several space-separated values, e.g. "monthly yearly"
+    return !(el.dataset.value ?? '').split(' ').includes(value);
   }
 }
