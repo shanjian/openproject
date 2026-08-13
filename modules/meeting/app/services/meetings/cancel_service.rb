@@ -50,6 +50,7 @@ module Meetings
       return ServiceResult.failure(result: meeting) unless allowed?
       return ServiceResult.failure(result: meeting) unless meeting.cancellable?
 
+      meeting.allow_cancelled_transition = true
       meeting.state_before_cancellation = Meeting.states[meeting.state]
       meeting.state = "cancelled"
 

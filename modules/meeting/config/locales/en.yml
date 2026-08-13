@@ -84,6 +84,8 @@ en:
         participation_status: "Participation status"
     errors:
       models:
+        meeting:
+          cancelled_readonly: "This meeting is cancelled and cannot be edited. Restore it first."
         meeting_participant:
           user_invalid: "is not a valid participant."
         meeting_agenda_item:

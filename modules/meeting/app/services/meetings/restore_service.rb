@@ -47,6 +47,7 @@ module Meetings
       return ServiceResult.failure(result: meeting) unless allowed?
       return ServiceResult.failure(result: meeting) unless meeting.cancelled?
 
+      meeting.allow_cancelled_transition = true
       meeting.state = restored_state
       meeting.state_before_cancellation = nil
 
