@@ -105,5 +105,24 @@ RSpec.describe "POST /api/v3/queries/form with a department custom field" do
       expect(names).to include(department.name)
       expect(names).not_to include(plain_group.name)
     end
+
+    # A department is organisational metadata a department custom field intentionally exposes to
+    # everyone, not a project member, so a regular user must see it here even though they have
+    # neither view_all_principals nor manage_members and are unrelated to its project/groups.
+    context "for a regular user with no special visibility permissions" do
+      shared_let(:regular_user) { create(:user) }
+
+      before { login_as regular_user }
+
+      it "still offers the department" do
+        get href
+
+        expect(last_response).to have_http_status(200)
+
+        names = JSON.parse(last_response.body).dig("_embedded", "elements").pluck("name")
+
+        expect(names).to include(department.name)
+      end
+    end
   end
 end

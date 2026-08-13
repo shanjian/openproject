@@ -77,4 +77,26 @@ RSpec.describe Queries::Principals::Filters::OrganizationalUnitFilter do
       expect(results).not_to include(department)
     end
   end
+
+  # Department custom fields intentionally expose every organisational unit as an assignable
+  # value regardless of the viewer's permissions (CustomField#possible_department_values has no
+  # visibility check of its own), so PrincipalQuery must widen past its ordinary Principal.visible
+  # restriction for this filter specifically -- otherwise a user without view_all_principals or
+  # manage_members would never see a department outside their own visible projects/groups.
+  describe "for a regular user with no special visibility permissions" do
+    shared_let(:regular_user) { create(:user) }
+
+    before { login_as(regular_user) }
+
+    it "still returns a department unrelated to the user's projects and groups" do
+      expect(results_for("=", [OpenProject::Database::DB_VALUE_TRUE]))
+        .to contain_exactly(department)
+    end
+
+    it "keeps the ordinary visibility restriction for everything else" do
+      results = results_for("=", [OpenProject::Database::DB_VALUE_FALSE])
+
+      expect(results).not_to include(plain_group, department)
+    end
+  end
 end

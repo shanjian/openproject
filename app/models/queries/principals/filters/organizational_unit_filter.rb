@@ -56,14 +56,19 @@ class Queries::Principals::Filters::OrganizationalUnitFilter <
     end
   end
 
-  private
-
+  # Public so PrincipalQuery#default_scope can widen past the ordinary visibility restriction
+  # when this filter is asking for organisational units specifically: departments are metadata
+  # a department custom field intentionally exposes to everyone (CustomField#possible_department_values
+  # has no visibility check of its own), not project members, so restricting them to visible
+  # projects/groups would silently drop valid filter values for ordinary users.
   def wants_organizational_units?
     (values.first == OpenProject::Database::DB_VALUE_TRUE &&
       operator_strategy == Queries::Operators::BooleanEquals) ||
       (values.first == OpenProject::Database::DB_VALUE_FALSE &&
         operator_strategy == Queries::Operators::BooleanNotEquals)
   end
+
+  private
 
   def organizational_unit_ids
     Group.organizational_units.select(:id)
