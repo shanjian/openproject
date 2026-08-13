@@ -362,8 +362,10 @@ class RecurringMeetingsController < ApplicationController
 
   def recurring_meeting_params
     params
-      .expect(meeting: %i[project_id title location start_time_hour duration start_date
-                          interval frequency end_after end_date iterations notify])
+      .expect(meeting: [:project_id, :title, :location, :start_time_hour, :duration, :start_date,
+                        :interval, :frequency, :end_after, :end_date, :iterations, :notify,
+                        :preset, :schedule_mode_option, :schedule_mode, :month_day, :week_ordinal,
+                        { weekdays: [] }])
   end
 
   def find_copy_from_meeting

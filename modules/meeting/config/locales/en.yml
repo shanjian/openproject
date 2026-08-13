@@ -71,6 +71,10 @@ en:
         end_after: "Meeting series ends"
         end_date: "End date"
         iterations: "Occurrences"
+        weekdays: "Repeats on"
+        schedule_mode: "Repeats by"
+        month_day: "Day of month"
+        week_ordinal: "Week of the month"
       recurring_meeting_interim_response:
         start_time: "Start time"
       meeting_participant:
@@ -479,8 +483,32 @@ en:
       x_weekly:
         one: "Every week"
         other: "Every %{count} weeks"
+      x_monthly:
+        one: "Every month"
+        other: "Every %{count} months"
+      x_yearly:
+        one: "Every year"
+        other: "Every %{count} years"
       every_weekday: "Every %{day_of_the_week}"
       working_days: "Every working day"
+    preset:
+      daily: "Daily"
+      weekly: "Weekly on %{weekday}"
+      monthly_nth_weekday: "Monthly on the %{ordinal} %{weekday}"
+      yearly: "Annually on %{date}"
+      working_days: "Every working day"
+      custom: "Custom…"
+    schedule_mode:
+      day_of_month: "On day %{day}"
+      nth_weekday: "On the %{ordinal} %{weekday}"
+      last_day_of_month: "On the last day of the month"
+    ordinal:
+      "1": "first"
+      "2": "second"
+      "3": "third"
+      "4": "fourth"
+      "5": "fifth"
+      "-1": "last"
     end_after:
       never: "never"
       specific_date: "after a specific date"
@@ -491,10 +519,31 @@ en:
       working_days: "Every working day"
       weekly: "Every week on %{weekday}"
       weekly_interval: "Every %{interval} weeks on %{weekday}"
+      weekly_days: "Every week on %{weekdays}"
+      weekly_interval_days: "Every %{interval} weeks on %{weekdays}"
+      monthly_day: "Every month on day %{day}"
+      monthly_day_interval: "Every %{interval} months on day %{day}"
+      monthly_last_day: "Every month on the last day"
+      monthly_last_day_interval: "Every %{interval} months on the last day"
+      monthly_nth_weekday: "Every month on the %{ordinal} %{weekday}"
+      monthly_nth_weekday_interval: "Every %{interval} months on the %{ordinal} %{weekday}"
+      yearly: "Every year on %{date}"
+      yearly_interval: "Every %{interval} years on %{date}"
+      yearly_last_day: "Every year on the last day of %{month}"
+      yearly_last_day_interval: "Every %{interval} years on the last day of %{month}"
+      yearly_nth_weekday: "Every year on the %{ordinal} %{weekday} of %{month}"
+      yearly_nth_weekday_interval: "Every %{interval} years on the %{ordinal} %{weekday} of %{month}"
       frequency: "%{base} at %{time}"
       full: "%{base} at %{time}, ends on %{end_date}"
       full_past: "%{base} at %{time}, ended on %{end_date}"
       never_ending: "%{base} at %{time}"
+    preview:
+      heading: "Upcoming meetings"
+      total_count:
+        one: "1 meeting in total"
+        other: "%{count} meetings in total"
+      first_differs: "The first meeting of this series takes place on %{date}."
+      short_months_skipped: "Months with fewer than %{day} days will be skipped."
     open:
       title: "Agenda opened"
       subtitle: >

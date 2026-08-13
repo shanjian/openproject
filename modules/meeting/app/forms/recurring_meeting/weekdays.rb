@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 #-- copyright
 # OpenProject is an open source project management software.
 # Copyright (C) the OpenProject GmbH
@@ -27,36 +28,31 @@
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-module RecurringMeetings
-  class BaseContract < ::ModelContract
-    def self.model
-      RecurringMeeting
+class RecurringMeeting::Weekdays < ApplicationForm
+  form do |meeting_form|
+    meeting_form.check_box_group(
+      name: "weekdays",
+      label: I18n.t("activerecord.attributes.recurring_meeting.weekdays"),
+      layout: :horizontal
+    ) do |group|
+      selected = @meeting.weekdays.presence || @meeting.default_weekdays
+
+      1.upto(7) do |day|
+        group.check_box(
+          value: day.to_s,
+          label: I18n.t("date.abbr_day_names")[day % 7],
+          checked: selected.include?(day),
+          data: {
+            action: "input->recurring-meetings--form#updateFrequencyText"
+          }
+        )
+      end
     end
+  end
 
-    attribute :title
-    attribute :author_id
-    attribute :project_id
-    attribute :start_time
-    attribute :start_date
-    attribute :start_time_hour
-    attribute :frequency
-    attribute :end_after
-    attribute :end_date
-    attribute :iterations
-    attribute :interval
-    attribute :weekdays
-    attribute :schedule_mode
-    attribute :month_day
-    attribute :week_ordinal
-    attribute :time_zone
-    attribute :notify
+  def initialize(meeting:)
+    super()
 
-    # Virtual attributes for the form (expanded by the model before validation)
-    attribute :preset
-    attribute :schedule_mode_option
-
-    # Virtual attributes for the form
-    attribute :duration
-    attribute :location
+    @meeting = meeting
   end
 end

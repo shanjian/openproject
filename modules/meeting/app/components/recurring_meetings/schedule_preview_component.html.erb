@@ -1,0 +1,25 @@
+<div class="op-recurring-meeting-preview" data-test-selector="schedule-preview">
+  <%= render(Primer::Beta::Text.new(tag: :p, font_size: :small, color: :subtle, mb: 1, test_selector: "schedule-preview-summary")) do %>
+    <%= [summary, (I18n.t("recurring_meeting.preview.total_count", count: total_count) if total_count)].compact.join(" · ") %>
+  <% end %>
+
+  <% if occurrences.any? %>
+    <ul class="op-recurring-meeting-preview--list color-fg-subtle text-small" data-test-selector="schedule-preview-occurrences">
+      <% occurrences.each do |occurrence| %>
+        <li><%= helpers.format_date(occurrence) %> (<%= I18n.l(occurrence, format: "%A") %>)</li>
+      <% end %>
+    </ul>
+  <% end %>
+
+  <% if first_differs? %>
+    <%= render(Primer::Beta::Text.new(tag: :p, font_size: :small, color: :attention, mb: 0, test_selector: "schedule-preview-first-differs")) do %>
+      <%= I18n.t("recurring_meeting.preview.first_differs", date: helpers.format_time(occurrences.first)) %>
+    <% end %>
+  <% end %>
+
+  <% if short_months_skipped? %>
+    <%= render(Primer::Beta::Text.new(tag: :p, font_size: :small, color: :attention, mb: 0, test_selector: "schedule-preview-short-months")) do %>
+      <%= I18n.t("recurring_meeting.preview.short_months_skipped", day: @meeting.effective_month_day) %>
+    <% end %>
+  <% end %>
+</div>

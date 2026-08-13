@@ -16,9 +16,21 @@ export default class OpRecurringMeetingsFormController extends OpMeetingsFormCon
       'frequency',
       'interval',
       'time_zone',
+      'end_after',
+      'end_date',
+      'iterations',
+      'preset',
+      'schedule_mode_option',
     ].forEach((name) => {
       const key = `meeting[${name}]`;
-      urlSearchParams.append(key, data.get(key) as string);
+      const value = data.get(key);
+      if (value !== null) {
+        urlSearchParams.append(key, value as string);
+      }
+    });
+
+    data.getAll('meeting[weekdays][]').forEach((value) => {
+      urlSearchParams.append('meeting[weekdays][]', value as string);
     });
 
     void this

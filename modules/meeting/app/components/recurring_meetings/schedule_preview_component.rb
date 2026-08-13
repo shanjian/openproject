@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 #-- copyright
 # OpenProject is an open source project management software.
 # Copyright (C) the OpenProject GmbH
@@ -28,35 +29,46 @@
 #++
 
 module RecurringMeetings
-  class BaseContract < ::ModelContract
-    def self.model
-      RecurringMeeting
+  class SchedulePreviewComponent < ApplicationComponent
+    def initialize(meeting:)
+      super
+
+      @meeting = meeting
     end
 
-    attribute :title
-    attribute :author_id
-    attribute :project_id
-    attribute :start_time
-    attribute :start_date
-    attribute :start_time_hour
-    attribute :frequency
-    attribute :end_after
-    attribute :end_date
-    attribute :iterations
-    attribute :interval
-    attribute :weekdays
-    attribute :schedule_mode
-    attribute :month_day
-    attribute :week_ordinal
-    attribute :time_zone
-    attribute :notify
+    def render?
+      @meeting.start_time.present? && @meeting.frequency.present?
+    end
 
-    # Virtual attributes for the form (expanded by the model before validation)
-    attribute :preset
-    attribute :schedule_mode_option
+    def summary
+      # Unlike human_frequency_schedule, this includes "ends on {date}" for
+      # date- and iteration-bounded series.
+      @meeting.full_schedule_in_words
+    end
 
-    # Virtual attributes for the form
-    attribute :duration
-    attribute :location
+    def occurrences
+      @occurrences ||= @meeting
+        .scheduled_occurrences(limit: 5, from_time: @meeting.start_time - 1.minute)
+        .map(&:to_time)
+    rescue StandardError
+      []
+    end
+
+    def total_count
+      return unless @meeting.end_after_iterations?
+
+      @meeting.iterations
+    end
+
+    def first_differs?
+      occurrences.first.present? && occurrences.first != @meeting.start_time
+    end
+
+    def short_months_skipped?
+      (@meeting.frequency_monthly? || @meeting.frequency_yearly?) &&
+        @meeting.schedule_mode_day_of_month? &&
+        @meeting.effective_month_day != -1 &&
+        @meeting.effective_month_day >= 29
+    end
   end
 end
