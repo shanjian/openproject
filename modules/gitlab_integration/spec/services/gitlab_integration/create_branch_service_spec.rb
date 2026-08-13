@@ -157,6 +157,40 @@ RSpec.describe GitlabIntegration::CreateBranchService do
       end
     end
 
+    context "when the client-supplied branch name is longer than the limit" do
+      let(:client_branch_name) { "feature/#{work_package.id}-#{'a' * described_class::MAX_LENGTH}" }
+
+      it "fails without contacting GitLab" do
+        allow(api_client).to receive(:create_branch)
+
+        expect(result).to be_failure
+        expect(api_client).not_to have_received(:create_branch)
+      end
+    end
+
+    context "when the work package subject is longer than the limit allows" do
+      shared_let(:long_work_package) do
+        create(:work_package, project:, type:, subject: "Premium Report #{'and a very long tail ' * 20}")
+      end
+
+      subject(:result) do
+        described_class.new(user:, work_package: long_work_package, mapping:, branch_name: nil).call
+      end
+
+      it "trims the default name down to the limit rather than sending an over-long ref" do
+        allow(api_client).to receive(:create_branch).and_return(response(status: 201, body: {}))
+
+        expect(result).to be_success
+
+        branch = result.result[:branch]
+        # Stripping the dash left by a cut that lands on a word boundary can cost one character
+        expect(branch.length).to be_between(described_class::MAX_LENGTH - 1, described_class::MAX_LENGTH)
+        expect(branch).to match(described_class::BRANCH_NAME_PATTERN)
+        expect(branch).to start_with("feature/#{long_work_package.id}-premium-report-and-a-very-long-tail-")
+        expect(branch).not_to end_with("-")
+      end
+    end
+
     context "when the client-supplied branch name does not reference this work package's id" do
       let(:client_branch_name) { "feature/#{work_package.id + 1}-someone-elses-wp" }
 

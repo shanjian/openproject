@@ -70,6 +70,73 @@ describe('GitActionsService', function() {
     expect(service.branchName(wp, '0809-1430')).toEqual('story/76954-eet-review-and-deploy-retail-store-0809-1430');
   });
 
+  describe('with a subject too long for the server-side branch name limit', () => {
+    const longSubject = 'Premium Report - PandaSuite doesn\'t show share/comment function and numbers on '
+      + 'desktop, breaking news banner breaks the full-screen experience, sticky bar at the top of '
+      + 'article page doesn\'t transition to share/comment, different display sizes show cut-off text';
+
+    it('trims the title so the suffixed name still fits the limit', () => {
+      const wp = createWorkPackage({ id: '83439', subject: longSubject, type: { name: 'BUG' } });
+      const name = service.branchName(wp, '0813-1200');
+
+      expect(name.length).toBeLessThanOrEqual(GitActionsService.MAX_BRANCH_NAME_LENGTH);
+      expect(name).toEqual('bug/83439-premium-report-pandasuite-doesn-t-show-share-comment-function-and-numbers-on-'
+        + 'desktop-breaking-news-banner-breaks-the-full-screen-experience-sticky-bar-at-the-top-of-'
+        + 'article-page-do-0813-1200');
+    });
+
+    it('keeps the work package id prefix and the whole suffix intact', () => {
+      const wp = createWorkPackage({ id: '83439', subject: longSubject, type: { name: 'BUG' } });
+
+      expect(service.branchName(wp, '0813-1200')).toMatch(/^bug\/83439-.*-0813-1200$/);
+    });
+
+    // Both names fill the limit exactly, so comparing their lengths proves nothing.
+    // What matters is that the suffix is paid for out of the title's budget rather
+    // than added on top of it, or clipped.
+    it('pays for the suffix out of the title, keeping the suffix whole', () => {
+      const wp = createWorkPackage({ id: '83439', subject: longSubject, type: { name: 'BUG' } });
+      const suffix = '0813-1200';
+      const prefix = 'bug/83439-';
+
+      const suffixed = service.branchName(wp, suffix);
+      const unsuffixed = service.branchName(wp);
+
+      expect(suffixed.length).toEqual(GitActionsService.MAX_BRANCH_NAME_LENGTH);
+      expect(unsuffixed.length).toEqual(GitActionsService.MAX_BRANCH_NAME_LENGTH);
+      expect(suffixed.endsWith(`-${suffix}`)).toBe(true);
+
+      // The title gives up exactly the characters the `-<suffix>` tail costs
+      const titleWithSuffix = suffixed.slice(prefix.length, -(suffix.length + 1));
+      const titleWithout = unsuffixed.slice(prefix.length);
+      expect(titleWithout.length - titleWithSuffix.length).toEqual(suffix.length + 1);
+      expect(titleWithout.startsWith(titleWithSuffix)).toBe(true);
+    });
+
+    it('scales the room reserved to the length of the suffix given', () => {
+      const wp = createWorkPackage({ id: '83439', subject: longSubject, type: { name: 'BUG' } });
+
+      expect(service.branchName(wp, 'x').length).toEqual(GitActionsService.MAX_BRANCH_NAME_LENGTH);
+      expect(service.branchName(wp, 'x'.repeat(50)).length)
+        .toEqual(GitActionsService.MAX_BRANCH_NAME_LENGTH);
+      expect(service.branchName(wp, 'x'.repeat(50)).endsWith(`-${'x'.repeat(50)}`)).toBe(true);
+    });
+
+    it('does not leave a trailing dash where the title was cut', () => {
+      // 'ab' lands exactly on the cut, so the following dash would be left dangling
+      const filler = 'ab-'.repeat(80);
+      const wp = createWorkPackage({ id: '76954', subject: filler, type: { name: 'Story' } });
+
+      expect(service.branchName(wp, '0813-1200')).not.toMatch(/--0813-1200$/);
+    });
+
+    it('does not double up the prefix dash when no room is left for the title', () => {
+      const wp = createWorkPackage({ id: '76954', subject: longSubject, type: { name: 'a'.repeat(200) } });
+
+      expect(service.branchName(wp, '0813-1200')).toEqual(`${'a'.repeat(200)}/76954-0813-1200`);
+    });
+  });
+
   it('formats the timestamp suffix as MMDD-HHmm, zero-padded', () => {
     const date = new Date(2026, 0, 5, 9, 3); // Jan 5th, 09:03 (month is 0-indexed)
     expect(service.timestampSuffix(date)).toEqual('0105-0903');
