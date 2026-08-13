@@ -48,7 +48,7 @@ module RecurringMeetings
     def schedule_params
       params.expect(meeting: [:start_date, :start_time_hour, :frequency, :interval, :time_zone,
                               :end_after, :end_date, :iterations, :preset, :schedule_mode_option,
-                              :schedule_mode, :month_day, :week_ordinal,
+                              :schedule_mode, :month_day, :week_ordinal, :weekday,
                               { weekdays: [] }])
     end
   end

@@ -21,6 +21,8 @@ export default class OpRecurringMeetingsFormController extends OpMeetingsFormCon
       'iterations',
       'preset',
       'schedule_mode_option',
+      'week_ordinal',
+      'weekday',
     ].forEach((name) => {
       const key = `meeting[${name}]`;
       const value = data.get(key);

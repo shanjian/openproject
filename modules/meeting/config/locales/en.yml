@@ -75,6 +75,7 @@ en:
         schedule_mode: "Repeats by"
         month_day: "Day of month"
         week_ordinal: "Week of the month"
+        weekday: "Weekday"
       recurring_meeting_interim_response:
         start_time: "Start time"
       meeting_participant:
@@ -501,6 +502,7 @@ en:
     schedule_mode:
       day_of_month: "On day %{day}"
       nth_weekday: "On the %{ordinal} %{weekday}"
+      specific_weekday: "On a specific weekday…"
       last_day_of_month: "On the last day of the month"
     ordinal:
       "1": "first"

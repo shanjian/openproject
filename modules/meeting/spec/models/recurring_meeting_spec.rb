@@ -377,6 +377,40 @@ RSpec.describe RecurringMeeting,
           "2026-09-04", "2026-10-02", "2026-11-06"
         )
       end
+
+      it "recurs on a chosen weekday different from the start date's" do
+        series = build_series(frequency: "monthly", schedule_mode: "nth_weekday",
+                              week_ordinal: 1, weekday: 1)
+
+        expect(first_occurrences(series, 3)).to eq expected_times(
+          "2026-09-07", "2026-10-05", "2026-11-02"
+        )
+      end
+
+      it "recurs on the last occurrence of a chosen weekday" do
+        series = build_series(frequency: "monthly", schedule_mode: "nth_weekday",
+                              week_ordinal: -1, weekday: 3)
+
+        expect(first_occurrences(series, 3)).to eq expected_times(
+          "2026-09-30", "2026-10-28", "2026-11-25"
+        )
+      end
+
+      it "keeps an explicitly chosen ordinal and weekday when the weekday mode option is submitted" do
+        series = build_series(frequency: "monthly", schedule_mode_option: "nth_weekday",
+                              week_ordinal: 1, weekday: 1)
+        series.validate
+
+        expect(series.week_ordinal).to eq 1
+        expect(series.weekday).to eq 1
+        expect(first_occurrences(series, 2)).to eq expected_times("2026-09-07", "2026-10-05")
+      end
+
+      it "reads stored last-weekday schedules as the weekday mode option" do
+        series = build_series(frequency: "monthly", schedule_mode: "nth_weekday", week_ordinal: -1)
+
+        expect(series.schedule_mode_option).to eq "nth_weekday"
+      end
     end
 
     describe "monthly on a day of the month" do
@@ -421,6 +455,15 @@ RSpec.describe RecurringMeeting,
           "2026-09-04", "2027-09-03", "2028-09-01"
         )
       end
+
+      it "recurs on a chosen weekday of the start month" do
+        series = build_series(frequency: "yearly", schedule_mode: "nth_weekday",
+                              week_ordinal: 1, weekday: 1)
+
+        expect(first_occurrences(series, 3)).to eq expected_times(
+          "2026-09-07", "2027-09-06", "2028-09-04"
+        )
+      end
     end
 
     describe "field normalization and validation" do
@@ -458,6 +501,29 @@ RSpec.describe RecurringMeeting,
         expect(series).not_to be_valid
         expect(series.errors[:week_ordinal]).to be_present
       end
+
+      it "rejects invalid weekday values" do
+        series = build_series(frequency: "monthly", schedule_mode: "nth_weekday", weekday: 8)
+
+        expect(series).not_to be_valid
+        expect(series.errors[:weekday]).to be_present
+      end
+
+      it "clears the weekday and ordinal when the schedule is by day of month" do
+        series = build_series(frequency: "monthly", schedule_mode_option: "day_of_month",
+                              week_ordinal: 2, weekday: 1)
+        series.validate
+
+        expect(series.weekday).to be_nil
+        expect(series.week_ordinal).to be_nil
+      end
+
+      it "clears the weekday for non-monthly/yearly frequencies" do
+        series = build_series(frequency: "weekly", weekday: 1)
+        series.validate
+
+        expect(series.weekday).to be_nil
+      end
     end
 
     describe "schedule humanization" do
@@ -481,6 +547,20 @@ RSpec.describe RecurringMeeting,
 
         expect(series.base_schedule).to eq "Every year on the last day of September"
       end
+
+      it "uses the chosen weekday for monthly nth-weekday rules" do
+        series = build_series(frequency: "monthly",
+                              schedule_mode: "nth_weekday", week_ordinal: 1, weekday: 1)
+
+        expect(series.base_schedule).to eq "Every month on the first Monday"
+      end
+
+      it "uses the chosen weekday for yearly nth-weekday rules" do
+        series = build_series(frequency: "yearly",
+                              schedule_mode: "nth_weekday", week_ordinal: -1, weekday: 3)
+
+        expect(series.base_schedule).to eq "Every year on the last Wednesday of September"
+      end
     end
 
     describe "#matching_preset" do
@@ -502,6 +582,8 @@ RSpec.describe RecurringMeeting,
           expect(build_series(frequency: "monthly", schedule_mode: "nth_weekday", week_ordinal: -1)
             .matching_preset).to eq "custom"
           expect(build_series(frequency: "monthly", schedule_mode: "day_of_month", month_day: 31)
+            .matching_preset).to eq "custom"
+          expect(build_series(frequency: "monthly", schedule_mode: "nth_weekday", weekday: 1)
             .matching_preset).to eq "custom"
         end
       end

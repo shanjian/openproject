@@ -28,38 +28,10 @@
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-class RecurringMeeting::ScheduleMode < ApplicationForm
-  form do |meeting_form|
-    meeting_form.select_list(
-      name: "schedule_mode_option",
-      label: I18n.t("activerecord.attributes.recurring_meeting.schedule_mode"),
-      data: {
-        target_name: "schedule_mode_option",
-        "show-when-value-selected-target": "cause",
-        action: "input->recurring-meetings--form#updateFrequencyText"
-      }
-    ) do |list|
-      options.each do |value, label|
-        list.option(label:, value:, selected: value == @meeting.schedule_mode_option)
-      end
-    end
-  end
-
-  def initialize(meeting:)
-    super()
-
-    @meeting = meeting
-  end
-
-  private
-
-  def options
-    start_date = @meeting.start_time&.to_date || Date.tomorrow
-
-    [
-      ["day_of_month", I18n.t("recurring_meeting.schedule_mode.day_of_month", day: start_date.day)],
-      ["nth_weekday", I18n.t("recurring_meeting.schedule_mode.specific_weekday")],
-      ["last_day", I18n.t("recurring_meeting.schedule_mode.last_day_of_month")]
-    ]
+class AddWeekdayToRecurringMeetings < ActiveRecord::Migration[8.0]
+  # ISO weekday (1 = Monday .. 7 = Sunday) a monthly/yearly nth-weekday rule recurs on.
+  # NULL keeps the legacy behaviour of deriving the weekday from the start date.
+  def change
+    add_column :recurring_meetings, :weekday, :integer, null: true
   end
 end
