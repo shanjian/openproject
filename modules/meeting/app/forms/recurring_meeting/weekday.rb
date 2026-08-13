@@ -28,19 +28,19 @@
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-class RecurringMeeting::ScheduleMode < ApplicationForm
+class RecurringMeeting::Weekday < ApplicationForm
   form do |meeting_form|
     meeting_form.select_list(
-      name: "schedule_mode_option",
-      label: I18n.t("activerecord.attributes.recurring_meeting.schedule_mode"),
+      name: "weekday",
+      label: I18n.t("activerecord.attributes.recurring_meeting.weekday"),
       data: {
-        target_name: "schedule_mode_option",
-        "show-when-value-selected-target": "cause",
         action: "input->recurring-meetings--form#updateFrequencyText"
       }
     ) do |list|
-      options.each do |value, label|
-        list.option(label:, value:, selected: value == @meeting.schedule_mode_option)
+      1.upto(7) do |day|
+        list.option(label: I18n.t("date.day_names")[day % 7],
+                    value: day,
+                    selected: day == selected_weekday)
       end
     end
   end
@@ -53,13 +53,9 @@ class RecurringMeeting::ScheduleMode < ApplicationForm
 
   private
 
-  def options
-    start_date = @meeting.start_time&.to_date || Date.tomorrow
+  def selected_weekday
+    return @meeting.weekday if @meeting.weekday.present?
 
-    [
-      ["day_of_month", I18n.t("recurring_meeting.schedule_mode.day_of_month", day: start_date.day)],
-      ["nth_weekday", I18n.t("recurring_meeting.schedule_mode.specific_weekday")],
-      ["last_day", I18n.t("recurring_meeting.schedule_mode.last_day_of_month")]
-    ]
+    (@meeting.start_time&.to_date || Date.tomorrow).cwday
   end
 end

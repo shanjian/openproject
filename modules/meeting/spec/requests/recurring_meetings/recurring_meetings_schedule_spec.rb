@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 #-- copyright
 # OpenProject is an open source project management software.
 # Copyright (C) the OpenProject GmbH
@@ -125,6 +126,22 @@ RSpec.describe "Recurring meetings schedule text",
           expect(subject.body).to include("2026-09-18")
           expect(subject.body).to include("2026-09-28")
           expect(subject.body).not_to include("schedule-preview-first-differs")
+        end
+      end
+
+      context "with an explicit ordinal and weekday differing from the start date" do
+        let(:params) do
+          { meeting: { start_time_hour:, start_date:, frequency: "monthly",
+                       schedule_mode_option: "nth_weekday", week_ordinal: "1", weekday: "1",
+                       interval: "1" } }
+        end
+
+        it "previews first Mondays and warns that the first occurrence differs" do
+          expect(subject).to have_http_status(:ok)
+          expect(subject.body).to include("first Monday")
+          expect(subject.body).to include("2026-09-07")
+          expect(subject.body).to include("2026-10-05")
+          expect(subject.body).to include("schedule-preview-first-differs")
         end
       end
 

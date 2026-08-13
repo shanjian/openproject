@@ -218,7 +218,7 @@ class RecurringMeetingsController < ApplicationController
     result
       .on_failure { |call| render_500(message: call.message) }
       .on_success do |call|
-        send_data call.result, filename: filename_for_content_disposition("#{filename}.ics")
+      send_data call.result, filename: filename_for_content_disposition("#{filename}.ics")
     end
   end
 
@@ -258,11 +258,11 @@ class RecurringMeetingsController < ApplicationController
       .participants
       .invited
       .find_each do |participant|
-        MeetingSeriesMailer.invited(
-          @recurring_meeting,
-          participant.user,
-          User.current
-        ).deliver_later
+      MeetingSeriesMailer.invited(
+        @recurring_meeting,
+        participant.user,
+        User.current
+      ).deliver_later
     end
   end
 
@@ -273,12 +273,12 @@ class RecurringMeetingsController < ApplicationController
       .participants
       .invited
       .find_each do |participant|
-        MeetingMailer
-          .invited(
-            meeting,
-            participant.user,
-            User.current
-          ).deliver_later
+      MeetingMailer
+        .invited(
+          meeting,
+          participant.user,
+          User.current
+        ).deliver_later
     end
   end
 
@@ -364,7 +364,7 @@ class RecurringMeetingsController < ApplicationController
     params
       .expect(meeting: [:project_id, :title, :location, :start_time_hour, :duration, :start_date,
                         :interval, :frequency, :end_after, :end_date, :iterations, :notify,
-                        :preset, :schedule_mode_option, :schedule_mode, :month_day, :week_ordinal,
+                        :preset, :schedule_mode_option, :schedule_mode, :month_day, :week_ordinal, :weekday,
                         { weekdays: [] }])
   end
 

@@ -28,19 +28,21 @@
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-class RecurringMeeting::ScheduleMode < ApplicationForm
+class RecurringMeeting::WeekOrdinal < ApplicationForm
+  ORDINALS = [1, 2, 3, 4, -1].freeze
+
   form do |meeting_form|
     meeting_form.select_list(
-      name: "schedule_mode_option",
-      label: I18n.t("activerecord.attributes.recurring_meeting.schedule_mode"),
+      name: "week_ordinal",
+      label: I18n.t("activerecord.attributes.recurring_meeting.week_ordinal"),
       data: {
-        target_name: "schedule_mode_option",
-        "show-when-value-selected-target": "cause",
         action: "input->recurring-meetings--form#updateFrequencyText"
       }
     ) do |list|
-      options.each do |value, label|
-        list.option(label:, value:, selected: value == @meeting.schedule_mode_option)
+      ORDINALS.each do |value|
+        list.option(label: I18n.t("recurring_meeting.ordinal.#{value}"),
+                    value:,
+                    selected: value == selected_ordinal)
       end
     end
   end
@@ -53,13 +55,13 @@ class RecurringMeeting::ScheduleMode < ApplicationForm
 
   private
 
-  def options
-    start_date = @meeting.start_time&.to_date || Date.tomorrow
+  def selected_ordinal
+    return @meeting.week_ordinal if @meeting.week_ordinal.present?
 
-    [
-      ["day_of_month", I18n.t("recurring_meeting.schedule_mode.day_of_month", day: start_date.day)],
-      ["nth_weekday", I18n.t("recurring_meeting.schedule_mode.specific_weekday")],
-      ["last_day", I18n.t("recurring_meeting.schedule_mode.last_day_of_month")]
-    ]
+    start_date = @meeting.start_time&.to_date || Date.tomorrow
+    derived = ((start_date.day - 1) / 7) + 1
+    # A start date on the fifth occurrence of its weekday has no explicit option;
+    # "last" is the closest equivalent.
+    derived > 4 ? -1 : derived
   end
 end

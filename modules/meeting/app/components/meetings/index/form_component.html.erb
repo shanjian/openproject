@@ -114,7 +114,31 @@
                   "show-when-value-selected-target": "effect"
                 }
               ) do
-                render(RecurringMeeting::ScheduleMode.new(f, meeting: @meeting))
+                flex_layout do |schedule_mode_area|
+                  schedule_mode_area.with_row do
+                    render(RecurringMeeting::ScheduleMode.new(f, meeting: @meeting))
+                  end
+
+                  schedule_mode_area.with_row(
+                    mt: 3,
+                    hidden: @meeting.schedule_mode_option != "nth_weekday",
+                    data: {
+                      value: "nth_weekday",
+                      target_name: "schedule_mode_option",
+                      "show-when-value-selected-target": "effect"
+                    }
+                  ) do
+                    flex_layout(classes: "FormControl-horizontalGroup") do |nth_weekday_row|
+                      nth_weekday_row.with_column(flex: 1) do
+                        render(RecurringMeeting::WeekOrdinal.new(f, meeting: @meeting))
+                      end
+
+                      nth_weekday_row.with_column(flex: 1) do
+                        render(RecurringMeeting::Weekday.new(f, meeting: @meeting))
+                      end
+                    end
+                  end
+                end
               end
             end
           end
