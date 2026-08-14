@@ -2,6 +2,9 @@
 
 **Date:** 2026-08-13
 **Status:** Draft — awaiting review
+**Revisions:** 2026-08-14 (review round 1 — stamp excluded from occurrence copying,
+digest lifecycle on cancel/end, transactional series scope with template-lock
+coordination, invited-only digest/count rule)
 
 ## Problem
 
@@ -39,7 +42,11 @@ occurrences".
   occurrences; template statuses propagate to newly instantiated occurrences because
   `MeetingParticipant#copy_attributes` keeps `participation_status`, and
   `InitOccurrenceService` moves interim responses). The in-app series scope mirrors
-  this.
+  this. **`participation_responded_at` (new, below) must be added to
+  `copy_attributes`' exclusion list**: the status is inherited state, but the
+  timestamp is an event record — copying it would make every newly instantiated
+  occurrence look like a fresh response and leak duplicate rows into an open digest
+  window.
 - **Debounce:** GoodJob concurrency keys with `enqueue_limit: 1` and a delayed
   `perform_later`, exactly like `Meetings::SendUpdatedNotificationJob` (PR #122). The
   digest job waits **10 minutes** (requirements doc) instead of 5.
@@ -84,7 +91,20 @@ Params: `status` (`accepted` | `tentative` | `declined`), `scope`
     generic email REPLY, this is an explicit "apply to all future" choice. Past
     occurrences are never touched. (The email path's needs-action-only semantics stay
     as they are.)
-  - enqueues the organizer digest (§2).
+  - **Atomicity and the instantiation race.** All series-scope writes happen inside
+    one transaction opened as `series.template.with_lock` (a row lock on the template
+    *Meeting*), and the future-occurrence query runs **after** the lock is acquired.
+    `RecurringMeetings::InitOccurrenceService#perform` wraps its
+    instantiate-and-copy block in the same `template.with_lock` (a one-line addition
+    local to the meeting module; instantiation is already single-flighted per series
+    by `InitNextOccurrenceJob`'s `perform_limit: 1`). The two operations therefore
+    serialize: either the copy runs first and the respond sweep sees the freshly
+    created occurrence in its query, or the respond sweep commits first and the copy
+    inherits the updated template status. No occurrence can be created mid-sweep with
+    a stale status, and a failure rolls back the whole sweep instead of leaving a
+    half-updated series.
+  - enqueues the organizer digest (§2) **after the transaction commits** — a rolled-
+    back sweep must not produce a digest describing writes that never happened.
 - No contract class: the writable surface is one enum on the caller's own participant
   row; guards are simpler and match the CancelService precedent.
 
@@ -149,10 +169,15 @@ the `>= since` query.
   - resolves the recipient: `target.author`. Skip (no mail) if the author is gone,
     locked, or is the only respondent in the window (self-responses are excluded from
     the digest; a digest consisting solely of the author's own answer is dropped).
-  - collects responses: participant rows of the meeting — or, for a series, of the
-    template plus all its occurrence meetings — where
+  - collects responses: **invited** participant rows of the meeting — or, for a
+    series, of the template plus all its occurrence meetings — where
     `participation_responded_at >= since`, status in accepted/tentative/declined,
-    and `user != author`.
+    and `user != author`. Invited-only is the eligibility rule everywhere: the in-app
+    path can't write non-invited rows (guard in §1), and while the email path
+    (`HandleICalResponseService`) keeps recording statuses on non-invited rows as it
+    does today (harmless bookkeeping, no behavior change to that service), such rows
+    are excluded from digests and from the summary counts (§3, already
+    invited-scoped).
   - returns without mail if the collection is empty.
   - honors the author's **global** `meeting_responses` notification setting
     (same global-rows-only query as `meeting_updated`, and for the same reason:
@@ -171,11 +196,19 @@ occurrences" for template-row updates — plus the participant's `comment` when 
 (email replies carry comments; in-app responses don't set them). Footer button links to
 the meeting (or series) page.
 
-**Race with destruction.** Deleting the meeting/series discards the queued job via
-`discard_on DeserializationError`. No explicit `delete_jobs` call is needed — unlike
-the update mail, a late digest after a cancellation is not misleading (it reports
-things that really happened), and the cancellation path already destroys or tombstones
-the rows the digest would read.
+**Lifecycle: cancellation, ended series, deletion.** Deletion is the only case
+`discard_on DeserializationError` covers. Cancelled one-off meetings and ended series
+both keep their records, so a queued digest would deserialize fine and arrive *after*
+the cancellation/ended-series mail — the same stale-ordering problem the update jobs
+solve. Same two-layer fix:
+
+- `Meetings::CancelService` and `RecurringMeetings::EndService` delete pending digest
+  jobs by concurrency key (`SendParticipationDigestJob.delete_jobs(target)`),
+  alongside their existing `SendUpdatedNotificationJob.delete_jobs` calls.
+- The job itself opens with `return if target.is_a?(Meeting) && target.cancelled?`
+  and `return if target.is_a?(RecurringMeeting) && target.has_ended?` — the belt for
+  jobs already past the queue. (Closed meetings do **not** no-op: a response landing
+  shortly before the meeting was closed is still worth reporting.)
 
 ### 3. Summary counts
 
@@ -209,7 +242,7 @@ the rows the digest would read.
 - Locales: `js.reminders.settings.alerts.meeting_responses`, mailer subject/body keys,
   respond-button and dialog labels, "pending" summary label.
 
-## Migrations
+## Migrations & model changes
 
 1. `add_column :meeting_participants, :participation_responded_at, :datetime,
    null: true` — powers the digest window query; deliberately **not** backfilled
@@ -217,6 +250,12 @@ the rows the digest would read.
    post-deploy responses).
 2. `add_column :notification_settings, :meeting_responses, :boolean, default: true`
    (`# rubocop:disable Rails/ThreeStateBooleanColumn`, as before).
+3. `MeetingParticipant#copy_attributes` excludes `participation_responded_at`
+   (statuses are inherited; response timestamps are not).
+4. `InitOccurrenceService#move_interim_responses_to_participants` keeps writing status
+   + comment **without** stamping `participation_responded_at` — interim responses
+   stay outside the digest by design (see Out of scope), and stamping them at
+   instantiation time would date the response wrongly anyway.
 
 ## Tests
 
@@ -225,15 +264,26 @@ the rows the digest would read.
   occurrence scope touches only that occurrence; rejects non-participants,
   non-invited participants, drafts/closed/cancelled/templates, and invalid statuses;
   enqueues the digest job keyed on the series for occurrences and on the meeting for
-  one-offs.
+  one-offs; a failing series sweep rolls back entirely and enqueues no digest.
+- **Occurrence-instantiation regression specs:** an occurrence instantiated *after* a
+  series response inherits the status but **not** the timestamp (guards the
+  `copy_attributes` exclusion — its digest window query must come up empty); the
+  respond sweep and `InitOccurrenceService` serialize on the template lock (a sweep
+  running concurrently with instantiation leaves no occurrence with a stale status).
 - **HandleICalResponseService additions:** stamps `participation_responded_at` and
   enqueues the digest once per series for a series-wide reply (guards the
   concurrency-key choice).
-- **Digest job specs:** collects only in-window responses; excludes the author's own
+- **Digest job specs:** collects only in-window responses from **invited** rows (a
+  non-invited row with an in-window stamp is excluded); excludes the author's own
   response and skips the mail when nothing remains; honors the author's global
   `meeting_responses` opt-out (and ignores a project-scoped row, as with
   `meeting_updated`); series digests label occurrence rows with dates and template
-  rows as all-future; deleted target discards; deleted author skips.
+  rows as all-future; deleted target discards; deleted author skips; no-ops on a
+  cancelled meeting and on an ended series, but still sends for a merely closed
+  meeting.
+- **Lifecycle/ordering specs:** cancelling a meeting (CancelService) and ending a
+  series (EndService) delete pending digest jobs, so no digest arrives after the
+  cancellation/ended-series mail.
 - **Request specs:** `POST respond` happy path (status changes, turbo stream, 200),
   scope param honored on occurrences and ignored on one-offs, 403/failure for
   non-participants and for users without `view_meetings`, failure on cancelled/closed.
