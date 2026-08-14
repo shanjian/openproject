@@ -60,7 +60,7 @@ module AllMeetings
 
     private
 
-    def handle_ical_event(event) # rubocop:disable Metrics/AbcSize, Metrics/PerceivedComplexity
+    def handle_ical_event(event) # rubocop:disable Metrics/AbcSize
       uid = event.uid&.value_ical
       recurrence_id = event.recurrence_id&.to_time
 
@@ -83,13 +83,9 @@ module AllMeetings
       end
 
       if recurrence_id.nil?
-        # No recurrence, so update participation on the template
-        update_participation_status(recurring_meeting.template, event)
-
-        # Also update all instantiated meetings that still need a response
-        instantiated_scheduled_meetings_awaiting_responses(recurring_meeting).each do |scheduled_meeting|
-          update_participation_status(scheduled_meeting.meeting, event)
-        end
+        # Series-wide reply: template + future occurrences still awaiting a
+        # response, in one locked transaction (shared with the in-app path)
+        apply_series_response(recurring_meeting, event)
 
         return ServiceResult.success
       end
@@ -152,28 +148,47 @@ module AllMeetings
       attendee_from_event = attendee(event)
 
       if attendee_from_event.present?
+        stamp = Time.current
         participant = meeting.participants.find_by!(user: user)
         participant.update!(
           participation_status: partstat(attendee_from_event),
-          comment: comment(attendee_from_event, event)
+          comment: comment(attendee_from_event, event),
+          participation_responded_at: stamp
         )
+        enqueue_digest(meeting, stamp)
       else
-        Rails.logger.warn("[iCal Meeting Response] No attendee found for user #{user.mail} in " \
-                          "event #{event.uid}#{" with recurrence ID #{event.recurrence_id.iso8601}" if event.recurrence_id}")
+        log_missing_attendee(event)
       end
     end
 
-    def instantiated_scheduled_meetings_awaiting_responses(recurring_meeting)
-      recurring_meeting
-      .scheduled_meetings
-      .joins(meeting: :participants)
-      .includes(meeting: :participants)
-      .where(meetings: {
-               meeting_participants: {
-                 user_id: user.id,
-                 participation_status: MeetingParticipant.participation_statuses[:needs_action]
-               }
-             })
+    def apply_series_response(recurring_meeting, event)
+      attendee_from_event = attendee(event)
+      return log_missing_attendee(event) if attendee_from_event.nil?
+
+      # The helper stamps rows and enqueues the digest (keyed on the series)
+      # after its transaction commits
+      result = MeetingParticipants::ApplySeriesResponse
+        .new(series: recurring_meeting, user:)
+        .call(status: partstat(attendee_from_event),
+              stamp: Time.current,
+              only_awaiting: true,
+              comment: comment(attendee_from_event, event))
+
+      if result.result.zero?
+        # E.g. a stale invite in the sender's calendar after being removed from
+        # the series — don't let the reply vanish without a trace
+        Rails.logger.warn("[iCal Meeting Response] Series reply from #{user.mail} for " \
+                          "#{recurring_meeting.uid} matched no participant rows")
+      end
+    end
+
+    def enqueue_digest(meeting, stamp)
+      Meetings::SendParticipationDigestJob.schedule(meeting, since: stamp)
+    end
+
+    def log_missing_attendee(event)
+      Rails.logger.warn("[iCal Meeting Response] No attendee found for user #{user.mail} in " \
+                        "event #{event.uid}#{" with recurrence ID #{event.recurrence_id.iso8601}" if event.recurrence_id}")
     end
   end
 end

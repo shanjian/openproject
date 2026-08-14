@@ -45,13 +45,21 @@ module RecurringMeetings
     def perform
       start_time = params.fetch(:start_time)
       in_context(recurring_meeting, send_notifications: false) do
-        call = instantiate(start_time)
-        if call.success?
-          create_schedule(call)
-          move_interim_responses_to_participants(call.result)
-        end
+        # Serializes with MeetingParticipants::ApplySeriesResponse: participant
+        # copying must not interleave with a series-wide response sweep, or the new
+        # occurrence could keep a stale status the sweep never sees. Known tradeoff:
+        # the lock spans the whole occurrence copy (agenda and attachments included),
+        # so a concurrent respond click can wait for the copy to finish — accepted,
+        # since narrowing it would mean restructuring CopyService.
+        recurring_meeting.with_template_lock do
+          call = instantiate(start_time)
+          if call.success?
+            create_schedule(call)
+            move_interim_responses_to_participants(call.result)
+          end
 
-        call
+          call
+        end
       end
     end
 

@@ -48,8 +48,10 @@ module RecurringMeetings
         .call(end_after: "specific_date", end_date: Time.zone.yesterday)
 
       result.on_success do
-        # A queued batched update mail must not arrive after the ended-series mail
+        # Queued batched mails (update, response digest) must not arrive after the
+        # ended-series mail
         SendUpdatedNotificationJob.delete_jobs(recurring_meeting)
+        Meetings::SendParticipationDigestJob.delete_jobs(recurring_meeting)
 
         # Both mails go out regardless of the mute toggle: the per-occurrence
         # cancellations remove instantiated meetings from calendars, and the ended

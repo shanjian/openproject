@@ -93,6 +93,14 @@ RSpec.describe RecurringMeetings::EndService, type: :model do
 
       expect(RecurringMeetings::SendUpdatedNotificationJob).to have_received(:delete_jobs).with(recurring_meeting)
     end
+
+    it "clears a pending participation digest job" do
+      allow(Meetings::SendParticipationDigestJob).to receive(:delete_jobs)
+
+      expect(service.call).to be_success
+
+      expect(Meetings::SendParticipationDigestJob).to have_received(:delete_jobs).with(recurring_meeting)
+    end
   end
 
   describe "#call" do

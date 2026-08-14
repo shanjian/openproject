@@ -75,6 +75,22 @@ class MeetingMailer < UserMailer
     mail(to: user, subject: "[#{@meeting.project.name}] #{subject}")
   end
 
+  # Organizer digest of participant responses (Meetings::SendParticipationDigestJob).
+  # target is the Meeting for one-offs or the RecurringMeeting for a series;
+  # responses is an array of MeetingParticipant rows.
+  def participation_digest(target, user, responses)
+    @target = target
+    @user = user
+    @responses = responses
+    @series = target.is_a?(RecurringMeeting)
+
+    open_project_headers "Project" => target.project.identifier,
+                         "Meeting-Id" => target.id
+
+    subject = I18n.t("meeting.email.participation_digest.header", title: target.title)
+    mail(to: user, subject: "[#{target.project.name}] #{subject}")
+  end
+
   def cancelled(meeting, user, actor)
     @actor = actor
     @user = user

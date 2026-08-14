@@ -21,6 +21,7 @@ export interface INotificationSetting {
   membershipAdded:boolean;
   membershipUpdated:boolean;
   meetingUpdated:boolean;
+  meetingResponses:boolean;
   startDate?:string|null;
   dueDate?:string|null;
   overdue?:string|null;
@@ -53,6 +54,7 @@ export function buildNotificationSetting(project:null|HalSourceLink, params:Part
     membershipAdded: true,
     membershipUpdated: true,
     meetingUpdated: true,
+    meetingResponses: true,
     startDate: 'P1D',
     dueDate: 'P1D',
     overdue: null,

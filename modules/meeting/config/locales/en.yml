@@ -273,6 +273,10 @@ en:
       closed:
         header: "Closed: Meeting '%{title}'"
         summary: "'%{title}' has been closed by %{actor}. Agenda and outcomes are final now."
+      participation_digest:
+        header: "Responses for '%{title}'"
+        summary: "Participants have responded to '%{title}'"
+        all_future: "All future occurrences"
       cancelled:
         header: "Cancelled: Meeting '%{title}'"
         header_occurrence: "Cancelled: Meeting occurrence '%{title}'"
@@ -312,6 +316,20 @@ en:
       structured_text: "Organize your meeting as a dynamic list of agenda items, optionally linking them to a work package."
       structured_text_copy: "Copying a meeting will currently not copy the associated meeting agenda items, just the details"
     copied: "Copied from Meeting #%{id}"
+    respond:
+      your_response: "Your response:"
+      saved: "Your response has been saved."
+      failed: "Your response could not be recorded. You may not be an invited participant, or the meeting is closed."
+      dialog_title: "Respond: %{status}"
+      dialog_confirm: "Save response"
+      scope_label: "Apply to"
+      scope_occurrence: "This occurrence"
+      scope_series: "This and all future occurrences"
+      summary:
+        accepted: "accepted"
+        tentative: "tentative"
+        declined: "declined"
+        pending: "pending"
     cancel_dialog:
       title: "Cancel meeting"
       heading: "Cancel this meeting?"

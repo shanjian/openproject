@@ -80,6 +80,8 @@ Rails.application.routes.draw do
         get :cancel_dialog
         post :cancel
         post :restore
+        get :respond_dialog
+        post :respond
         get :generate_pdf_dialog
         get :toggle_notifications_dialog
         post :toggle_notifications

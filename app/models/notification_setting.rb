@@ -51,6 +51,7 @@ class NotificationSetting < ApplicationRecord
   MEMBERSHIP_ADDED = :membership_added
   MEMBERSHIP_UPDATED = :membership_updated
   MEETING_UPDATED = :meeting_updated
+  MEETING_RESPONSES = :meeting_responses
 
   def self.all_settings
     [
@@ -87,7 +88,8 @@ class NotificationSetting < ApplicationRecord
       WIKI_PAGE_UPDATED,
       MEMBERSHIP_ADDED,
       MEMBERSHIP_UPDATED,
-      MEETING_UPDATED
+      MEETING_UPDATED,
+      MEETING_RESPONSES
     ]
   end
 

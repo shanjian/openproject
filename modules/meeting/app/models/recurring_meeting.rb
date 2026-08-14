@@ -189,6 +189,18 @@ class RecurringMeeting < ApplicationRecord
     start_time + template.duration.hours
   end
 
+  # Serializes series-wide participant sweeps (MeetingParticipants::ApplySeriesResponse)
+  # with occurrence instantiation (RecurringMeetings::InitOccurrenceService): both
+  # sides of that protocol take this lock. The row lock is taken via a throwaway
+  # instance — with_lock would reload the caller's cached template and clobber its
+  # virtual start-time state mid-operation.
+  def with_template_lock
+    Meeting.transaction do
+      Meeting.lock.find(template.id)
+      yield
+    end
+  end
+
   def time_zone_differs?
     time_zone != User.current.time_zone
   end

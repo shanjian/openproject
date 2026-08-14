@@ -112,7 +112,8 @@ module UserPreferences
                         wiki_page_updated
                         membership_added
                         membership_updated
-                        meeting_updated]
+                        meeting_updated
+                        meeting_responses]
           },
           validate: false
         ).ids

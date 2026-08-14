@@ -57,6 +57,83 @@ module Meetings
       @count ||= elements.count
     end
 
+    # Aggregate response counts over invited participants; needs-action and
+    # unknown fold into "pending". Zero segments are omitted.
+    def response_summary_segments
+      @response_summary_segments ||= begin
+        # group().count returns enum labels ("needs_action"), not DB values
+        counts = @meeting.participants.invited.group(:participation_status).count
+        pending = counts.fetch("needs_action", 0) + counts.fetch("unknown", 0)
+
+        [
+          ["accepted", counts.fetch("accepted", 0), :success],
+          ["tentative", counts.fetch("tentative", 0), :attention],
+          ["declined", counts.fetch("declined", 0), :danger],
+          ["pending", pending, :subtle]
+        ].reject { |_, segment_count, _| segment_count.zero? }
+      end
+    end
+
+    def current_participant
+      return @current_participant if defined?(@current_participant)
+
+      @current_participant = @meeting.participants.invited.find_by(user: User.current)
+    end
+
+    def respondable?
+      @meeting.respondable_by?(User.current)
+    end
+
+    def respond_button(flex, status:, color:)
+      flex.with_column(mr: 2) do
+        if @meeting.recurring?
+          dialog_respond_button(status, color)
+        else
+          form_respond_button(status, color)
+        end
+      end
+    end
+
+    # Occurrences open the scope dialog (a GET, safe as a link)
+    def dialog_respond_button(status, color)
+      render(Primer::Beta::Button.new(
+               tag: :a,
+               size: :small,
+               scheme: respond_button_scheme(status),
+               href: respond_dialog_project_meeting_path(@project, @meeting, status:),
+               test_selector: "meeting-respond-#{status}",
+               data: { controller: "async-dialog" }
+             )) do |button|
+        respond_button_content(button, status, color)
+      end
+    end
+
+    # One-off meetings POST directly — through a real form, because an <a href>
+    # to the POST-only route would 404 on middle-click or without Turbo
+    def form_respond_button(status, color)
+      form_with(url: respond_project_meeting_path(@project, @meeting, status:),
+                method: :post,
+                data: { turbo_stream: true }) do
+        render(Primer::Beta::Button.new(
+                 type: :submit,
+                 size: :small,
+                 scheme: respond_button_scheme(status),
+                 test_selector: "meeting-respond-#{status}"
+               )) do |button|
+          respond_button_content(button, status, color)
+        end
+      end
+    end
+
+    def respond_button_scheme(status)
+      current_participant.participation_status == status ? :default : :invisible
+    end
+
+    def respond_button_content(button, status, color)
+      button.with_leading_visual_icon(icon: :check, color:) if current_participant.participation_status == status
+      t("meeting_participant.participation_status.#{status}").capitalize
+    end
+
     def render_participant(participant)
       flex_layout(align_items: :center) do |flex|
         flex.with_column(classes: "ellipsis") do
