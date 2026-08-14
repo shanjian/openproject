@@ -47,7 +47,7 @@ RSpec.describe RecurringMeetings::ICalService, type: :model do # rubocop:disable
            frequency: "weekly",
            time_zone: "America/New_York",
            start_time: DateTime.parse("2024-12-01T10:00:00Z"),
-           end_date: "2025-12-01")
+           end_date: "2124-12-01")
   end
 
   let(:template) { series.template }
@@ -80,7 +80,7 @@ RSpec.describe RecurringMeetings::ICalService, type: :model do # rubocop:disable
       expect(series_ical).to include("CN=OpenProject:mailto:openproject@example.net")
       expect(series_ical).to include("ATTENDEE;CN=Bob Barker;EMAIL=bob@example.com")
       expect(series_ical).to include("ATTENDEE;CN=Foo Fooer;EMAIL=foo@example.com")
-      expect(series_ical).to include("RRULE:FREQ=WEEKLY;UNTIL=20251202T000000Z")
+      expect(series_ical).to include("RRULE:FREQ=WEEKLY;UNTIL=21241202T000000Z")
     end
   end
 
