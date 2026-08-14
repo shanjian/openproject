@@ -344,6 +344,27 @@ RSpec.describe Meetings::IcalendarBuilder,
       end
     end
 
+    context "when the schedule cursor has advanced (REGRESSION: master DTEND before DTSTART)" do
+      subject(:builder) { described_class.new(timezone:) }
+
+      it "still renders a master VEVENT whose DTEND is after its DTSTART" do
+        # Mirrors what RecurringMeetings::SetAttributesService does on every real
+        # edit: roll current_schedule_start forward while start_time stays put.
+        advanced_start = recurring_meeting.start_time + 3.weeks
+        recurring_meeting.update!(current_schedule_start: advanced_start)
+
+        series = RecurringMeeting.find(recurring_meeting.id)
+        builder.add_series_event(recurring_meeting: series)
+
+        master = Icalendar::Calendar.parse(builder.to_ical).first
+                                     .events.find { |e| e.rrule.present? }
+
+        expect(master.dtstart.to_time).to eq(advanced_start)
+        expect(master.dtend.to_time).to be > master.dtstart.to_time
+        expect(master.dtend.to_time).to eq(advanced_start + series.template.duration.hours)
+      end
+    end
+
     context "when current user needs to take action" do
       subject(:builder) { described_class.new(timezone:, user: user1) }
 

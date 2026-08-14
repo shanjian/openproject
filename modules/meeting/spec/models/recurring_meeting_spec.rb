@@ -228,6 +228,33 @@ RSpec.describe RecurringMeeting,
     end
   end
 
+  describe "#current_schedule_end" do
+    let(:recurring_meeting) do
+      create(:recurring_meeting,
+             start_time: Time.zone.tomorrow + 10.hours,
+             frequency: "weekly",
+             end_after: "specific_date",
+             end_date: 1.year.from_now)
+    end
+
+    it "derives the end from the rolling current_schedule_start, not the original start_time" do
+      # RecurringMeetings::SetAttributesService advances current_schedule_start to
+      # the series' next upcoming occurrence on every real edit, while start_time
+      # keeps pointing at the original (first) occurrence. Anchoring the end on
+      # start_time would render a DTEND earlier than DTSTART (invalid per
+      # RFC 5545 §3.6.1) for any series that has progressed past its first
+      # occurrence.
+      advanced_start = recurring_meeting.start_time + 3.weeks
+      recurring_meeting.update!(current_schedule_start: advanced_start)
+
+      duration = recurring_meeting.template.duration.hours
+
+      expect(recurring_meeting.current_schedule_end).to eq(advanced_start + duration)
+      expect(recurring_meeting.current_schedule_end).not_to eq(recurring_meeting.start_time + duration)
+      expect(recurring_meeting.current_schedule_end).to be > recurring_meeting.current_schedule_start
+    end
+  end
+
   describe "#ical_schedule / #schedule" do
     context "with a schedule with number of iterations" do
       let(:recurring_meeting) do
