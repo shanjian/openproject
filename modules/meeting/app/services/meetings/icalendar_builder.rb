@@ -50,10 +50,10 @@ module Meetings
       calendar.x_wr_calname = title
     end
 
-    def add_single_meeting_event(meeting:, cancelled: false) # rubocop:disable Metrics/AbcSize
+    def add_single_meeting_event(meeting:, cancelled: false, timezone: builder_internal_timezone) # rubocop:disable Metrics/AbcSize
       calendar.event do |e|
-        e.dtstart = ical_datetime(meeting.start_time)
-        e.dtend = ical_datetime(meeting.end_time)
+        e.dtstart = ical_datetime(meeting.start_time, timezone:)
+        e.dtend = ical_datetime(meeting.end_time, timezone:)
 
         e.created = meeting.created_at.utc
         e.last_modified = meeting.updated_at.utc

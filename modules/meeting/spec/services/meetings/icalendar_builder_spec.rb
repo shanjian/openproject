@@ -215,6 +215,21 @@ RSpec.describe Meetings::IcalendarBuilder,
         end
       end
     end
+
+    context "when an explicit timezone is passed" do
+      subject(:builder) { described_class.new(timezone: ActiveSupport::TimeZone["UTC"]) }
+
+      let(:tokyo) { ActiveSupport::TimeZone["Asia/Tokyo"] }
+      let(:parsed_calendar) { Icalendar::Calendar.parse(builder.to_ical).first }
+
+      it "renders DTSTART/DTEND in the passed timezone instead of the builder's own" do
+        builder.add_single_meeting_event(meeting:, timezone: tokyo)
+        builder.update_calendar_status(cancelled: false)
+
+        event = parsed_calendar.events.find { |e| e.uid == meeting.uid }
+        expect(event.dtstart.ical_params["tzid"]).to eq(["Asia/Tokyo"])
+      end
+    end
   end
 
   context "with recurring meeting series" do
