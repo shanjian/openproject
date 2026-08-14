@@ -107,8 +107,15 @@ RSpec.describe MeetingParticipant do
         "updated_at",
         "meeting_id",
         "attended",
-        "comment"
+        "comment",
+        # the status is inherited state, but the response timestamp is an event
+        # record — copying it would leak stale rows into an open digest window
+        "participation_responded_at"
       )
+    end
+
+    it "keeps the participation status" do
+      expect(subject.copy_attributes.keys).to include("participation_status")
     end
   end
 end

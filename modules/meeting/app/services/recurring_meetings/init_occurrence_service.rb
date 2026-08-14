@@ -45,13 +45,22 @@ module RecurringMeetings
     def perform
       start_time = params.fetch(:start_time)
       in_context(recurring_meeting, send_notifications: false) do
-        call = instantiate(start_time)
-        if call.success?
-          create_schedule(call)
-          move_interim_responses_to_participants(call.result)
-        end
+        # Serializes with MeetingParticipants::ApplySeriesResponse: participant
+        # copying must not interleave with a series-wide response sweep, or the new
+        # occurrence could keep a stale status the sweep never sees. The row lock is
+        # taken on a throwaway instance — with_lock would reload the cached template
+        # and clobber its virtual start-time state mid-update.
+        Meeting.transaction do
+          Meeting.lock.find(recurring_meeting.template.id)
 
-        call
+          call = instantiate(start_time)
+          if call.success?
+            create_schedule(call)
+            move_interim_responses_to_participants(call.result)
+          end
+
+          call
+        end
       end
     end
 

@@ -267,6 +267,7 @@ export class NotificationsSettingsPageComponent extends UntilDestroyedMixin impl
       // Never read for meetings (the setting is global-only), but the field must
       // round-trip consistently with the other email settings
       meetingUpdated: false,
+      meetingResponses: false,
       startDate: settings.startDate,
       dueDate: settings.dueDate,
       overdue: settings.overdue,

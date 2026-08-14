@@ -207,6 +207,29 @@ class MeetingsController < ApplicationController
     respond_to_state_service_call(call)
   end
 
+  # Scope dialog for responding on a recurring occurrence
+  # (one-off meetings respond directly, without a dialog)
+  def respond_dialog
+    respond_with_dialog Meetings::RespondDialogComponent.new(
+      meeting: @meeting,
+      status: params[:status]
+    )
+  end
+
+  def respond
+    call = ::MeetingParticipants::RespondService
+      .new(@meeting, current_user:)
+      .call(status: params[:status], scope: params[:scope])
+
+    if call.success?
+      update_sidebar_participants_component_via_turbo_stream
+    else
+      render_error_flash_message_via_turbo_stream(message: I18n.t("meeting.respond.failed"))
+    end
+
+    respond_with_turbo_streams
+  end
+
   def update
     call = ::Meetings::UpdateService
       .new(user: current_user, model: @meeting)

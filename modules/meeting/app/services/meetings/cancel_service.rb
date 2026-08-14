@@ -55,8 +55,10 @@ module Meetings
       meeting.state = "cancelled"
 
       if meeting.save
-        # A queued batched update mail would arrive after the cancellation mail
+        # Queued batched mails (update, response digest) would arrive after the
+        # cancellation mail
         SendUpdatedNotificationJob.delete_jobs(meeting)
+        SendParticipationDigestJob.delete_jobs(meeting)
         MeetingNotificationService.new(meeting).call(:cancelled, actor: current_user)
         ServiceResult.success(result: meeting)
       else

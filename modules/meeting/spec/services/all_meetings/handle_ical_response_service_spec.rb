@@ -100,6 +100,13 @@ RSpec.describe AllMeetings::HandleICalResponseService, type: :model do
 
         expect(subject).to be_success
       end
+
+      it "stamps the response time and enqueues the organizer digest keyed on the meeting" do
+        expect { subject }.to(have_enqueued_job(Meetings::SendParticipationDigestJob)
+          .with { |target, since:| expect([target, since.present?]).to eq [meeting, true] })
+
+        expect(meeting.participants.find_by(user: user).participation_responded_at).to be_present
+      end
     end
 
     context "when declining the invitation" do
@@ -263,6 +270,35 @@ RSpec.describe AllMeetings::HandleICalResponseService, type: :model do
 
           expect(subject).to be_success
         end
+
+        it "routes through ApplySeriesResponse and enqueues exactly one digest keyed on the series" do
+          allow(MeetingParticipants::ApplySeriesResponse)
+            .to receive(:new).and_call_original
+
+          expect { subject }.to have_enqueued_job(Meetings::SendParticipationDigestJob)
+            .with { |target, since:| expect([target, since.present?]).to eq [recurring_meeting, true] }
+            .exactly(:once)
+
+          expect(MeetingParticipants::ApplySeriesResponse)
+            .to have_received(:new).with(series: recurring_meeting, user:)
+          expect(meeting.participants.find_by(user: user).participation_responded_at).to be_present
+        end
+
+        context "when the occurrence already carries a response" do
+          before do
+            meeting.participants.find_by(user: user).update_column(
+              :participation_status, MeetingParticipant.participation_statuses[:declined]
+            )
+          end
+
+          it "keeps the needs-action-only semantics and does not overwrite it" do
+            expect { subject }.not_to change {
+              meeting.participants.find_by(user: user).participation_status
+            }.from("declined")
+
+            expect(recurring_meeting.template.participants.find_by(user: user)).to be_participation_accepted
+          end
+        end
       end
     end
 
@@ -289,6 +325,13 @@ RSpec.describe AllMeetings::HandleICalResponseService, type: :model do
           }.from("needs_action").to("accepted")
 
           expect(subject).to be_success
+        end
+
+        it "stamps the response time and enqueues the digest keyed on the series" do
+          expect { subject }.to(have_enqueued_job(Meetings::SendParticipationDigestJob)
+            .with { |target, since:| expect([target, since.present?]).to eq [recurring_meeting, true] })
+
+          expect(meeting.participants.find_by(user: user).participation_responded_at).to be_present
         end
       end
 

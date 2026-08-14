@@ -12,7 +12,7 @@ import {
 
 export type EmailAlertType =
   'newsAdded'|'newsCommented'|'documentAdded'|'forumMessages'|'wikiPageAdded'|
-  'wikiPageUpdated'|'membershipAdded'|'membershipUpdated'|'meetingUpdated';
+  'wikiPageUpdated'|'membershipAdded'|'membershipUpdated'|'meetingUpdated'|'meetingResponses';
 
 export const emailAlerts:EmailAlertType[] = [
   'newsAdded',
@@ -24,6 +24,7 @@ export const emailAlerts:EmailAlertType[] = [
   'membershipAdded',
   'membershipUpdated',
   'meetingUpdated',
+  'meetingResponses',
 ];
 
 @Component({
@@ -49,6 +50,7 @@ export class EmailAlertsSettingsComponent implements OnInit {
     membershipAdded: this.I18n.t('js.reminders.settings.alerts.membership_added'),
     membershipUpdated: this.I18n.t('js.reminders.settings.alerts.membership_updated'),
     meetingUpdated: this.I18n.t('js.reminders.settings.alerts.meeting_updated'),
+    meetingResponses: this.I18n.t('js.reminders.settings.alerts.meeting_responses'),
   };
 
   constructor(

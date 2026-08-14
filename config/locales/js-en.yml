@@ -743,6 +743,7 @@ en:
           membership_added: "Membership added"
           membership_updated: "Membership updated"
           meeting_updated: "Meeting updated or closed"
+          meeting_responses: "Participant responses to my meetings"
         title: "Email reminders"
         pause:
           label: "Temporarily pause daily email reminders"

@@ -54,6 +54,34 @@ RSpec.describe RecurringMeetings::InitOccurrenceService, type: :model do
   let(:created_meeting) { service_result.result }
   let(:scheduled_meeting) { created_meeting.scheduled_meeting }
 
+  describe "inheriting series responses" do
+    let(:start_time) { series.start_time + 10.days }
+
+    let!(:template_participant) do
+      create(:meeting_participant,
+             meeting: series.template,
+             user:,
+             invited: true,
+             participation_status: "accepted",
+             participation_responded_at: 1.hour.ago)
+    end
+
+    it "copies the status but never the response timestamp" do
+      expect(service_result).to be_success
+
+      copied = created_meeting.participants.find_by(user:)
+      expect(copied).to be_participation_accepted
+      expect(copied.participation_responded_at).to be_nil
+    end
+
+    it "serializes with response sweeps by locking the template meeting row" do
+      allow(Meeting).to receive(:lock).and_call_original
+
+      expect(service_result).to be_success
+      expect(Meeting).to have_received(:lock).at_least(:once)
+    end
+  end
+
   describe "handling the interim responses" do
     let(:start_time) { series.start_time + 10.days }
 

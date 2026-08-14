@@ -112,6 +112,16 @@ RSpec.describe UserPreferences::ParamsContract do
       it_behaves_like "contract is valid"
     end
 
+    context "when project settings enable the meeting responses alert" do
+      let(:notification_settings) do
+        [
+          { project_id: 1234, meeting_responses: true }
+        ]
+      end
+
+      it_behaves_like "contract is invalid", notification_settings: :email_alerts_global
+    end
+
     context "when global settings disable the meeting email alert" do
       let(:notification_settings) do
         [

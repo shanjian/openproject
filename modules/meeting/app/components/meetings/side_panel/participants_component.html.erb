@@ -23,6 +23,36 @@
 
       component_wrapper(data: wrapper_data_attributes) do
         flex_layout do |participants_container|
+          if respondable?
+            participants_container.with_row(mb: 2, data: { "test-selector": "meeting-respond-block" }) do
+              flex_layout(align_items: :center) do |respond_row|
+                respond_row.with_column(mr: 2) do
+                  render(Primer::Beta::Text.new(font_size: :small, color: :subtle)) { t("meeting.respond.your_response") }
+                end
+                respond_button(respond_row, status: "accepted", color: :success)
+                respond_button(respond_row, status: "tentative", color: :attention)
+                respond_button(respond_row, status: "declined", color: :danger)
+              end
+            end
+          end
+
+          if response_summary_segments.any?
+            participants_container.with_row(
+              mb: 2,
+              id: "participants-response-summary",
+              data: { "test-selector": "participants-response-summary" }
+            ) do
+              safe_join(
+                response_summary_segments.map do |key, segment_count, color|
+                  render(Primer::Beta::Text.new(font_size: :small, color:)) do
+                    "#{segment_count} #{t("meeting.respond.summary.#{key}")}"
+                  end
+                end,
+                " · "
+              )
+            end
+          end
+
           participants_container.with_row do
             render(OpPrimer::ExpandableListComponent.new(cutoff_limit: 5)) do |list|
               elements.each do |item|

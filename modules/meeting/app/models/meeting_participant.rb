@@ -71,7 +71,10 @@ class MeetingParticipant < ApplicationRecord
   alias :to_s :name
 
   def copy_attributes
-    # create a clean attribute set allowing to attach participants to different meetings
-    attributes.except("id", "meeting_id", "attended", "created_at", "updated_at", "comment")
+    # create a clean attribute set allowing to attach participants to different meetings.
+    # participation_status is inherited state; participation_responded_at is an event
+    # record and must not travel to newly instantiated occurrences.
+    attributes.except("id", "meeting_id", "attended", "created_at", "updated_at", "comment",
+                      "participation_responded_at")
   end
 end

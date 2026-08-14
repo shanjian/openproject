@@ -97,8 +97,9 @@ Params: `status` (`accepted` | `tentative` | `declined`), `scope`
     sweep.** A single helper, `MeetingParticipants::ApplySeriesResponse`
     (`series:, user:, status:, comment: MISSING, only_awaiting:, stamp:`), owns the
     series-wide write:
-    - opens one transaction as `series.template.with_lock` (a row lock on the
-      template *Meeting*) and runs the future-occurrence query **after** the lock is
+    - opens one transaction taking a `SELECT ... FOR UPDATE` row lock on the
+      template *Meeting* (via a throwaway instance — `with_lock` would reload the
+      caller's cached template mid-operation) and runs the future-occurrence query **after** the lock is
       acquired;
     - updates the template's participant row plus future, instantiated,
       not-cancelled occurrences — all of them (`only_awaiting: false`, the in-app
@@ -117,8 +118,8 @@ Params: `status` (`accepted` | `tentative` | `declined`), `scope`
     left as-is, a concurrent in-app sweep could interleave with an email sweep and
     leave the template and occurrences disagreeing, and a mid-sweep failure would
     commit half the rows). `RecurringMeetings::InitOccurrenceService#perform` wraps
-    its instantiate-and-copy block in the same `template.with_lock` (a one-line
-    addition local to the meeting module; instantiation is already single-flighted
+    its instantiate-and-copy block under the same template row lock (a small
+    change local to the meeting module; instantiation is already single-flighted
     per series by `InitNextOccurrenceJob`'s `perform_limit: 1`). All three
     operations therefore serialize on the template row: sweeps cannot interleave
     with each other, and either a copy runs first and the sweep sees the freshly

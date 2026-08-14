@@ -71,6 +71,14 @@ RSpec.describe Meetings::CancelService do
       expect(Meetings::SendUpdatedNotificationJob).to have_received(:delete_jobs).with(meeting)
     end
 
+    it "clears a pending participation digest job" do
+      allow(Meetings::SendParticipationDigestJob).to receive(:delete_jobs)
+
+      service.call
+
+      expect(Meetings::SendParticipationDigestJob).to have_received(:delete_jobs).with(meeting)
+    end
+
     context "when the meeting is muted" do
       let(:notify) { false }
 
