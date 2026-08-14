@@ -239,6 +239,22 @@ RSpec.describe AllMeetings::HandleICalResponseService, type: :model do
       let(:uid) { recurring_meeting.uid }
       let(:meeting) { recurring_meeting.template }
 
+      context "when the user has no participant rows in the series" do
+        let(:partstat) { "ACCEPTED" }
+
+        before do
+          recurring_meeting.template.participants.delete_all
+        end
+
+        it "logs that the reply matched nothing instead of silently succeeding" do
+          allow(Rails.logger).to receive(:warn)
+
+          expect(subject).to be_success
+          expect(Rails.logger).to have_received(:warn)
+            .with(/matched no participant rows/)
+        end
+      end
+
       context "when accepting the invitation" do
         let(:partstat) { "ACCEPTED" }
 

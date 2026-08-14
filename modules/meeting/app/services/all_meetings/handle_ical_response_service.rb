@@ -167,18 +167,23 @@ module AllMeetings
 
       # The helper stamps rows and enqueues the digest (keyed on the series)
       # after its transaction commits
-      MeetingParticipants::ApplySeriesResponse
+      result = MeetingParticipants::ApplySeriesResponse
         .new(series: recurring_meeting, user:)
         .call(status: partstat(attendee_from_event),
               stamp: Time.current,
               only_awaiting: true,
               comment: comment(attendee_from_event, event))
+
+      if result.result.zero?
+        # E.g. a stale invite in the sender's calendar after being removed from
+        # the series — don't let the reply vanish without a trace
+        Rails.logger.warn("[iCal Meeting Response] Series reply from #{user.mail} for " \
+                          "#{recurring_meeting.uid} matched no participant rows")
+      end
     end
 
     def enqueue_digest(meeting, stamp)
-      Meetings::SendParticipationDigestJob
-        .set(wait: 10.minutes)
-        .perform_later(meeting.recurring_meeting || meeting, since: stamp)
+      Meetings::SendParticipationDigestJob.schedule(meeting, since: stamp)
     end
 
     def log_missing_attendee(event)

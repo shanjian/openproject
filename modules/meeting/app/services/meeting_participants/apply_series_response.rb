@@ -31,10 +31,14 @@
 module MeetingParticipants
   # Applies a participation response across a recurring series: the template's
   # participant row plus future, instantiated occurrences — in ONE transaction under
-  # a row lock on the template Meeting. InitOccurrenceService takes the same lock
-  # around occurrence instantiation, so sweeps (in-app or email REPLY) and occurrence
-  # copying serialize: no occurrence can be created mid-sweep with a stale status,
-  # and concurrent sweeps cannot leave the template and occurrences disagreeing.
+  # a row lock on the template Meeting (RecurringMeeting#with_template_lock).
+  # InitOccurrenceService takes the same lock around occurrence instantiation, so
+  # sweeps (in-app or email REPLY) and occurrence copying serialize: no occurrence
+  # can be created mid-sweep with a stale status, and concurrent sweeps cannot leave
+  # the template and occurrences disagreeing.
+  #
+  # Only invited rows are swept — the same eligibility rule the in-app respond path,
+  # the digest, and the summary counts enforce.
   #
   # Used by MeetingParticipants::RespondService (only_awaiting: false — the explicit
   # "this and all future occurrences" choice) and by
@@ -52,30 +56,32 @@ module MeetingParticipants
       @user = user
     end
 
-    def call(status:, stamp:, only_awaiting:, comment: COMMENT_UNSET)
-      updated_any = false
+    # also: an extra participant row updated within the same transaction regardless
+    # of its occurrence's start time — the responded-on occurrence may already have
+    # started (in_progress is respondable) while the sweep itself is future-only.
+    #
+    # Returns ServiceResult with the number of updated rows as result.
+    def call(status:, stamp:, only_awaiting:, comment: COMMENT_UNSET, also: nil)
+      updated = 0
 
-      MeetingParticipant.transaction do
-        # Row lock on the template Meeting via a throwaway instance (with_lock
-        # would reload the caller's cached template). The occurrence query runs
-        # after the lock is acquired, so a concurrently instantiated occurrence is
-        # either visible here or will copy the updated template.
-        Meeting.lock.find(series.template.id)
+      series.with_template_lock do
+        # Queried after the lock is acquired, so a concurrently instantiated
+        # occurrence is either visible here or will copy the updated template
+        rows = rows_to_update(only_awaiting)
+        rows << also if also && rows.none? { |row| row.id == also.id }
 
-        rows_to_update(only_awaiting).each do |participant|
+        rows.each do |participant|
           participant.update!(**attributes_for(status, stamp, comment))
-          updated_any = true
+          updated += 1
         end
       end
 
-      if updated_any
+      if updated.positive?
         # After commit only: a rolled-back sweep must not produce a digest
-        Meetings::SendParticipationDigestJob
-          .set(wait: 10.minutes)
-          .perform_later(series, since: stamp)
+        Meetings::SendParticipationDigestJob.schedule(series, since: stamp)
       end
 
-      updated_any
+      ServiceResult.success(result: updated)
     end
 
     private
@@ -85,11 +91,12 @@ module MeetingParticipants
     end
 
     def template_participant
-      series.template.participants.find_by(user:)
+      series.template.participants.invited.find_by(user:)
     end
 
     def future_occurrence_participants(only_awaiting)
       scope = MeetingParticipant
+        .invited
         .where(user:)
         .joins(:meeting)
         .where(meetings: { recurring_meeting_id: series.id, template: false })

@@ -144,6 +144,20 @@ RSpec.describe MeetingParticipants::RespondService do
       expect(other_future_participant.reload).to be_participation_accepted
     end
 
+    it "updates the responded-on occurrence for scope=series even when it has already started" do
+      started = create(:scheduled_meeting, :persisted,
+                       recurring_meeting: series,
+                       start_time: 10.minutes.ago).meeting
+      started_participant = create(:meeting_participant, meeting: started, user:, invited: true)
+
+      result = described_class.new(started, current_user: user).call(status: "declined", scope: "series")
+
+      expect(result).to be_success
+      expect(started_participant.reload).to be_participation_declined
+      expect(started_participant.participation_responded_at).to be_present
+      expect(template_participant.reload).to be_participation_declined
+    end
+
     it "enqueues the digest keyed on the series" do
       expect do
         described_class.new(occurrence, current_user: user).call(status: "accepted", scope: "occurrence")

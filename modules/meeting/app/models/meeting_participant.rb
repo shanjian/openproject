@@ -46,6 +46,11 @@ class MeetingParticipant < ApplicationRecord
     unknown: "unknown" # this status is used for existing participants when introducing the field
   }, prefix: :participation
 
+  # The statuses that count as an actual response (as opposed to the pending
+  # needs_action/unknown states). Single source for the respond service, the
+  # organizer digest, and the respond dialog.
+  RESPONDED_STATUSES = %w[accepted tentative declined].freeze
+
   def name
     user.present? ? user.name : I18n.t("user.deleted")
   end

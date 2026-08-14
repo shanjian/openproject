@@ -162,6 +162,34 @@ RSpec.describe Meetings::SendParticipationDigestJob do
       expect(body).to include(occurrence.start_time.to_date.iso8601)
     end
 
+    it "collapses a series-wide response into the all-future line only" do
+      second_occurrence = create(:scheduled_meeting, :persisted,
+                                 recurring_meeting: series,
+                                 start_time: 3.days.from_now.beginning_of_day + 10.hours).meeting
+      # One "this and all future" sweep stamps template + occurrences alike
+      respond!(series.template, responder, "accepted")
+      respond!(occurrence, responder, "accepted")
+      respond!(second_occurrence, responder, "accepted")
+
+      described_class.perform_now(series, since:)
+
+      body = ActionMailer::Base.deliveries.first.html_part.body
+      expect(body).to include("All future occurrences")
+      expect(body).not_to include(occurrence.start_time.to_date.iso8601)
+      expect(body).not_to include(second_occurrence.start_time.to_date.iso8601)
+    end
+
+    it "keeps occurrence rows whose status differs from the user's template row" do
+      respond!(series.template, responder, "accepted")
+      respond!(occurrence, responder, "declined")
+
+      described_class.perform_now(series, since:)
+
+      body = ActionMailer::Base.deliveries.first.html_part.body
+      expect(body).to include("All future occurrences")
+      expect(body).to include(occurrence.start_time.to_date.iso8601)
+    end
+
     it "no-ops on an ended series" do
       respond!(series.template, responder, "accepted")
       series.update_columns(end_after: RecurringMeeting.end_afters["specific_date"],

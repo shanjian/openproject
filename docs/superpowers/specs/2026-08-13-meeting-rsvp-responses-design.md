@@ -6,7 +6,13 @@
 digest lifecycle on cancel/end, transactional series scope with template-lock
 coordination, invited-only digest/count rule) · 2026-08-14 (review round 2 — the
 locked series sweep extracted into a shared helper that the email REPLY path must use
-too; email digest enqueue moved after commit)
+too; email digest enqueue moved after commit) · 2026-08-14 (post-implementation review:
+the series sweep passes the responded-on row explicitly via `also:` since started
+occurrences fall outside the future-only query; sweeps are invited-only; the helper
+returns a ServiceResult and zero-row email sweeps are logged; digests collapse a
+user's same-status occurrence rows into their template row; one-off respond buttons
+are POST forms, not links; the debounce window/target rule, the responded-status set,
+the respondable predicate, and the template lock each live in exactly one place)
 
 ## Problem
 

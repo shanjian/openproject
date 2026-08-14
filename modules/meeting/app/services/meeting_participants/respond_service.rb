@@ -31,13 +31,14 @@
 module MeetingParticipants
   # Records the current user's own participation response (in-app accept /
   # tentative / decline). A participant action, not an organizer action: the caller
-  # only needs view_meetings plus an invited participant row.
+  # only needs view_meetings plus an invited participant row
+  # (Meeting#respondable_by?, shared with the side panel).
   #
   # scope: "series" on a recurring occurrence additionally sweeps the template and
   # all future occurrences via ApplySeriesResponse; anything else responds to this
   # one meeting only. The comment column is never touched (email replies own it).
   class RespondService < ::BaseServices::BaseCallable
-    RESPONDABLE_STATUSES = %w[accepted tentative declined].freeze
+    RESPONDABLE_STATUSES = MeetingParticipant::RESPONDED_STATUSES
 
     attr_reader :meeting, :current_user
 
@@ -49,15 +50,14 @@ module MeetingParticipants
     end
 
     def call(status:, scope: nil) # rubocop:disable Metrics/AbcSize
-      return ServiceResult.failure(result: meeting) unless respondable?(status)
+      return ServiceResult.failure(result: meeting) unless RESPONDABLE_STATUSES.include?(status)
+      return ServiceResult.failure(result: meeting) unless meeting.respondable_by?(current_user)
 
-      participant = meeting.participants.invited.find_by(user: current_user)
-      return ServiceResult.failure(result: meeting) if participant.nil?
-
+      participant = meeting.participants.invited.find_by!(user: current_user)
       stamp = Time.current
 
       if scope == "series" && meeting.recurring?
-        apply_to_series(status, stamp)
+        apply_to_series(participant, status, stamp)
       else
         apply_to_meeting(participant, status, stamp)
       end
@@ -67,33 +67,20 @@ module MeetingParticipants
 
     private
 
-    def respondable?(status)
-      RESPONDABLE_STATUSES.include?(status) &&
-        (meeting.open? || meeting.in_progress?) &&
-        !meeting.template?
-    end
-
     def apply_to_meeting(participant, status, stamp)
       participant.update!(participation_status: status,
                           participation_responded_at: stamp)
 
-      Meetings::SendParticipationDigestJob
-        .set(wait: 10.minutes)
-        .perform_later(digest_target, since: stamp)
+      Meetings::SendParticipationDigestJob.schedule(meeting, since: stamp)
     end
 
-    # The series sweep includes this occurrence (it is a future one) and handles
-    # locking, atomicity, and the digest enqueue itself.
-    def apply_to_series(status, stamp)
+    # The sweep itself is future-only, but the responded-on occurrence may already
+    # have started (in_progress is respondable) — its row rides along explicitly.
+    # The helper handles locking, atomicity, and the digest enqueue.
+    def apply_to_series(participant, status, stamp)
       ApplySeriesResponse
         .new(series: meeting.recurring_meeting, user: current_user)
-        .call(status:, stamp:, only_awaiting: false)
-    end
-
-    # Digests batch on the top-level object so series-wide activity collapses
-    # into one mail
-    def digest_target
-      meeting.recurring_meeting || meeting
+        .call(status:, stamp:, only_awaiting: false, also: participant)
     end
   end
 end

@@ -47,12 +47,11 @@ module RecurringMeetings
       in_context(recurring_meeting, send_notifications: false) do
         # Serializes with MeetingParticipants::ApplySeriesResponse: participant
         # copying must not interleave with a series-wide response sweep, or the new
-        # occurrence could keep a stale status the sweep never sees. The row lock is
-        # taken on a throwaway instance — with_lock would reload the cached template
-        # and clobber its virtual start-time state mid-update.
-        Meeting.transaction do
-          Meeting.lock.find(recurring_meeting.template.id)
-
+        # occurrence could keep a stale status the sweep never sees. Known tradeoff:
+        # the lock spans the whole occurrence copy (agenda and attachments included),
+        # so a concurrent respond click can wait for the copy to finish — accepted,
+        # since narrowing it would mean restructuring CopyService.
+        recurring_meeting.with_template_lock do
           call = instantiate(start_time)
           if call.success?
             create_schedule(call)

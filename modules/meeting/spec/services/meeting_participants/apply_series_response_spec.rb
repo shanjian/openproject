@@ -94,6 +94,38 @@ RSpec.describe MeetingParticipants::ApplySeriesResponse do
     expect(past_pending.participation_responded_at).to be_nil
   end
 
+  it "includes an explicitly passed row even when its occurrence already started" do
+    service.call(status: "declined", stamp:, only_awaiting: false, also: past_pending)
+
+    expect(past_pending.reload).to be_participation_declined
+    expect(past_pending.participation_responded_at).to eq stamp
+  end
+
+  it "skips non-invited rows" do
+    future_pending.update_column(:invited, false)
+    template_participant.update_column(:invited, false)
+
+    service.call(status: "declined", stamp:, only_awaiting: false)
+
+    expect(future_pending.reload).to be_participation_needs_action
+    expect(template_participant.reload).to be_participation_needs_action
+    expect(future_accepted.reload).to be_participation_declined
+  end
+
+  it "returns a ServiceResult carrying the number of updated rows" do
+    result = service.call(status: "declined", stamp:, only_awaiting: false)
+
+    expect(result).to be_a(ServiceResult)
+    expect(result).to be_success
+    expect(result.result).to eq 3
+
+    future_pending.destroy!
+    future_accepted.destroy!
+    template_participant.destroy!
+    empty = described_class.new(series:, user:).call(status: "declined", stamp:, only_awaiting: false)
+    expect(empty.result).to eq 0
+  end
+
   it "writes the comment only when one is provided" do
     service.call(status: "accepted", stamp:, only_awaiting: false, comment: "Via email")
     expect(future_pending.reload.comment).to eq "Via email"

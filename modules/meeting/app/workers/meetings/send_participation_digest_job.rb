@@ -50,7 +50,22 @@ module Meetings
       key: -> { self.class.unique_key(arguments.first) }
     )
 
-    RESPONDED_STATUSES = %w[accepted declined tentative].freeze
+    DEBOUNCE_WINDOW = 10.minutes
+
+    # Single entry point owning the debounce window and the batching-target rule
+    # (the top-level object: the series for occurrences, the meeting itself
+    # otherwise). Every response write path schedules through here, so windows
+    # and concurrency keys cannot drift apart between the in-app and email paths.
+    def self.schedule(meeting_or_series, since:)
+      target =
+        if meeting_or_series.is_a?(Meeting) && meeting_or_series.recurring_meeting
+          meeting_or_series.recurring_meeting
+        else
+          meeting_or_series
+        end
+
+      set(wait: DEBOUNCE_WINDOW).perform_later(target, since:)
+    end
 
     def self.delete_jobs(target)
       GoodJob::Job.where(finished_at: nil, concurrency_key: unique_key(target)).delete_all
@@ -85,14 +100,33 @@ module Meetings
     end
 
     def collect_responses(target, since)
-      MeetingParticipant
+      rows = MeetingParticipant
         .invited
-        .where(participation_status: RESPONDED_STATUSES)
+        .where(participation_status: MeetingParticipant::RESPONDED_STATUSES)
         .where(participation_responded_at: since..)
         .where.not(user_id: target.author_id)
         .where(meeting_id: target_meeting_ids(target))
         .includes(:user, :meeting)
         .to_a
+
+      collapse_series_sweeps(rows)
+    end
+
+    # One "this and all future occurrences" sweep stamps the template row plus
+    # every future occurrence row; rendering them all would repeat the same
+    # response N+1 times. When a user's template row is in the batch, their
+    # same-status occurrence rows are folded into it.
+    def collapse_series_sweeps(rows)
+      template_rows = rows.select { |row| row.meeting.template? }
+      return rows if template_rows.empty?
+
+      rows.reject do |row|
+        !row.meeting.template? &&
+          template_rows.any? do |template_row|
+            template_row.user_id == row.user_id &&
+              template_row.participation_status == row.participation_status
+          end
+      end
     end
 
     def target_meeting_ids(target)

@@ -235,6 +235,15 @@ class Meeting < ApplicationRecord
     !closed? && !cancelled? && user.allowed_in_project?(:edit_meetings, project)
   end
 
+  # Whether user may record a participation response — shared by
+  # MeetingParticipants::RespondService and the side panel respond block so the
+  # UI and the service cannot drift apart.
+  def respondable_by?(user)
+    (open? || in_progress?) &&
+      !template? &&
+      participants.invited.exists?(user:)
+  end
+
   # Whether the meeting can take the cancelled state (Meetings::CancelService).
   # Drafts have never sent invitations, so cancelling would mail a cancellation for
   # an event nobody was invited to; templates aren't real events; recurring

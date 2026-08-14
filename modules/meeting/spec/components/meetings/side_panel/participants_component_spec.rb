@@ -75,6 +75,17 @@ RSpec.describe Meetings::SidePanel::ParticipantsComponent, type: :component do
       expect(subject).to have_test_selector("meeting-respond-declined")
     end
 
+    it "submits one-off responses through POST forms, not GET-able links" do
+      create(:meeting_participant, meeting:, user:, invited: true)
+
+      # An <a href> to the POST-only route would 404 on middle-click / plain GET
+      expect(subject).to have_css(
+        "form[action*='/meetings/#{meeting.id}/respond'][method='post'] " \
+        "[data-test-selector='meeting-respond-accepted']"
+      )
+      expect(subject).to have_no_css("a[data-test-selector='meeting-respond-accepted']")
+    end
+
     it "is hidden for non-participants" do
       create(:meeting_participant, meeting:, user: other_user, invited: true)
 
