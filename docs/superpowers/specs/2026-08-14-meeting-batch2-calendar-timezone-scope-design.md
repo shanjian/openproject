@@ -1,6 +1,6 @@
 # Meeting improvements batch 2: calendar feed fixes, timezone selection, edit/close scope
 
-Status: draft — awaiting owner review (revised after code review round 2)
+Status: draft — awaiting owner review (revised after code review round 3)
 Date: 2026-08-14
 Requirements source: "OpenProject 会议需求增补 R8–R12" (2026-08-12)
 
@@ -23,6 +23,22 @@ contract, and it would have still called the future-occurrence-emitting
 `add_virtual_occurences_for_interim_responses`), and repeated a stale "ICS
 is untested" claim contradicted by four existing spec files on `epic`. All
 six were verified against the code and are fixed below.
+
+**Revision note (round 3 review):** round 2's "wrap close + EndService in
+one transaction, deliver_later makes rollback safe" claim was factually
+wrong — `EndService` calls `MeetingMailer.cancelled(...).deliver_now` and
+`.ended_series(...).deliver_now` directly (confirmed, `end_service.rb:77,105`),
+not through `MeetingNotificationService`'s `deliver_later` path I'd
+conflated it with. `deliver_now` sends over SMTP immediately, independent of
+any surrounding transaction's commit/rollback — no transaction boundary
+protects against it. Round 2 also filtered ended-history rows on
+`scheduled_meeting.start_time` but rendered `DTSTART` from `meeting.start_time`,
+which round 2 itself established can diverge — a real hole in the "no
+future DTSTART" guarantee. And switching history events to per-occurrence
+UIDs removed the old series UID from the feed without ever telling clients
+what happened to it. All three verified against the code; fixed below,
+including walking back the transaction-atomicity claim rather than
+patching over it.
 
 ## Requirement disposition
 
@@ -94,11 +110,22 @@ clients never apply email updates, so future phantom occurrences persist.
 - **Ended series**: skip `add_series_event` entirely; call a new
   `IcalendarBuilder#add_ended_series_history(recurring_meeting:)` instead.
   **Builder API contract** (closing the "what exactly gets emitted" gap):
-  - Query `recurring_meeting.scheduled_meetings.instantiated.not_cancelled.past`
-    (the `.past` scope — `where(start_time: ...Time.current)` — already
-    exists on `ScheduledMeeting`; cancelled occurrences are omitted, nothing
-    happened for those).
-  - Each occurrence renders as a fully standalone VEVENT: **`uid:
+  - Query candidate rows via
+    `recurring_meeting.scheduled_meetings.instantiated.not_cancelled`, **then
+    additionally filter on the rendered field, not the selection field**:
+    `.select { |sm| sm.meeting.start_time <= Time.zone.now }` (or the
+    equivalent `joins(:meeting).merge(Meeting.where(start_time: ..Time.zone.now))`).
+    `ScheduledMeeting`'s `.past` scope filters on `scheduled_meeting.start_time`,
+    which is *not* what ends up in `DTSTART` — §3b (close eligibility)
+    establishes that `scheduled_meeting.start_time` and `meeting.start_time`
+    can diverge (a single occurrence's time can be edited directly, without
+    the linked `scheduled_meeting` row following). Filtering selection on
+    `.past` alone would let an occurrence whose *scheduled* slot is in the
+    past but whose *edited* meeting time was moved to the future slip
+    through and render a future `DTSTART` — violating this very fix's "no
+    future DTSTART for an ended series" guarantee. The filter must apply to
+    whichever field is actually rendered.
+  - Each surviving occurrence renders as a fully standalone VEVENT: **`uid:
     scheduled_meeting.meeting.uid`** (every occurrence `Meeting` row already
     gets its own unique UID via `Meeting::MeetingUid`, distinct from
     `recurring_meeting.uid`) — **not** the series UID. No `RECURRENCE-ID`,
@@ -108,15 +135,25 @@ clients never apply email updates, so future phantom occurrences persist.
   - This method must **not** call `add_virtual_occurences_for_interim_responses`
     — that renders speculative future placeholder events for pending RSVP
     responses, which has no place in a terminated series' history view.
-  - Rationale for the UID switch: without a master VEVENT, an override-style
-    entry (series UID + RECURRENCE-ID, no matching master) is undefined
-    behavior per RFC 5545 — clients that never received the master have
-    nothing to attach the override to. A plain standalone VEVENT with its
-    own UID is unambiguous. Accepted, one-time visual side effect: on the
-    refresh where a series transitions to ended, calendar clients drop the
-    old series-UID entries (master + overrides) and show new standalone
-    entries in their place for the same past dates — no data loss, just a
-    UID change, and it only happens once per series.
+  - **Series-UID tombstone (closes the "clients aren't told the old series
+    is gone" gap).** Switching history to per-occurrence UIDs stops
+    resending the series UID, but an ICS subscription feed is stateless per
+    fetch — nothing in the payload itself tells a client "the entries you
+    already cached under this UID should be removed" merely because that
+    UID is now absent. Whether absence-implies-delete is even honored is
+    client-specific and not guaranteed by RFC 5545. The codebase already has
+    the correct signal for this (`status: "CANCELLED"` is how a single
+    cancelled occurrence is represented today, `icalendar_builder.rb`
+    `add_single_recurring_occurrence`): `add_ended_series_history` must also
+    emit **one** tombstone VEVENT — `uid: recurring_meeting.uid`, no
+    `RECURRENCE-ID`, no `RRULE`, `status: "CANCELLED"` — so a client that
+    previously cached the master (and, by extension, its overrides under
+    that same UID) is explicitly told the whole series is gone. This
+    tombstone must be included in **every** feed generation for an ended
+    series going forward (not just the first one after ending), since a
+    client that hasn't polled since before the series ended, or a client
+    subscribing for the first time afterward, still needs it to correctly
+    drop or never-render the old series identity.
   - No VEVENT with a future DTSTART may be emitted for an ended series.
 - **Active series**: unchanged behavior.
 
@@ -190,10 +227,19 @@ Additions/updates to the existing suites:
   `X-PUBLISHED-TTL`; add SEQUENCE-bumps-after-schedule-only-update, LAST-MODIFIED
   reflects the newer of series/template, and the new
   `add_ended_series_history` contract (own UID per occurrence, no
-  RECURRENCE-ID/RRULE, past-only, interim responses excluded).
+  RECURRENCE-ID/RRULE, interim responses excluded, plus the series-UID
+  `CANCELLED` tombstone present on every call).
+- Regression spec (directly targets this round's finding): an occurrence
+  whose `scheduled_meeting.start_time` is in the past but whose
+  `meeting.start_time` was edited to the future is excluded from
+  `add_ended_series_history`'s output — no VEVENT for it at all, since
+  neither "past" (wrong DTSTART) nor "include as future" (violates the
+  ended-series guarantee) is correct; document this as the deliberate
+  choice over the two filters disagreeing.
 - `all_meetings/ical_service_spec.rb`: ended series renders no VEVENT with a
-  future DTSTART but keeps past occurrences; active series unchanged;
-  cancelled one-off meetings absent or CANCELLED (regression).
+  future DTSTART but keeps past occurrences, plus the series-UID `CANCELLED`
+  tombstone; active series unchanged; cancelled one-off meetings absent or
+  CANCELLED (regression).
 - New regression spec: after a series title/location/duration edit, an
   already-instantiated future occurrence's VEVENT SEQUENCE increases and no
   per-occurrence mail is sent (covers the pre-existing title-sync gap too).
@@ -426,26 +472,75 @@ unambiguous surface:
   `"only_this"` — the narrower, non-destructive option — on anything
   unrecognized, mirroring the `apply_scope` handling in §3a):
   - `only_this` → today's `change_state(state: "closed")` path, unchanged.
-  - `this_and_future` — **wrapped in a single `ActiveRecord::Base.transaction`**
-    so the close and the series-ending are all-or-nothing:
+  - `this_and_future` — **not a single wrapping transaction** (correction
+    below), but ordered as:
     1. re-verify eligibility server-side (never trust the dialog's option
        list — a request can be replayed/forged after the eligibility
        window has closed, e.g. if the occurrence's scheduled time is in
        the future by the time the POST arrives); return a validation error
        for `this_and_future` on an ineligible occurrence instead of
-       silently downgrading to `only_this`.
-    2. `change_state(state: "closed")` for this occurrence.
-    3. `RecurringMeetings::EndService.new(recurring_meeting, current_user:)
-       .call(end_date: scheduled_meeting.start_time.in_time_zone(recurring_meeting.time_zone).to_date)`
-       — see the timezone note below.
-    4. If either step fails validation, the transaction rolls back and
-       neither mutation is persisted. `send_closed_mail`
-       (`meeting.rb:136`) and `EndService`'s mails are all enqueued via
-       `deliver_later` (`MeetingNotificationService#call`, confirmed —
-       never `deliver_now`), and GoodJob inserts queued-job rows through
-       the same DB connection, so a transaction rollback also rolls back
-       any mail enqueued inside it — no mail can escape a failed
-       `this_and_future` close.
+       silently downgrading to `only_this`. No writes yet.
+    2. `change_state(state: "closed")` for this occurrence, as its own
+       independently-validated, independently-committed write. If this
+       fails, stop — nothing else has happened yet, no mail sent.
+    3. Only if step 2 succeeded: `RecurringMeetings::EndService.new(
+       recurring_meeting, current_user:).call(end_date:
+       scheduled_meeting.start_time.in_time_zone(recurring_meeting.time_zone)
+       .to_date)` — see the timezone note below.
+
+  **Correction — no shared transaction, and no true atomicity guarantee.**
+  The round 2 draft claimed wrapping steps 2–3 in one
+  `ActiveRecord::Base.transaction` made this all-or-nothing, reasoning that
+  every mail involved goes through `deliver_later` (safe under rollback,
+  since GoodJob's job-row insert is itself transactional). That reasoning
+  does not hold: `EndService` calls `MeetingMailer.cancelled(...).deliver_now`
+  and `.ended_series(...).deliver_now` directly (confirmed,
+  `end_service.rb:77,105`) — not through `MeetingNotificationService`, which
+  is the only mail path here that actually uses `deliver_later`.
+  `deliver_now` dispatches over SMTP immediately, with no relationship to
+  any surrounding transaction's outcome; wrapping it in a transaction that
+  might still roll back afterward would mean real emails going out while
+  the DB change that justified them is undone.
+
+  Nor can this be fixed by mechanically swapping those two calls to
+  `deliver_later`: `EndService#call`'s existing ordering is
+  cancel-mail-*then*-destroy specifically because
+  `send_cancellation_for_future_instantiated_occurrences` needs the live
+  `Meeting`/participant rows in memory to render the mail, and
+  `remove_scheduled_meetings` (the very next step in the same method)
+  destroys those rows. A deferred job holding a reference to a
+  soon-to-be-destroyed `Meeting` would find it gone by the time a worker
+  actually processes the job (after commit), fail to deserialize it, and —
+  per the existing `discard_on ActiveJob::DeserializationError` convention
+  used elsewhere in this codebase (e.g. `SendUpdatedNotificationJob`) —
+  silently drop the cancellation mail entirely. That is a worse outcome
+  than today's synchronous send, not a fix. Making these durable under
+  deferral would require snapshotting the needed mail data (participant/
+  meeting attributes) into a plain, serializable payload *before* the
+  destructive step — the same pattern `RecurringMeetings::SendUpdatedNotificationJob`
+  already uses for `old_schedule_attributes` rather than passing a live
+  model. That is a real, larger refactor of `EndService`'s own
+  notification design, out of scope for this batch — `EndService` is an
+  existing, independently-shipped component; this batch calls it with a
+  new `end_date:`, it doesn't redesign its notification boundary.
+
+  **What this batch actually guarantees instead:** steps 2 and 3 are two
+  separate, independently-committing operations, not one shared boundary.
+  Because eligibility re-verification (step 1) and the `end_date` passed to
+  `EndService` are derived from the exact same `scheduled_meeting.start_time`
+  basis, `EndSeriesContract#meeting_ended`'s `end_date.future?` check cannot
+  realistically fail for a request that passed step 1 — so `EndService`
+  failing at step 3 is expected to be rare (an infra-level failure: DB
+  error, optimistic-lock conflict), the same residual risk the existing,
+  unmodified "End meeting series" action already carries today. If step 3
+  does fail, the occurrence is left closed (a correct, independently valid
+  state — the user's "close this occurrence" request did succeed) while the
+  series remains active; the response must render this explicitly (e.g. "the
+  occurrence was closed, but ending the series failed — use *End meeting
+  series* to retry") rather than presenting it as a full failure, since
+  retrying "End meeting series" from the series page is the same,
+  idempotent, already-existing action. This is a narrower guarantee than
+  round 2 claimed, stated honestly rather than papered over.
 
 **Timezone-safe cutoff date (fixes a second bug in the same line).** The
 initial draft passed `meeting.start_time.to_date` as `end_date`. `to_date`
@@ -508,14 +603,34 @@ cancelled occurrence stays impossible.
   occurrence's timing (regression for the "cannot be closed" contradiction);
   the `this_and_future` option is absent from the dialog for an ineligible
   occurrence, and a forged `this_and_future` request against one is
-  rejected server-side rather than silently downgraded; a failure inside
-  `EndService` (e.g. contract validation) rolls back the occurrence's
-  close too — assert the occurrence's state is unchanged and no mail was
-  enqueued.
+  rejected server-side rather than silently downgraded (step 1, no writes).
+- Regression spec (this round): if step 2 (`change_state`) fails validation,
+  `EndService` is never called and no mail of any kind is sent — asserted
+  by stubbing/failing the close and checking zero mail deliveries. If step
+  3 (`EndService`) fails after step 2 succeeded, assert the occurrence
+  *is* left closed (not rolled back — there is no shared transaction) and
+  the response communicates the partial outcome distinctly from a full
+  failure. Do **not** assert "no mail was enqueued" for this case — the
+  correct assertion is that `EndService`'s own mails are not sent when
+  `EndService` itself fails before reaching them (its internal
+  `on_success` block never runs), not that some outer boundary suppressed
+  already-fired mail.
 - ICS regression: after a `this_and_future` close, the feed for that
   (now-ended) series renders the closed occurrence via
   `add_ended_series_history` under its own `meeting.uid` (no
-  `RECURRENCE-ID`, no `RRULE`), and no future VEVENT for the series.
+  `RECURRENCE-ID`, no `RRULE`), no future VEVENT for the series, and the
+  series-UID `CANCELLED` tombstone is present.
+
+## Known limitations
+
+- **`close` with `this_and_future` is not fully atomic.** If `EndService`
+  fails *after* the occurrence has already been closed (step 2 succeeded,
+  step 3 didn't), the occurrence stays closed and the series stays active —
+  the user must retry "End meeting series" manually. This window is
+  expected to be rare in practice (see §3b) and is a pre-existing property
+  of `EndService`'s own mail design (`deliver_now`, mail-before-destroy
+  ordering), not something introduced or fully solvable by this batch
+  without a larger `EndService` notification refactor.
 
 ## Out of scope
 
