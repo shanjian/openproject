@@ -587,12 +587,42 @@ RSpec.describe Meetings::IcalendarBuilder,
     end
 
     it "gives the tombstone a SEQUENCE strictly greater than what the master last advertised" do
-      cached_sequence = recurring_meeting.lock_version + recurring_meeting.template.lock_version
+      # Exercise the real transition rather than a series born already-ended:
+      # a client caches the master VEVENT's SEQUENCE while the series is still
+      # active, then RecurringMeetings::EndService ends it via
+      # UpdateService.call(end_after: "specific_date", end_date: <past date>).
+      active_series = create(:recurring_meeting,
+                             start_time: Time.zone.parse("2025-08-01 09:00"),
+                             project:,
+                             end_after: :specific_date,
+                             end_date: 1.year.from_now.to_date,
+                             time_zone: timezone.tzinfo.name)
+      expect(active_series).not_to have_ended
 
+      cached_builder = described_class.new(timezone:)
+      cached_builder.add_series_event(recurring_meeting: active_series)
+      cached_sequence = Icalendar::Calendar.parse(cached_builder.to_ical).first
+                                            .events.find { |e| e.rrule.present? }
+                                            .sequence
+
+      active_series.update!(end_after: "specific_date", end_date: 3.days.ago.to_date)
+      ended_series = RecurringMeeting.find(active_series.id)
+      expect(ended_series).to have_ended
+
+      builder.add_ended_series_history(recurring_meeting: ended_series)
+
+      tombstone = parsed_calendar.events.find { |e| e.uid == ended_series.uid }
+      expect(tombstone.sequence).to be > cached_sequence
+    end
+
+    it "stamps the tombstone with a current LAST-MODIFIED, not a stale one" do
       builder.add_ended_series_history(recurring_meeting:)
 
       tombstone = parsed_calendar.events.find { |e| e.uid == recurring_meeting.uid }
-      expect(tombstone.sequence).to be > cached_sequence
+      expected = [recurring_meeting.updated_at, recurring_meeting.template.updated_at].max
+
+      expect(tombstone.last_modified.to_time).to be_within(1.second).of(expected)
+      expect(tombstone.last_modified.to_time).to be_within(1.minute).of(Time.current)
     end
 
     it "excludes an occurrence whose scheduled slot is past but whose meeting time was edited to the future" do
