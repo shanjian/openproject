@@ -4,7 +4,9 @@
 **Status:** Draft — awaiting review
 **Revisions:** 2026-08-14 (review round 1 — stamp excluded from occurrence copying,
 digest lifecycle on cancel/end, transactional series scope with template-lock
-coordination, invited-only digest/count rule)
+coordination, invited-only digest/count rule) · 2026-08-14 (review round 2 — the
+locked series sweep extracted into a shared helper that the email REPLY path must use
+too; email digest enqueue moved after commit)
 
 ## Problem
 
@@ -91,20 +93,37 @@ Params: `status` (`accepted` | `tentative` | `declined`), `scope`
     generic email REPLY, this is an explicit "apply to all future" choice. Past
     occurrences are never touched. (The email path's needs-action-only semantics stay
     as they are.)
-  - **Atomicity and the instantiation race.** All series-scope writes happen inside
-    one transaction opened as `series.template.with_lock` (a row lock on the template
-    *Meeting*), and the future-occurrence query runs **after** the lock is acquired.
-    `RecurringMeetings::InitOccurrenceService#perform` wraps its
-    instantiate-and-copy block in the same `template.with_lock` (a one-line addition
-    local to the meeting module; instantiation is already single-flighted per series
-    by `InitNextOccurrenceJob`'s `perform_limit: 1`). The two operations therefore
-    serialize: either the copy runs first and the respond sweep sees the freshly
-    created occurrence in its query, or the respond sweep commits first and the copy
-    inherits the updated template status. No occurrence can be created mid-sweep with
-    a stale status, and a failure rolls back the whole sweep instead of leaving a
-    half-updated series.
-  - enqueues the organizer digest (§2) **after the transaction commits** — a rolled-
-    back sweep must not produce a digest describing writes that never happened.
+  - **Atomicity and the instantiation race — one shared helper for every series
+    sweep.** A single helper, `MeetingParticipants::ApplySeriesResponse`
+    (`series:, user:, status:, comment: MISSING, only_awaiting:, stamp:`), owns the
+    series-wide write:
+    - opens one transaction as `series.template.with_lock` (a row lock on the
+      template *Meeting*) and runs the future-occurrence query **after** the lock is
+      acquired;
+    - updates the template's participant row plus future, instantiated,
+      not-cancelled occurrences — all of them (`only_awaiting: false`, the in-app
+      "this and all future" semantics) or only `needs_action` ones
+      (`only_awaiting: true`, the email REPLY semantics, unchanged);
+    - writes `comment` only when the caller provides one (email replies do; in-app
+      responses don't touch it);
+    - stamps `participation_responded_at = stamp` on every row it writes;
+    - enqueues the organizer digest (§2) **after the transaction commits** — a
+      rolled-back or partial sweep must never produce a digest describing writes
+      that didn't happen.
+
+    **Both write paths go through this helper**: `RespondService` for scope=series,
+    and `HandleICalResponseService#handle_ical_event`'s series branch (which today
+    updates the template and awaiting occurrences row-by-row with no transaction —
+    left as-is, a concurrent in-app sweep could interleave with an email sweep and
+    leave the template and occurrences disagreeing, and a mid-sweep failure would
+    commit half the rows). `RecurringMeetings::InitOccurrenceService#perform` wraps
+    its instantiate-and-copy block in the same `template.with_lock` (a one-line
+    addition local to the meeting module; instantiation is already single-flighted
+    per series by `InitNextOccurrenceJob`'s `perform_limit: 1`). All three
+    operations therefore serialize on the template row: sweeps cannot interleave
+    with each other, and either a copy runs first and the sweep sees the freshly
+    created occurrence in its query, or the sweep commits first and the copy
+    inherits the updated template status.
 - No contract class: the writable surface is one enum on the caller's own participant
   row; guards are simpler and match the CancelService precedent.
 
@@ -131,11 +150,16 @@ rendered when the respond guards would pass for `User.current`:
 
 ### 2. Organizer response digest (batched email)
 
-**Trigger points.** Both write paths stamp `participation_responded_at` and enqueue the
-digest job:
+**Trigger points.** Every path that records a response stamps
+`participation_responded_at` and enqueues the digest job:
 
-- `MeetingParticipants::RespondService` (§1),
-- `HandleICalResponseService#update_participation_status` (email replies).
+- `MeetingParticipants::RespondService` (§1) — occurrence scope around its single-row
+  write, series scope via `ApplySeriesResponse`;
+- `HandleICalResponseService` — the single-meeting branch
+  (`update_participation_status`) stamps and enqueues around its existing single-row
+  `update!` (atomic on its own); the series-wide branch is **replaced by a call to
+  `ApplySeriesResponse` with `only_awaiting: true`**, inheriting the locked
+  transaction and the after-commit enqueue.
 
 Interim responses (`RecurringMeetingInterimResponse`, for occurrences that don't exist
 yet) do **not** trigger a digest; they surface later when the occurrence is
@@ -270,6 +294,15 @@ solve. Same two-layer fix:
   `copy_attributes` exclusion — its digest window query must come up empty); the
   respond sweep and `InitOccurrenceService` serialize on the template lock (a sweep
   running concurrently with instantiation leaves no occurrence with a stale status).
+- **ApplySeriesResponse specs (shared by both callers):** `only_awaiting: true`
+  updates only `needs_action` future occurrences while `false` updates all future
+  ones; comment written only when provided; a mid-sweep failure rolls back every row
+  (template included) and enqueues no digest; two concurrent sweeps (email vs in-app)
+  serialize on the template lock — after both commit, the template and every future
+  occurrence agree with whichever sweep ran last, never a mixture.
+- **HandleICalResponseService regression:** a series-wide REPLY routes through
+  `ApplySeriesResponse` (one transaction, one digest enqueue keyed on the series)
+  and keeps its needs-action-only semantics.
 - **HandleICalResponseService additions:** stamps `participation_responded_at` and
   enqueues the digest once per series for a series-wide reply (guards the
   concurrency-key choice).
