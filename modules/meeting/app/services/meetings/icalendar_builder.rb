@@ -79,7 +79,7 @@ module Meetings
     end
 
     def add_series_event(recurring_meeting:, cancelled: false) # rubocop:disable Metrics/AbcSize
-      return add_ended_series_history(recurring_meeting:) if recurring_meeting.has_ended?
+      return add_ended_series_history(recurring_meeting:, cancelled:) if recurring_meeting.has_ended?
 
       calendar.event do |e|
         e.uid = recurring_meeting.uid
@@ -171,20 +171,32 @@ module Meetings
     # occurrence's time was edited directly without its scheduled slot
     # following, and filtering on the wrong one could still emit a future
     # DTSTART for an "ended" series.
-    def add_ended_series_history(recurring_meeting:)
-      recurring_meeting
-        .scheduled_meetings
-        .instantiated
-        .not_cancelled
-        .includes(meeting: [:project])
-        .select { |scheduled_meeting| scheduled_meeting.meeting.start_time <= Time.zone.now }
-        .each do |scheduled_meeting|
-          add_single_meeting_event(
-            meeting: scheduled_meeting.meeting,
-            cancelled: false,
-            timezone: recurring_meeting.time_zone
-          )
-        end
+    #
+    # With cancelled: true the caller is building a METHOD:CANCEL payload
+    # (MeetingMailer.cancelled_series -> RecurringMeetings::ICalService
+    # #generate_series -> #update_calendar_status): only the tombstone is
+    # rendered then. Shipping brand-new VEVENTs under UIDs the client has
+    # never seen inside a cancellation message is a protocol mismatch some
+    # clients resolve by *creating* those events. The historical occurrences
+    # are not flipped to CANCELLED either — they are meetings that actually
+    # took place, and retroactively cancelling them would misrepresent
+    # history; the tombstone already cancels the series identity itself.
+    def add_ended_series_history(recurring_meeting:, cancelled: false)
+      unless cancelled
+        recurring_meeting
+          .scheduled_meetings
+          .instantiated
+          .not_cancelled
+          .includes(meeting: [:project])
+          .select { |scheduled_meeting| scheduled_meeting.meeting.start_time <= Time.zone.now }
+          .each do |scheduled_meeting|
+            add_single_meeting_event(
+              meeting: scheduled_meeting.meeting,
+              cancelled: false,
+              timezone: recurring_meeting.time_zone
+            )
+          end
+      end
 
       add_series_tombstone(recurring_meeting:)
     end

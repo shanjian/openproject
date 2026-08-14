@@ -613,6 +613,23 @@ RSpec.describe Meetings::IcalendarBuilder,
       expect(parsed_calendar.events.map(&:uid)).to include(past_occurrence.meeting.uid, recurring_meeting.uid)
       expect(parsed_calendar.events.none? { |e| e.rrule.present? }).to be true
     end
+
+    it "renders only the tombstone when the caller cancels the series" do
+      # MeetingMailer.cancelled_series -> ICalService#generate_series(cancelled: true)
+      # sets METHOD:CANCEL on the calendar; shipping brand-new CONFIRMED VEVENTs
+      # under UIDs the client has never seen in such a payload is a protocol
+      # mismatch, so the history events are dropped and only the tombstone stays.
+      builder.add_series_event(recurring_meeting:, cancelled: true)
+
+      expect(parsed_calendar.events.map(&:uid)).to contain_exactly(recurring_meeting.uid)
+      expect(parsed_calendar.events.first.status).to eq("CANCELLED")
+    end
+
+    it "still renders occurrence history alongside the tombstone when not cancelled" do
+      builder.add_series_event(recurring_meeting:, cancelled: false)
+
+      expect(parsed_calendar.events.map(&:uid)).to include(past_occurrence.meeting.uid, recurring_meeting.uid)
+    end
   end
 
   context "with a recurring meeting and interim responses" do
