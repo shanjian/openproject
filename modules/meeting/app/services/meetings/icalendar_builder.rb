@@ -79,6 +79,8 @@ module Meetings
     end
 
     def add_series_event(recurring_meeting:, cancelled: false) # rubocop:disable Metrics/AbcSize
+      return add_ended_series_history(recurring_meeting:) if recurring_meeting.has_ended?
+
       calendar.event do |e|
         e.uid = recurring_meeting.uid
         e.summary = recurring_meeting.title
@@ -157,6 +159,36 @@ module Meetings
       end
     end
 
+    # Renders history for a series that has already ended: standalone VEVENTs
+    # for its past, non-cancelled instantiated occurrences (own UID each, no
+    # RECURRENCE-ID/RRULE — there is no live master to attach an override to
+    # once the series stops projecting future occurrences), plus one
+    # CANCELLED tombstone for the series UID so a client that cached the old
+    # master (and its overrides) under that UID is told it is gone.
+    #
+    # Filters on the *rendered* field (meeting.start_time), not
+    # scheduled_meeting.start_time: the two can diverge when a single
+    # occurrence's time was edited directly without its scheduled slot
+    # following, and filtering on the wrong one could still emit a future
+    # DTSTART for an "ended" series.
+    def add_ended_series_history(recurring_meeting:)
+      recurring_meeting
+        .scheduled_meetings
+        .instantiated
+        .not_cancelled
+        .includes(meeting: [:project])
+        .select { |scheduled_meeting| scheduled_meeting.meeting.start_time <= Time.zone.now }
+        .each do |scheduled_meeting|
+          add_single_meeting_event(
+            meeting: scheduled_meeting.meeting,
+            cancelled: false,
+            timezone: recurring_meeting.time_zone
+          )
+        end
+
+      add_series_tombstone(recurring_meeting:)
+    end
+
     def update_calendar_status(cancelled:)
       if cancelled
         calendar.cancel
@@ -195,6 +227,22 @@ module Meetings
     end
 
     private
+
+    def add_series_tombstone(recurring_meeting:) # rubocop:disable Metrics/AbcSize
+      calendar.event do |e|
+        e.uid = recurring_meeting.uid
+        e.summary = recurring_meeting.title
+        e.organizer = ical_organizer
+        e.status = "CANCELLED"
+        # +1: the tombstone itself is a new revision (live series -> gone) that no
+        # lock_version bump on either record reflects, so the raw cached sum would
+        # tie with whatever the master last advertised instead of superseding it.
+        e.sequence = recurring_meeting.lock_version + recurring_meeting.template.lock_version + 1
+        e.last_modified = [recurring_meeting.updated_at, recurring_meeting.template.updated_at].max.utc
+        e.dtstart = ical_datetime(recurring_meeting.current_schedule_start, timezone: recurring_meeting.time_zone)
+        e.dtend = ical_datetime(recurring_meeting.current_schedule_end, timezone: recurring_meeting.time_zone)
+      end
+    end
 
     def series_cache_loaded?
       @series_cache_loaded

@@ -239,7 +239,7 @@ RSpec.describe Meetings::IcalendarBuilder,
 
     let(:recurring_meeting) do
       create(:recurring_meeting,
-             start_time: Time.zone.parse("2025-08-25 09:00"),
+             start_time: 1.week.from_now.change(hour: 9, min: 0, sec: 0),
              iterations: 10,
              project: project,
              end_after: :iterations,
@@ -478,6 +478,109 @@ RSpec.describe Meetings::IcalendarBuilder,
     end
   end
 
+  context "with an ended recurring meeting series" do
+    subject(:builder) { described_class.new(timezone:) }
+
+    let(:project) { create(:project) }
+    let(:parsed_calendar) { Icalendar::Calendar.parse(builder.to_ical).first }
+
+    let(:recurring_meeting) do
+      create(:recurring_meeting,
+             start_time: Time.zone.parse("2025-08-01 09:00"),
+             project:,
+             end_after: :specific_date,
+             end_date: 3.days.ago.to_date,
+             time_zone: timezone.tzinfo.name)
+    end
+
+    let!(:past_occurrence) do
+      create(:scheduled_meeting, :persisted,
+             recurring_meeting:,
+             start_time: 2.days.ago,
+             meeting_start_time: 2.days.ago)
+    end
+
+    let!(:cancelled_past_occurrence) do
+      create(:scheduled_meeting, :cancelled, :persisted,
+             recurring_meeting:,
+             start_time: 4.days.ago,
+             meeting_start_time: 4.days.ago)
+    end
+
+    it "renders each surviving past instantiated occurrence as a standalone VEVENT" do
+      builder.add_ended_series_history(recurring_meeting:)
+
+      history_event = parsed_calendar.events.find { |e| e.uid == past_occurrence.meeting.uid }
+      expect(history_event).to be_present
+      expect(history_event.recurrence_id).to be_blank
+      expect(history_event.rrule).to be_empty
+      expect(history_event.status).to eq("CONFIRMED")
+    end
+
+    it "excludes cancelled past occurrences" do
+      builder.add_ended_series_history(recurring_meeting:)
+
+      expect(parsed_calendar.events.map(&:uid)).not_to include(cancelled_past_occurrence.meeting.uid)
+    end
+
+    it "does not render interim-response placeholder events" do
+      # No factory exists for this model in the codebase — every existing spec
+      # (e.g. icalendar_builder_spec.rb's other context) builds it directly.
+      # start_time must be a real occurrence of the schedule (validated via
+      # occurs_at?, which itself respects the series' UNTIL bound), so we
+      # reuse the series' own first occurrence rather than an arbitrary
+      # future time that would fall outside the (already past) UNTIL bound.
+      RecurringMeetingInterimResponse.create!(
+        recurring_meeting:,
+        user: create(:user),
+        start_time: recurring_meeting.start_time,
+        participation_status: :accepted
+      )
+
+      builder.add_ended_series_history(recurring_meeting:)
+
+      expect(parsed_calendar.events.map(&:uid)).to all(eq(recurring_meeting.uid).or(eq(past_occurrence.meeting.uid)))
+    end
+
+    it "emits a CANCELLED tombstone for the series UID with no RECURRENCE-ID or RRULE" do
+      builder.add_ended_series_history(recurring_meeting:)
+
+      tombstone = parsed_calendar.events.find { |e| e.uid == recurring_meeting.uid }
+      expect(tombstone).to be_present
+      expect(tombstone.status).to eq("CANCELLED")
+      expect(tombstone.recurrence_id).to be_blank
+      expect(tombstone.rrule).to be_empty
+    end
+
+    it "gives the tombstone a SEQUENCE strictly greater than what the master last advertised" do
+      cached_sequence = recurring_meeting.lock_version + recurring_meeting.template.lock_version
+
+      builder.add_ended_series_history(recurring_meeting:)
+
+      tombstone = parsed_calendar.events.find { |e| e.uid == recurring_meeting.uid }
+      expect(tombstone.sequence).to be > cached_sequence
+    end
+
+    it "excludes an occurrence whose scheduled slot is past but whose meeting time was edited to the future" do
+      future_edited = create(:scheduled_meeting, :persisted,
+                             recurring_meeting:,
+                             start_time: 1.day.ago,
+                             meeting_start_time: 1.day.ago)
+      future_edited.meeting.update_column(:start_time, 1.day.from_now)
+
+      builder.add_ended_series_history(recurring_meeting:)
+
+      expect(parsed_calendar.events.map(&:uid)).not_to include(future_edited.meeting.uid)
+    end
+
+    it "self-guards inside add_series_event so the mailer path also gets history rendering" do
+      builder.add_series_event(recurring_meeting:)
+
+      expect(parsed_calendar.events.map(&:uid)).to include(past_occurrence.meeting.uid, recurring_meeting.uid)
+      expect(parsed_calendar.events.none? { |e| e.rrule.present? }).to be true
+    end
+  end
+
   context "with a recurring meeting and interim responses" do
     let(:project) { create(:project) }
     let(:user1) do
@@ -489,7 +592,7 @@ RSpec.describe Meetings::IcalendarBuilder,
 
     let(:recurring_meeting) do
       create(:recurring_meeting,
-             start_time: Time.zone.parse("2025-08-25 09:00"),
+             start_time: 1.week.from_now.change(hour: 9, min: 0, sec: 0),
              iterations: 10,
              project: project,
              end_after: :iterations,
