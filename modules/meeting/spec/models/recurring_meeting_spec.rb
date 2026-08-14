@@ -589,4 +589,13 @@ RSpec.describe RecurringMeeting,
       end
     end
   end
+
+  describe "#lock_version" do
+    it "increments on every save (optimistic locking)" do
+      recurring_meeting = create(:recurring_meeting)
+
+      expect { recurring_meeting.update!(interval: recurring_meeting.interval + 1) }
+        .to change(recurring_meeting, :lock_version).by(1)
+    end
+  end
 end
