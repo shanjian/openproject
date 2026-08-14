@@ -264,5 +264,36 @@ RSpec.describe AllMeetings::ICalService, type: :model do
         end
       end
     end
+
+    context "when the series has ended" do
+      before do
+        recurring_meeting.assign_attributes(
+          start_time: 60.days.ago,
+          end_after: "specific_date",
+          end_date: 3.days.ago.to_date
+        )
+        recurring_meeting.save!(validate: false)
+      end
+
+      let!(:past_occurrence) do
+        RecurringMeetings::InitOccurrenceService
+          .new(user: User.system, recurring_meeting:)
+          .call(start_time: relevant_time - 2.days)
+          .result
+      end
+
+      it "renders no VEVENT with a future DTSTART, and includes the past occurrence plus a series-UID tombstone",
+         :aggregate_failures do
+        expect(result).to be_a String
+        expect(ical.events).to all(satisfy { |e| e.dtstart.to_time <= Time.zone.now })
+
+        history_event = ical.events.find { |e| e.uid == past_occurrence.uid && e.recurrence_id.blank? }
+        expect(history_event).to be_present
+        expect(history_event.rrule).to be_empty
+
+        tombstone = ical.events.find { |e| e.uid == recurring_meeting.uid }
+        expect(tombstone.status).to eq "CANCELLED"
+      end
+    end
   end
 end
