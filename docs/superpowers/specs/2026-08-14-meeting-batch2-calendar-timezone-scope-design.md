@@ -1,6 +1,6 @@
 # Meeting improvements batch 2: calendar feed fixes, timezone selection, edit/close scope
 
-Status: draft — awaiting owner review (revised after code review round 3)
+Status: draft — awaiting owner review (revised after code review round 4)
 Date: 2026-08-14
 Requirements source: "OpenProject 会议需求增补 R8–R12" (2026-08-12)
 
@@ -39,6 +39,17 @@ UIDs removed the old series UID from the feed without ever telling clients
 what happened to it. All three verified against the code; fixed below,
 including walking back the transaction-atomicity claim rather than
 patching over it.
+
+**Revision note (round 4 review):** the round-3 tombstone fix specified
+UID + `STATUS:CANCELLED` but no `SEQUENCE`/`LAST-MODIFIED` — per iTIP
+(RFC 5546), a cancellation with a stale-or-equal sequence number is exactly
+the kind of update a compliant client is entitled to ignore, so an
+under-specified tombstone could silently fail to remove anything. And the
+round-2 relaxation of `EndSeriesContract#meeting_ended` to
+`model.end_date.future?` compares against `Date.current`, which resolves in
+the *ambient* request zone — reintroducing, inside the contract itself, the
+exact zone mismatch that §3b's cutoff-date fix had already closed one layer
+up. Both confirmed against the code; fixed below.
 
 ## Requirement disposition
 
@@ -154,6 +165,22 @@ clients never apply email updates, so future phantom occurrences persist.
     client that hasn't polled since before the series ended, or a client
     subscribing for the first time afterward, still needs it to correctly
     drop or never-render the old series identity.
+    **Revision metadata is required, not optional** (a bare UID+CANCELLED
+    pair is not enough): per iTIP (RFC 5546), a `METHOD:CANCEL`-equivalent
+    cancellation must carry a `SEQUENCE` at or above what the client already
+    has cached for that UID, or a well-behaved client is entitled to treat
+    it as a stale/out-of-order update and ignore it — silently defeating the
+    whole point of the tombstone. Reuse §1a's own formula rather than invent
+    a separate counter: `sequence: recurring_meeting.lock_version +
+    template.lock_version`, `last_modified: [recurring_meeting.updated_at,
+    template.updated_at].max`. This is guaranteed to be at or above the
+    last value any client saw while the series was still active, because
+    *ending* the series is itself a write to `recurring_meeting`
+    (`EndService` → `UpdateService.call(end_after:, end_date:)`) that bumps
+    `recurring_meeting.lock_version` by at least 1 — so the tombstone's
+    sequence is, by construction, strictly greater than whatever the master
+    last advertised before the series ended, without tracking a separate
+    counter.
   - No VEVENT with a future DTSTART may be emitted for an ended series.
 - **Active series**: unchanged behavior.
 
@@ -229,6 +256,13 @@ Additions/updates to the existing suites:
   `add_ended_series_history` contract (own UID per occurrence, no
   RECURRENCE-ID/RRULE, interim responses excluded, plus the series-UID
   `CANCELLED` tombstone present on every call).
+- Regression spec (this round): simulate a client that cached the master
+  VEVENT's `SEQUENCE` from before the series ended (e.g. record
+  `recurring_meeting.lock_version + template.lock_version` right before
+  calling `EndService`), then assert the tombstone's `SEQUENCE` on the very
+  next feed generation is strictly greater than that cached value —
+  proving a real, not merely present, revision bump; also assert
+  `LAST-MODIFIED` on the tombstone is current, not stale.
 - Regression spec (directly targets this round's finding): an occurrence
   whose `scheduled_meeting.start_time` is in the past but whose
   `meeting.start_time` was edited to the future is excluded from
@@ -559,13 +593,40 @@ the eligibility-restriction resolution above):
   (`end_series_contract.rb:44-48`) currently hardcodes
   `errors.add(:end_date, :invalid) unless model.end_date ==
   Time.zone.yesterday` — confirmed this rejects any other value outright,
-  including the occurrence date the close flow needs to pass. Relax to
+  including the occurrence date the close flow needs to pass.
+
+  **Correction — the naive relaxation is itself zone-unsafe.** A
+  straight `model.end_date.future?` re-introduces the exact class of bug
+  §3b's cutoff-date fix just closed: `Date#future?` (ActiveSupport)
+  compares against `Date.current`, which resolves via the *ambient*
+  `Time.zone` (the current request/thread's zone — typically the acting
+  user's own profile zone, not the series' configured zone) — a different
+  zone than the one `end_date` was just derived in
+  (`recurring_meeting.time_zone`). Concrete failure: a series in
+  `Asia/Tokyo` (UTC+9) has an occurrence at 2026-08-15 08:00 JST
+  (= 2026-08-14 23:00 UTC). At 2026-08-14 23:30 UTC the occurrence has
+  already started (eligibility, which compares absolute instants, correctly
+  says so), but its Tokyo calendar date is 2026-08-15 — one day ahead of
+  "today" in UTC. If the closing user's ambient zone is UTC (or anything
+  behind Tokyo), `Date.current` reads 2026-08-14, so `model.end_date.future?`
+  evaluates `2026-08-15 > 2026-08-14` → `true` → the contract rejects a
+  perfectly legitimate `this_and_future` close. Fix: compare `end_date`
+  against **the series' own zone's "today"**, not the ambient one —
   `errors.add(:end_date, :invalid) if model.end_date.nil? ||
-  model.end_date.future?` — "ending" may target any date up to and
-  including today, not only yesterday; still rejects an arbitrary future
-  end_date reaching this contract (this contract is only ever selected by
-  `EndService`, never by the plain series-edit path, so this stays a guard
-  on `EndService`'s own callers, not a general contract loosening).
+  model.end_date.after?(model.time_zone.today)` (`model.time_zone` is
+  `RecurringMeeting#time_zone`, already returning the series'
+  `ActiveSupport::TimeZone`). This keeps eligibility, cutoff derivation, and
+  contract validation all anchored to the same zone. Still rejects an
+  arbitrary future `end_date` reaching this contract (this contract is only
+  ever selected by `EndService`, never by the plain series-edit path, so
+  this stays a guard on `EndService`'s own callers, not a general contract
+  loosening). The plain "End meeting series" action's existing default
+  (`Time.zone.yesterday`, computed in the *ambient* zone, not the series'
+  own — a pre-existing quirk from before series had a user-configurable
+  zone at all) is unaffected in practice: a date one full calendar day
+  behind "now" cannot exceed "today" in a zone offset by at most ~26 hours,
+  so it remains valid against the corrected check too — call this out
+  explicitly in a regression test rather than assuming it.
 
 Permissions: `change_state`, `end_series`, and the new `close`/`close_dialog`
 all sit under the **same** `edit_meetings` permission (confirmed —
@@ -587,9 +648,15 @@ cancelled occurrence stays impossible.
   on synced rows; `future` scope now syncs location/duration (regression for
   the title-only gap); an unrecognized `apply_scope` value is rejected
   rather than silently defaulted.
-- `EndService` spec: `end_date:` accepts any non-future date (regression for
-  the hardcoded-yesterday contract); ordinary "End meeting series" callers
-  (default `end_date:`) are unaffected.
+- `EndSeriesContract` spec (this round, full-service level — not just the
+  derived date in isolation): run the complete `close` → `EndService` call
+  for a series in a zone ahead of the acting user's ambient zone (e.g.
+  series in `Asia/Tokyo`, request/user in UTC), at a moment where the
+  occurrence has started in Tokyo time but the ambient "today" is still the
+  prior UTC calendar day — assert the contract accepts it (regression for
+  the `Date#future?`-uses-ambient-zone bug); ordinary "End meeting series"
+  callers (default `end_date:`) are unaffected regardless of the acting
+  user's own zone.
 - Regression spec: an occurrence whose `meeting.start_time` was edited to
   diverge from `scheduled_meeting.start_time` is gated by the latter, not
   the former (covers the eligibility-source fix); the derived `end_date`
@@ -619,7 +686,9 @@ cancelled occurrence stays impossible.
   (now-ended) series renders the closed occurrence via
   `add_ended_series_history` under its own `meeting.uid` (no
   `RECURRENCE-ID`, no `RRULE`), no future VEVENT for the series, and the
-  series-UID `CANCELLED` tombstone is present.
+  series-UID `CANCELLED` tombstone is present with a `SEQUENCE` greater than
+  the pre-close master's (see the tombstone revision-metadata test in
+  Part 1).
 
 ## Known limitations
 
