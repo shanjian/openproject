@@ -166,15 +166,16 @@ clients never apply email updates, so future phantom occurrences persist.
     subscribing for the first time afterward, still needs it to correctly
     drop or never-render the old series identity.
     **Revision metadata is required, not optional** (a bare UID+CANCELLED
-    pair is not enough): per iTIP (RFC 5546), a `METHOD:CANCEL`-equivalent
-    cancellation must carry a `SEQUENCE` at or above what the client already
-    has cached for that UID, or a well-behaved client is entitled to treat
-    it as a stale/out-of-order update and ignore it — silently defeating the
-    whole point of the tombstone. Reuse §1a's own formula rather than invent
-    a separate counter: `sequence: recurring_meeting.lock_version +
+    pair is not enough): per iTIP (RFC 5546), a cancellation must strictly
+    increment `SEQUENCE` past what the client already has cached for that
+    UID — a stale-or-equal sequence number is exactly the kind of update a
+    well-behaved client is entitled to ignore, silently defeating the whole
+    point of the tombstone. Reuse §1a's own formula rather than invent a
+    separate counter: `sequence: recurring_meeting.lock_version +
     template.lock_version`, `last_modified: [recurring_meeting.updated_at,
-    template.updated_at].max`. This is guaranteed to be at or above the
-    last value any client saw while the series was still active, because
+    template.updated_at].max`. This is guaranteed to be strictly greater
+    than the last value any client saw while the series was still active,
+    because
     *ending* the series is itself a write to `recurring_meeting`
     (`EndService` → `UpdateService.call(end_after:, end_date:)`) that bumps
     `recurring_meeting.lock_version` by at least 1 — so the tombstone's
@@ -562,11 +563,14 @@ unambiguous surface:
   separate, independently-committing operations, not one shared boundary.
   Because eligibility re-verification (step 1) and the `end_date` passed to
   `EndService` are derived from the exact same `scheduled_meeting.start_time`
-  basis, `EndSeriesContract#meeting_ended`'s `end_date.future?` check cannot
-  realistically fail for a request that passed step 1 — so `EndService`
-  failing at step 3 is expected to be rare (an infra-level failure: DB
-  error, optimistic-lock conflict), the same residual risk the existing,
-  unmodified "End meeting series" action already carries today. If step 3
+  basis, `EndSeriesContract#meeting_ended`'s corrected check — comparing
+  `end_date` against `model.time_zone.today`, per the fix below, not the
+  ambient-zone `end_date.future?` this paragraph described in an earlier
+  round — cannot realistically fail for a request that passed step 1 — so
+  `EndService` failing at step 3 is expected to be rare (an infra-level
+  failure: DB error, optimistic-lock conflict), the same residual risk the
+  existing, unmodified "End meeting series" action already carries today.
+  If step 3
   does fail, the occurrence is left closed (a correct, independently valid
   state — the user's "close this occurrence" request did succeed) while the
   series remains active; the response must render this explicitly (e.g. "the
