@@ -405,5 +405,18 @@ RSpec.describe RecurringMeetings::UpdateService, "integration", type: :model do
 
       expect(past_scheduled_meeting.meeting.reload.title).not_to eq("Updated series title")
     end
+
+    it "bumps the synced occurrence's lock_version and updated_at, not just its title (ICS change-detection)" do
+      target = scheduled_meetings.first.meeting
+      target.update_column(:updated_at, 1.day.ago)
+      lock_version_before = target.lock_version
+
+      expect(service_result).to be_success
+
+      target.reload
+      expect(target.title).to eq("Updated series title")
+      expect(target.lock_version).to be > lock_version_before
+      expect(target.updated_at).to be_within(5.seconds).of(Time.current)
+    end
   end
 end

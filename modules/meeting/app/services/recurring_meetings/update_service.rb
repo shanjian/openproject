@@ -165,7 +165,19 @@ module RecurringMeetings
       .scheduled_instances(upcoming: true)
       .instantiated
       .each do |scheduled|
-        scheduled.meeting.update_column(:title, new_title)
+        # update_columns (not update_column) so lock_version/updated_at bump
+        # too — otherwise the propagated title is invisible to subscribed
+        # calendar clients even though the in-app page shows it immediately
+        # (SEQUENCE/LAST-MODIFIED on the occurrence's VEVENT derive from
+        # these two fields; see icalendar_builder.rb#add_single_meeting_event
+        # and #add_single_recurring_occurrence). Still skips
+        # validations/callbacks like the old update_column call did — no
+        # per-occurrence mail fires from this sync.
+        scheduled.meeting.update_columns(
+          title: new_title,
+          updated_at: Time.current,
+          lock_version: scheduled.meeting.lock_version + 1
+        )
       end
     end
 
