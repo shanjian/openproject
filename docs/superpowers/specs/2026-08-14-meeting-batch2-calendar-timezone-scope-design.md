@@ -1,6 +1,6 @@
 # Meeting improvements batch 2: calendar feed fixes, timezone selection, edit/close scope
 
-Status: draft — awaiting owner review (revised after code review round 1)
+Status: draft — awaiting owner review (revised after code review round 2)
 Date: 2026-08-14
 Requirements source: "OpenProject 会议需求增补 R8–R12" (2026-08-12)
 
@@ -8,8 +8,21 @@ Requirements source: "OpenProject 会议需求增补 R8–R12" (2026-08-12)
 left several proposed mechanics disconnected from actual entry points
 (strong params, contracts, `reschedule_required?`) or in conflict with each
 other (R10 vs. R12 for a not-yet-started closed occurrence). Every finding
-was verified by reading the cited code; all were confirmed real. This
-revision closes each gap explicitly rather than restating it as a TODO.
+was verified by reading the cited code; all were confirmed real. Round 1
+closed each gap by restricting "this and future" close to already-started
+occurrences and adding an `apply_scope`/`this_and_future` plumbing story.
+
+**Revision note (round 2 review):** round 1's fix used the wrong field for
+the eligibility check and cutoff-date derivation (`meeting.start_time`
+instead of the canonical `scheduled_meeting.start_time`, and no
+series-timezone conversion on the derived date), didn't specify
+authorization/atomicity for the new `close` action, still contradicted
+itself about whether an ineligible occurrence can be closed at all, left
+the "standalone" ICS rendering underspecified (UID/RECURRENCE-ID/RRULE
+contract, and it would have still called the future-occurrence-emitting
+`add_virtual_occurences_for_interim_responses`), and repeated a stale "ICS
+is untested" claim contradicted by four existing spec files on `epic`. All
+six were verified against the code and are fixed below.
 
 ## Requirement disposition
 
@@ -78,15 +91,38 @@ clients never apply email updates, so future phantom occurrences persist.
 **Fix.** In `AllMeetings::ICalService`, partition series by
 `has_ended?`:
 
-- **Ended series**: skip `add_series_event` entirely; emit only their past
-  instantiated occurrences as standalone (non-recurring) VEVENTs so history
-  stays visible. No VEVENT with a future DTSTART may be emitted for an ended
-  series.
+- **Ended series**: skip `add_series_event` entirely; call a new
+  `IcalendarBuilder#add_ended_series_history(recurring_meeting:)` instead.
+  **Builder API contract** (closing the "what exactly gets emitted" gap):
+  - Query `recurring_meeting.scheduled_meetings.instantiated.not_cancelled.past`
+    (the `.past` scope — `where(start_time: ...Time.current)` — already
+    exists on `ScheduledMeeting`; cancelled occurrences are omitted, nothing
+    happened for those).
+  - Each occurrence renders as a fully standalone VEVENT: **`uid:
+    scheduled_meeting.meeting.uid`** (every occurrence `Meeting` row already
+    gets its own unique UID via `Meeting::MeetingUid`, distinct from
+    `recurring_meeting.uid`) — **not** the series UID. No `RECURRENCE-ID`,
+    no `RRULE`. `status: "CONFIRMED"`. `dtstart`/`dtend` from `meeting.start_time`/
+    `meeting.end_time`; `sequence`/`last_modified` from `meeting.lock_version`/
+    `meeting.updated_at` (same as `add_single_meeting_event`).
+  - This method must **not** call `add_virtual_occurences_for_interim_responses`
+    — that renders speculative future placeholder events for pending RSVP
+    responses, which has no place in a terminated series' history view.
+  - Rationale for the UID switch: without a master VEVENT, an override-style
+    entry (series UID + RECURRENCE-ID, no matching master) is undefined
+    behavior per RFC 5545 — clients that never received the master have
+    nothing to attach the override to. A plain standalone VEVENT with its
+    own UID is unambiguous. Accepted, one-time visual side effect: on the
+    refresh where a series transitions to ended, calendar clients drop the
+    old series-UID entries (master + overrides) and show new standalone
+    entries in their place for the same past dates — no data loss, just a
+    UID change, and it only happens once per series.
+  - No VEVENT with a future DTSTART may be emitted for an ended series.
 - **Active series**: unchanged behavior.
 
 Also guard inside `add_series_event` itself (used by the mailer path too):
-if the schedule yields no upcoming occurrence, fall back to the same
-occurrences-only rendering instead of emitting a future-dated master event.
+if the schedule yields no upcoming occurrence, fall back to
+`add_ended_series_history` instead of emitting a future-dated master event.
 
 ### 1c. Delay
 
@@ -136,18 +172,30 @@ the change detectable to calendar clients on next feed refresh.
 
 ### Tests (Part 1)
 
-ICS content is currently untested (blast radius shows no covering specs).
-Add:
+**Correction:** ICS content is not untested — `spec/services/meetings/icalendar_builder_spec.rb`
+(671 lines), `spec/services/meetings/ical_service_spec.rb`,
+`spec/services/recurring_meetings/ical_service_spec.rb` (175 lines), and
+`spec/services/all_meetings/ical_service_spec.rb` (268 lines) already exist
+on `epic` — the earlier draft's "no covering specs" was wrong (the
+blast-radius lookup that produced it apparently missed these spec paths).
+`icalendar_builder_spec.rb` already pins the current behavior with
+`expect(parsed_calendar.refresh_interval.value_ical).to eq("PT6H")` — this
+is a **breaking change** for §1c, not a new assertion; update it to `PT15M`
+plus a new assertion for `X-PUBLISHED-TTL` in the same spec, rather than
+adding a parallel one.
 
-- Unit specs on `Meetings::IcalendarBuilder` / `RecurringMeetings::ICalService`
-  asserting: SEQUENCE bumps after a schedule-only series update; LAST-MODIFIED
-  reflects the newer of series/template; EXDATE for cancelled occurrences
-  (regression); refresh properties present.
-- Request spec on the token feed: active series renders master VEVENT +
-  override; ended series renders no VEVENT with DTSTART in the future but
-  keeps past occurrences; cancelled one-off meetings absent or CANCELLED.
-- Regression spec: after a series title/location/duration edit, an already-
-  instantiated future occurrence's VEVENT SEQUENCE increases and no
+Additions/updates to the existing suites:
+
+- `icalendar_builder_spec.rb`: update the `PT6H` expectation to `PT15M` +
+  `X-PUBLISHED-TTL`; add SEQUENCE-bumps-after-schedule-only-update, LAST-MODIFIED
+  reflects the newer of series/template, and the new
+  `add_ended_series_history` contract (own UID per occurrence, no
+  RECURRENCE-ID/RRULE, past-only, interim responses excluded).
+- `all_meetings/ical_service_spec.rb`: ended series renders no VEVENT with a
+  future DTSTART but keeps past occurrences; active series unchanged;
+  cancelled one-off meetings absent or CANCELLED (regression).
+- New regression spec: after a series title/location/duration edit, an
+  already-instantiated future occurrence's VEVENT SEQUENCE increases and no
   per-occurrence mail is sent (covers the pre-existing title-sync gap too).
 
 ## Part 2 — R11: timezone selection at creation
@@ -307,26 +355,47 @@ cover notification.
 
 ### 3b. Occurrence close scope
 
-**Eligibility restriction (resolves the R10/R12 conflict below):** the
-"this and future" close option is only offered for an occurrence whose
-`start_time` is at or before `Time.zone.now` — i.e., it has already started.
-This matches the real-world meaning of "close" (the meeting happened; you're
-finalizing it) and, as a direct consequence, the occurrence being closed can
-never appear in `ScheduledMeeting.upcoming` (`start_time: Time.current..`,
-`scheduled_meeting.rb:35`). That removes the need for any `keep:`/exclusion
-parameter in `EndService`: the closed occurrence is definitionally not
-"upcoming", so neither of `EndService`'s two `.upcoming`-scoped sweeps
-(`send_cancellation_for_future_instantiated_occurrences`,
-`remove_scheduled_meetings`) can touch it. A genuinely future, not-yet-
-started occurrence cannot be closed at all today (state machine only allows
-open/in_progress/closed — closing something that hasn't happened is not a
-real scenario this batch needs to support); if that need surfaces later it
-is a separate, explicit design question, not a side effect of this change.
+**Eligibility restriction (resolves the R10/R12 conflict below) — corrected
+to the canonical boundary.** The "this and future" close option is only
+offered for an occurrence whose **`scheduled_meeting.start_time`** is at or
+before `Time.zone.now` — not `meeting.start_time`. The earlier draft gated
+on `meeting.start_time`, but `EndService`'s sweeps filter
+`ScheduledMeeting.upcoming`/`.past` by the *scheduled_meeting* row's
+`start_time`, and the two can diverge: nothing syncs
+`scheduled_meeting.start_time` when a single occurrence's date/time is
+edited directly (confirmed — no callback on `Meeting` touches its linked
+`scheduled_meeting`; the builder itself treats them as distinct fields,
+using `scheduled_meeting.start_time` for `RECURRENCE-ID` and
+`meeting.start_time` for `DTSTART`, `icalendar_builder.rb:146-147`). An
+occurrence whose meeting-level time was edited to look past-due while its
+scheduled slot is still upcoming (or vice versa) would otherwise pass a
+`meeting.start_time`-based eligibility check while still being `.upcoming`
+from `EndService`'s point of view — exactly the divergence that made the
+`keep:` parameter necessary in the first place. Gating on
+`scheduled_meeting.start_time` is what actually guarantees the occurrence is
+excluded from `.upcoming`, and is available on `close` without extra work —
+every recurring occurrence's `Meeting#recurring_meeting_id` implies
+`meeting.scheduled_meeting`.
 
-This also resolves R10 vs. R12: since the kept/closed occurrence's
-`start_time` is always `<= now`, it always falls into the "past instantiated
-occurrence" bucket that R10 §1b already renders for ended series — there is
-no future-dated survivor for the feed to reconcile.
+This also resolves R10 vs. R12: since the closed occurrence's
+`scheduled_meeting.start_time` is always `<= now` when this option is
+offered, it always falls into the "past instantiated occurrence" bucket
+that `add_ended_series_history` (R10 §1b) renders for ended series — no
+future-dated survivor for the feed to reconcile.
+
+**"Only this" is unrestricted, matching today's behavior exactly — no
+eligibility gate.** The eligibility window governs the `this_and_future`
+*option's availability*, not whether the occurrence can be closed at all.
+The earlier draft said in one place that a not-yet-started occurrence
+"cannot be closed at all today" and, two paragraphs later, that such an
+occurrence gets "a single-option dialog" that closes it directly — those
+two statements contradict each other. Resolution: `change_state` has no
+start-time guard today (confirmed — `meetings_controller.rb:313-329`
+accepts `closed` unconditionally), and this batch does not add one. Any
+occurrence, regardless of timing, can always be closed via "only this".
+Only the *second* option (`this_and_future`) is conditional on the
+eligibility check above; when ineligible, the dialog simply omits that
+option rather than blocking closing outright.
 
 **Dialog and route — explicitly NOT the RSVP dialog.** The initial draft's
 "pattern: `RespondDialogComponent` + `respond_dialog` route" phrasing was
@@ -342,23 +411,55 @@ unambiguous surface:
   the confirmation UI, mirroring `cancel_dialog`/`cancel`.
 - New `Meetings::CloseDialogComponent` (modeled on
   `Meetings::CancelDialogComponent`, not `RespondDialogComponent`):
-  for a one-off meeting or an occurrence outside the eligibility window
-  above, renders a single-option confirm (today's behavior, direct
-  `change_state`). For an eligible occurrence, renders the
-  `only_this` / `this_and_future` radio choice.
-- New `MeetingsController#close` action:
-  - `only_this` (default) → today's `change_state(state: "closed")` path
-    unchanged.
-  - `this_and_future` → `change_state(state: "closed")` for this occurrence,
-    then `RecurringMeetings::EndService.new(recurring_meeting,
-    current_user:).call(end_date: meeting.start_time.to_date)`.
+  for a one-off meeting or an ineligible occurrence, renders a
+  single-option confirm (today's behavior, direct close). For an eligible
+  occurrence, renders the `only_this` / `this_and_future` radio choice.
+- **Both new actions must be registered in `engine.rb`'s `edit_meetings`
+  permission** (`meetings: %i[... change_state ...]` list,
+  `engine.rb:66-73`) alongside `change_state`/`cancel`/`cancel_dialog` —
+  the initial draft never specified this, and an unregistered action is
+  unreachable/unauthorized by the standard OpenProject controller flow.
+  This is the actual "preflight authorization" mechanism here: it runs
+  before the action body executes, not a bespoke check inside `close`.
+- New `MeetingsController#close` action, validating `params[:scope]`
+  server-side against `%w[only_this this_and_future]` (default
+  `"only_this"` — the narrower, non-destructive option — on anything
+  unrecognized, mirroring the `apply_scope` handling in §3a):
+  - `only_this` → today's `change_state(state: "closed")` path, unchanged.
+  - `this_and_future` — **wrapped in a single `ActiveRecord::Base.transaction`**
+    so the close and the series-ending are all-or-nothing:
+    1. re-verify eligibility server-side (never trust the dialog's option
+       list — a request can be replayed/forged after the eligibility
+       window has closed, e.g. if the occurrence's scheduled time is in
+       the future by the time the POST arrives); return a validation error
+       for `this_and_future` on an ineligible occurrence instead of
+       silently downgrading to `only_this`.
+    2. `change_state(state: "closed")` for this occurrence.
+    3. `RecurringMeetings::EndService.new(recurring_meeting, current_user:)
+       .call(end_date: scheduled_meeting.start_time.in_time_zone(recurring_meeting.time_zone).to_date)`
+       — see the timezone note below.
+    4. If either step fails validation, the transaction rolls back and
+       neither mutation is persisted. `send_closed_mail`
+       (`meeting.rb:136`) and `EndService`'s mails are all enqueued via
+       `deliver_later` (`MeetingNotificationService#call`, confirmed —
+       never `deliver_now`), and GoodJob inserts queued-job rows through
+       the same DB connection, so a transaction rollback also rolls back
+       any mail enqueued inside it — no mail can escape a failed
+       `this_and_future` close.
 
-`EndService` changes (narrower than the original draft — no `keep:`):
+**Timezone-safe cutoff date (fixes a second bug in the same line).** The
+initial draft passed `meeting.start_time.to_date` as `end_date`. `to_date`
+on an `ActiveRecord`-loaded datetime converts using the *application's*
+current `Time.zone`, not the series' own — near midnight in the series'
+zone this can land on the wrong calendar day (ending one occurrence too
+early or too late). Fix: convert through the series' own zone first —
+`scheduled_meeting.start_time.in_time_zone(recurring_meeting.time_zone).to_date`.
+
+`EndService` changes (narrower than the original draft — no `keep:`, per
+the eligibility-restriction resolution above):
 
 - New keyword `end_date:` (default `Time.zone.yesterday`, preserving every
   current caller including the unscoped "End meeting series" action).
-  The close flow passes the closed occurrence's own calendar date so the
-  series stops immediately after it.
 - `RecurringMeetings::EndSeriesContract#meeting_ended`
   (`end_series_contract.rb:44-48`) currently hardcodes
   `errors.add(:end_date, :invalid) unless model.end_date ==
@@ -371,9 +472,13 @@ unambiguous surface:
   `EndService`, never by the plain series-edit path, so this stays a guard
   on `EndService`'s own callers, not a general contract loosening).
 
-Permissions: the `this_and_future` option renders only for users allowed to
-end the series (same check as `RecurringMeetingsController#end_series`);
-other closers see the single-option dialog.
+Permissions: `change_state`, `end_series`, and the new `close`/`close_dialog`
+all sit under the **same** `edit_meetings` permission (confirmed —
+`engine.rb`'s `edit_meetings` block already lists both `change_state` and
+`end_series`/`end_series_dialog` together). There is no separate "allowed to
+end the series" tier to check for `this_and_future` beyond ordinary
+`edit_meetings` — the earlier draft implied one; correction noted so the
+implementer doesn't build a permission distinction that isn't there.
 
 State guard note: `change_state`, `close`, and the dialog flow all go
 through the model-level cancelled-state guard from PR #124; closing a
@@ -390,16 +495,27 @@ cancelled occurrence stays impossible.
 - `EndService` spec: `end_date:` accepts any non-future date (regression for
   the hardcoded-yesterday contract); ordinary "End meeting series" callers
   (default `end_date:`) are unaffected.
-- Request/controller specs: `close` with `this_and_future` on an occurrence
-  that has already started closes it and ends the series from its date,
-  with exactly one closed-mail (to this occurrence) and one ended-series
-  mail (to the rest) — no cancellation mail for the closed occurrence
-  itself; `only_this` leaves the series untouched; the option is absent
-  from the dialog for a not-yet-started occurrence and for users without
-  end-series permission.
+- Regression spec: an occurrence whose `meeting.start_time` was edited to
+  diverge from `scheduled_meeting.start_time` is gated by the latter, not
+  the former (covers the eligibility-source fix); the derived `end_date`
+  matches the series' own zone across a DST/midnight boundary, not the
+  server's default zone (covers the timezone-conversion fix).
+- Request/controller specs: `close` with `this_and_future` on an eligible
+  occurrence closes it and ends the series from its date, with exactly one
+  closed-mail (to this occurrence) and one ended-series mail (to the rest)
+  — no cancellation mail for the closed occurrence itself; `only_this`
+  leaves the series untouched and remains available regardless of the
+  occurrence's timing (regression for the "cannot be closed" contradiction);
+  the `this_and_future` option is absent from the dialog for an ineligible
+  occurrence, and a forged `this_and_future` request against one is
+  rejected server-side rather than silently downgraded; a failure inside
+  `EndService` (e.g. contract validation) rolls back the occurrence's
+  close too — assert the occurrence's state is unchanged and no mail was
+  enqueued.
 - ICS regression: after a `this_and_future` close, the feed for that
-  (now-ended) series still renders the closed occurrence (past-dated) per
-  R10 §1b, and no future VEVENT for the series.
+  (now-ended) series renders the closed occurrence via
+  `add_ended_series_history` under its own `meeting.uid` (no
+  `RECURRENCE-ID`, no `RRULE`), and no future VEVENT for the series.
 
 ## Out of scope
 
@@ -407,8 +523,10 @@ cancelled occurrence stays impossible.
   creating a second series) — owner decision 1.
 - Closing multiple past open occurrences in bulk ("all" for close) — owner
   decision 3.
-- Closing a not-yet-started occurrence at all (any scope) — see the
-  eligibility restriction in §3b; unchanged from today's behavior.
+- Ending the series as part of closing a not-yet-started occurrence
+  (`this_and_future` on an ineligible occurrence) — "only this" close
+  remains available for any occurrence regardless of timing, unchanged from
+  today's behavior; see the eligibility restriction in §3b.
 - CalDAV or any push-based calendar protocol; the feed remains pull-based
   ICS.
 - Per-occurrence private timezones.
