@@ -234,9 +234,13 @@ module Meetings
         e.summary = recurring_meeting.title
         e.organizer = ical_organizer
         e.status = "CANCELLED"
-        # +1: the tombstone itself is a new revision (live series -> gone) that no
-        # lock_version bump on either record reflects, so the raw cached sum would
-        # tie with whatever the master last advertised instead of superseding it.
+        # +1: a naturally ended series (its schedule simply ran out, the scenario
+        # SendParticipationDigestJob calls a "naturally ended series") never bumps
+        # lock_version on recurring_meeting or its template -- nothing ever calls
+        # .update!/.save to end it. Without the +1 this tombstone's SEQUENCE could
+        # tie the last value a client already cached from the live series, and a
+        # compliant client is entitled to ignore a cancellation that doesn't
+        # strictly exceed what it has seen.
         e.sequence = recurring_meeting.lock_version + recurring_meeting.template.lock_version + 1
         e.last_modified = [recurring_meeting.updated_at, recurring_meeting.template.updated_at].max.utc
         e.dtstart = ical_datetime(recurring_meeting.current_schedule_start, timezone: recurring_meeting.time_zone)
