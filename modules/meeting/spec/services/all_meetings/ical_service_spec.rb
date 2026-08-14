@@ -267,12 +267,11 @@ RSpec.describe AllMeetings::ICalService, type: :model do
 
     context "when the series has ended" do
       before do
-        recurring_meeting.assign_attributes(
+        recurring_meeting.update!(
           start_time: 60.days.ago,
           end_after: "specific_date",
           end_date: 3.days.ago.to_date
         )
-        recurring_meeting.save!(validate: false)
       end
 
       let!(:past_occurrence) do
