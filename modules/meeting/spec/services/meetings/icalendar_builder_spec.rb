@@ -573,6 +573,19 @@ RSpec.describe Meetings::IcalendarBuilder,
       expect(tombstone.rrule).to be_empty
     end
 
+    it "never dates the tombstone in the future, even with a stale schedule cursor" do
+      # Defense in depth: the rolling cursor should never point past now for an
+      # ended series, but the "no future DTSTART for an ended series" invariant
+      # must hold even if some edge case leaves it inconsistent.
+      recurring_meeting.update_column(:current_schedule_start, 1.week.from_now)
+
+      builder.add_ended_series_history(recurring_meeting:)
+
+      tombstone = parsed_calendar.events.find { |e| e.uid == recurring_meeting.uid }
+      expect(tombstone.dtstart.to_time).to be <= Time.zone.now
+      expect(tombstone.dtend.to_time).to be > tombstone.dtstart.to_time
+    end
+
     it "gives the tombstone a SEQUENCE strictly greater than what the master last advertised" do
       cached_sequence = recurring_meeting.lock_version + recurring_meeting.template.lock_version
 

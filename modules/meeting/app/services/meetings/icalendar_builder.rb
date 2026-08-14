@@ -229,6 +229,13 @@ module Meetings
     private
 
     def add_series_tombstone(recurring_meeting:) # rubocop:disable Metrics/AbcSize
+      # Defense in depth for the "no VEVENT with a future DTSTART may be emitted
+      # for an ended series" invariant: current_schedule_start is a rolling
+      # cursor maintained by RecurringMeetings::SetAttributesService and should
+      # never point past now once the series has ended, but the invariant is
+      # stated unconditionally, so clamp rather than trust the cursor.
+      tombstone_start = [recurring_meeting.current_schedule_start, Time.zone.now].min
+
       calendar.event do |e|
         e.uid = recurring_meeting.uid
         e.summary = recurring_meeting.title
@@ -243,8 +250,9 @@ module Meetings
         # strictly exceed what it has seen.
         e.sequence = recurring_meeting.lock_version + recurring_meeting.template.lock_version + 1
         e.last_modified = [recurring_meeting.updated_at, recurring_meeting.template.updated_at].max.utc
-        e.dtstart = ical_datetime(recurring_meeting.current_schedule_start, timezone: recurring_meeting.time_zone)
-        e.dtend = ical_datetime(recurring_meeting.current_schedule_end, timezone: recurring_meeting.time_zone)
+        e.dtstart = ical_datetime(tombstone_start, timezone: recurring_meeting.time_zone)
+        e.dtend = ical_datetime(tombstone_start + recurring_meeting.template.duration.hours,
+                                timezone: recurring_meeting.time_zone)
       end
     end
 
