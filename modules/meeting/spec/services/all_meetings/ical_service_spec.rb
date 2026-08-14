@@ -166,7 +166,7 @@ RSpec.describe AllMeetings::ICalService, type: :model do
              author: user,
              title: "Recurring meeting",
              start_time: relevant_time,
-             end_date: relevant_time.advance(week: 52).to_date,
+             end_date: relevant_time.advance(weeks: 52).to_date,
              iterations: 52,
              project:,
              time_zone: user.time_zone).tap do |rm|
@@ -200,8 +200,11 @@ RSpec.describe AllMeetings::ICalService, type: :model do
         expect(entry.dtstart.utc).to eq(relevant_time)
         expect(entry.dtstart).to eq relevant_time.in_time_zone(user.time_zone)
 
-        expect(entry.dtend.utc).to eq(relevant_time.advance(week: 52) + 1.hour)
-        expect(entry.dtend).to eq (relevant_time.advance(week: 52) + 1.hour).in_time_zone(user.time_zone)
+        # The master VEVENT's own DTEND is the first occurrence's end (start_time + duration);
+        # the RRULE governs repetition, it does not shift this event's own DTEND to the
+        # series' last occurrence.
+        expect(entry.dtend.utc).to eq(relevant_time + 1.hour)
+        expect(entry.dtend).to eq (relevant_time + 1.hour).in_time_zone(user.time_zone)
       end
     end
 
