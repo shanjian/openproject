@@ -1,7 +1,7 @@
 # Meeting RSVP: in-app responses, organizer digest, summary counts (R7)
 
 **Date:** 2026-08-13
-**Status:** Draft — awaiting review
+**Status:** Approved
 **Revisions:** 2026-08-14 (review round 1 — stamp excluded from occurrence copying,
 digest lifecycle on cancel/end, transactional series scope with template-lock
 coordination, invited-only digest/count rule) · 2026-08-14 (review round 2 — the
