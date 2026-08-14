@@ -295,6 +295,39 @@ RSpec.describe Meetings::IcalendarBuilder,
       end
     end
 
+    context "when a schedule-only field changes (REGRESSION: series SEQUENCE never bumped)" do
+      subject(:builder) { described_class.new(timezone:) }
+
+      it "increases SEQUENCE on the master event after a recurring_meeting-only change" do
+        builder.add_series_event(recurring_meeting:)
+        master_before = Icalendar::Calendar.parse(builder.to_ical).first
+                                            .events.find { |e| e.rrule.present? }
+        sequence_before = master_before.sequence
+
+        recurring_meeting.update!(interval: recurring_meeting.interval + 1)
+        recurring_meeting.reload
+
+        builder2 = described_class.new(timezone:)
+        builder2.add_series_event(recurring_meeting:)
+        master_after = Icalendar::Calendar.parse(builder2.to_ical).first
+                                           .events.find { |e| e.rrule.present? }
+
+        expect(master_after.sequence).to be > sequence_before
+      end
+
+      it "sets LAST-MODIFIED to the newer of the series' and template's updated_at" do
+        recurring_meeting.update!(interval: recurring_meeting.interval + 1)
+        recurring_meeting.reload
+
+        builder.add_series_event(recurring_meeting:)
+        master = Icalendar::Calendar.parse(builder.to_ical).first
+                                     .events.find { |e| e.rrule.present? }
+
+        expected = [recurring_meeting.updated_at, recurring_meeting.template.updated_at].max
+        expect(master.last_modified.to_time).to be_within(1.second).of(expected)
+      end
+    end
+
     context "when current user needs to take action" do
       subject(:builder) { described_class.new(timezone:, user: user1) }
 

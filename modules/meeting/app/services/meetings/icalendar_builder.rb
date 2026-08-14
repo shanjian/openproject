@@ -90,7 +90,7 @@ module Meetings
 
         e.created = recurring_meeting.template.created_at.utc
         e.last_modified = [recurring_meeting.template.updated_at, recurring_meeting.updated_at].max.utc
-        e.sequence = recurring_meeting.template.lock_version
+        e.sequence = recurring_meeting.lock_version + recurring_meeting.template.lock_version
 
         e.rrule = recurring_meeting.ical_schedule.rrules.first.to_ical # We currently only have one recurrence rule
         e.dtstart = ical_datetime(recurring_meeting.current_schedule_start, timezone: recurring_meeting.time_zone)
@@ -323,7 +323,7 @@ module Meetings
 
           e.created = recurring_meeting.template.created_at.utc
           e.last_modified = [recurring_meeting.template.updated_at, recurring_meeting.updated_at].max.utc
-          e.sequence = recurring_meeting.template.lock_version
+          e.sequence = recurring_meeting.lock_version + recurring_meeting.template.lock_version
 
           e.dtstart = ical_datetime(start_time, timezone: recurring_meeting.time_zone)
           e.dtend = ical_datetime(start_time + recurring_meeting.template.duration.hours, timezone: recurring_meeting.time_zone)
