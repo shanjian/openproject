@@ -43,7 +43,8 @@ RSpec.describe Meetings::IcalendarBuilder,
       expect(parsed_calendar.prodid).to eq("-//OpenProject GmbH//#{OpenProject::VERSION}//Meeting//EN")
       expect(parsed_calendar.version).to eq("2.0")
       expect(parsed_calendar.calscale).to eq("GREGORIAN")
-      expect(parsed_calendar.refresh_interval.value_ical).to eq("PT6H")
+      expect(parsed_calendar.refresh_interval.value_ical).to eq("PT15M")
+      expect(parsed_calendar.custom_property("X_PUBLISHED_TTL").first).to eq("PT15M")
     end
 
     it "allows setting a custom calendar title" do

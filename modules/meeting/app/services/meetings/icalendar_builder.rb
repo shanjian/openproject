@@ -203,7 +203,12 @@ module Meetings
     def build_icalendar
       ::Icalendar::Calendar.new.tap do |calendar|
         calendar.prodid = "-//OpenProject GmbH//#{OpenProject::VERSION}//Meeting//EN"
-        calendar.refresh_interval = 6.hours.iso8601
+        # REFRESH-INTERVAL is the RFC 7986 property; X-PUBLISHED-TTL is the
+        # older de-facto one some clients (older Thunderbird/Lightning
+        # builds) read instead — set both so refresh timing is honored
+        # regardless of which one a given client supports.
+        calendar.refresh_interval = 15.minutes.iso8601
+        calendar.append_custom_property("X-PUBLISHED-TTL", 15.minutes.iso8601)
       end
     end
 
