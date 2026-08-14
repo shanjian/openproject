@@ -190,14 +190,34 @@ RSpec.describe Meetings::SendParticipationDigestJob do
       expect(body).to include(occurrence.start_time.to_date.iso8601)
     end
 
-    it "no-ops on an ended series" do
+    it "still digests responses to a naturally ended series (e.g. its final occurrence)" do
+      # EndService deletes pending jobs explicitly; a mere has_ended? guard would
+      # swallow responses to the last occurrence of any series that just ran out
       respond!(series.template, responder, "accepted")
       series.update_columns(end_after: RecurringMeeting.end_afters["specific_date"],
                             end_date: 2.days.ago)
 
       described_class.perform_now(series, since:)
 
-      expect(ActionMailer::Base.deliveries).to be_empty
+      expect(ActionMailer::Base.deliveries.size).to eq 1
+    end
+
+    it "renders occurrence dates in the author's timezone and locale" do
+      author.pref.update!(time_zone: "Pacific/Auckland")
+      # 20:00 UTC is already the NEXT day in Auckland (+12/+13)
+      late_occurrence = create(:scheduled_meeting, :persisted,
+                               recurring_meeting: series,
+                               start_time: 2.days.from_now.beginning_of_day + 20.hours).meeting
+      respond!(late_occurrence, responder, "accepted")
+
+      described_class.perform_now(series, since:)
+
+      body = ActionMailer::Base.deliveries.first.html_part.body
+      auckland_date = late_occurrence.start_time.in_time_zone("Pacific/Auckland").to_date.iso8601
+      expect(body).to include(auckland_date)
+      expect(body).not_to include(late_occurrence.start_time.utc.to_date.iso8601)
+    ensure
+      author.pref.update!(time_zone: nil)
     end
   end
 end

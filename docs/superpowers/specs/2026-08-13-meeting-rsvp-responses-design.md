@@ -12,7 +12,13 @@ occurrences fall outside the future-only query; sweeps are invited-only; the hel
 returns a ServiceResult and zero-row email sweeps are logged; digests collapse a
 user's same-status occurrence rows into their template row; one-off respond buttons
 are POST forms, not links; the debounce window/target rule, the responded-status set,
-the respondable predicate, and the template lock each live in exactly one place)
+the respondable predicate, and the template lock each live in exactly one place) ·
+2026-08-14 (review round 4: email sweeps update past occurrences still awaiting a
+response, restoring pre-helper behavior; in-app responses clear stale email comments;
+the digest renders in the author's timezone/locale via User.execute_as; the
+has_ended? job guard is dropped so final-occurrence responses still digest;
+RespondService converts AR errors to failures instead of 500ing; the scope dialog
+closes with a success flash after responding)
 
 ## Problem
 
@@ -204,11 +210,11 @@ the `>= since` query.
     series, of the template plus all its occurrence meetings — where
     `participation_responded_at >= since`, status in accepted/tentative/declined,
     and `user != author`. Invited-only is the eligibility rule everywhere: the in-app
-    path can't write non-invited rows (guard in §1), and while the email path
-    (`HandleICalResponseService`) keeps recording statuses on non-invited rows as it
-    does today (harmless bookkeeping, no behavior change to that service), such rows
-    are excluded from digests and from the summary counts (§3, already
-    invited-scoped).
+    path can't write non-invited rows (guard in §1), series sweeps (both callers of
+    `ApplySeriesResponse`) only touch invited rows, the email path's single-meeting
+    branch still writes whatever row `find_by!` locates (unchanged), and digests and
+    summary counts (§3) only report invited rows. A series-wide email reply that
+    matches no invited rows is logged, not silently dropped.
   - returns without mail if the collection is empty.
   - honors the author's **global** `meeting_responses` notification setting
     (same global-rows-only query as `meeting_updated`, and for the same reason:
@@ -236,10 +242,12 @@ solve. Same two-layer fix:
 - `Meetings::CancelService` and `RecurringMeetings::EndService` delete pending digest
   jobs by concurrency key (`SendParticipationDigestJob.delete_jobs(target)`),
   alongside their existing `SendUpdatedNotificationJob.delete_jobs` calls.
-- The job itself opens with `return if target.is_a?(Meeting) && target.cancelled?`
-  and `return if target.is_a?(RecurringMeeting) && target.has_ended?` — the belt for
-  jobs already past the queue. (Closed meetings do **not** no-op: a response landing
-  shortly before the meeting was closed is still worth reporting.)
+- The job itself opens with `return if target.is_a?(Meeting) && target.cancelled?` —
+  the belt for jobs already past the queue. There is deliberately **no**
+  `has_ended?` guard for series: a naturally ended series is exactly where
+  responses to the final occurrence land, and EndService covers its ordering
+  concern by deleting pending jobs. (Closed meetings do **not** no-op either: a
+  response landing shortly before the meeting was closed is still worth reporting.)
 
 ### 3. Summary counts
 

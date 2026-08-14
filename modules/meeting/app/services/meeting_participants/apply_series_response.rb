@@ -87,22 +87,30 @@ module MeetingParticipants
     private
 
     def rows_to_update(only_awaiting)
-      [template_participant, *future_occurrence_participants(only_awaiting)].compact
+      [template_participant, *occurrence_participants(only_awaiting)].compact
     end
 
     def template_participant
       series.template.participants.invited.find_by(user:)
     end
 
-    def future_occurrence_participants(only_awaiting)
+    def occurrence_participants(only_awaiting)
       scope = MeetingParticipant
         .invited
         .where(user:)
         .joins(:meeting)
         .where(meetings: { recurring_meeting_id: series.id, template: false })
-        .where(meetings: { start_time: Time.current.. })
 
-      only_awaiting ? scope.participation_needs_action : scope
+      if only_awaiting
+        # Email REPLY semantics, matching the pre-helper behavior: every
+        # instantiated occurrence still awaiting a response — past ones included,
+        # so a late reply still settles yesterday's pending row
+        scope.participation_needs_action
+      else
+        # The explicit in-app "this and all future occurrences" choice; the
+        # responded-on row rides along via `also:` when it already started
+        scope.where(meetings: { start_time: Time.current.. })
+      end
     end
 
     def attributes_for(status, stamp, comment)

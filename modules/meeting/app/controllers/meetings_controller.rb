@@ -222,6 +222,8 @@ class MeetingsController < ApplicationController
       .call(status: params[:status], scope: params[:scope])
 
     if call.success?
+      close_dialog_via_turbo_stream("#respond-meeting-dialog")
+      render_success_flash_message_via_turbo_stream(message: I18n.t("meeting.respond.saved"))
       update_sidebar_participants_component_via_turbo_stream
     else
       render_error_flash_message_via_turbo_stream(message: I18n.t("meeting.respond.failed"))

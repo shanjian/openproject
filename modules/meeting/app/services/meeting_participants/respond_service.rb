@@ -63,13 +63,22 @@ module MeetingParticipants
       end
 
       ServiceResult.success(result: participant.reload)
+    rescue ActiveRecord::ActiveRecordError => e
+      Rails.logger.error do
+        "Failed to record meeting response for user ##{current_user.id} on meeting ##{meeting.id}: #{e.message}"
+      end
+      ServiceResult.failure(result: meeting)
     end
 
     private
 
+    # comment: nil — a new status invalidates any comment left by an earlier
+    # email reply; keeping it would pair the fresh status with a stale reason
+    # in the organizer digest.
     def apply_to_meeting(participant, status, stamp)
       participant.update!(participation_status: status,
-                          participation_responded_at: stamp)
+                          participation_responded_at: stamp,
+                          comment: nil)
 
       Meetings::SendParticipationDigestJob.schedule(meeting, since: stamp)
     end
@@ -80,7 +89,7 @@ module MeetingParticipants
     def apply_to_series(participant, status, stamp)
       ApplySeriesResponse
         .new(series: meeting.recurring_meeting, user: current_user)
-        .call(status:, stamp:, only_awaiting: false, also: participant)
+        .call(status:, stamp:, only_awaiting: false, also: participant, comment: nil)
     end
   end
 end

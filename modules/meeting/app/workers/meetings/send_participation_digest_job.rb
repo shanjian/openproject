@@ -86,17 +86,23 @@ module Meetings
       responses = collect_responses(target, since)
       return if responses.empty?
 
-      MeetingMailer.participation_digest(target, author, responses).deliver_now
+      # Render in the author's timezone and locale — the job itself runs as the
+      # anonymous user, whose zone would mislabel occurrence dates
+      User.execute_as(author) do
+        MeetingMailer.participation_digest(target, author, responses).deliver_now
+      end
     end
 
     private
 
-    # Belt for jobs already past the queue when the meeting was cancelled or the
-    # series ended; CancelService/EndService additionally delete pending jobs by
-    # concurrency key. (Deletion of the target is covered by discard_on.)
+    # Belt for jobs already past the queue when the meeting was cancelled
+    # (CancelService additionally deletes pending jobs by concurrency key, and
+    # deletion of the target is covered by discard_on). Deliberately NOT guarded
+    # on RecurringMeeting#has_ended?: a naturally ended series is exactly where
+    # responses to the final occurrence land, and EndService deletes its pending
+    # jobs explicitly.
     def obsolete?(target)
-      (target.is_a?(Meeting) && target.cancelled?) ||
-        (target.is_a?(RecurringMeeting) && target.has_ended?)
+      target.is_a?(Meeting) && target.cancelled?
     end
 
     def collect_responses(target, since)

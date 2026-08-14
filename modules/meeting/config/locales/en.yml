@@ -318,6 +318,7 @@ en:
     copied: "Copied from Meeting #%{id}"
     respond:
       your_response: "Your response:"
+      saved: "Your response has been saved."
       failed: "Your response could not be recorded. You may not be an invited participant, or the meeting is closed."
       dialog_title: "Respond: %{status}"
       dialog_confirm: "Save response"

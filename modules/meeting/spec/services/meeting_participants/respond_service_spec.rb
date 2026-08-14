@@ -52,6 +52,22 @@ RSpec.describe MeetingParticipants::RespondService do
       expect(participant.comment).to be_nil
     end
 
+    it "clears a stale email comment so the digest cannot pair it with the new status" do
+      participant.update_column(:comment, "Can't make it — traveling")
+
+      expect(call(status: "accepted")).to be_success
+      expect(participant.reload.comment).to be_nil
+    end
+
+    it "returns a failure instead of raising when the write blows up mid-flight" do
+      allow_any_instance_of(MeetingParticipant) # rubocop:disable RSpec/AnyInstance
+        .to receive(:update!).and_raise(ActiveRecord::RecordInvalid)
+
+      result = nil
+      expect { result = call }.not_to raise_error
+      expect(result).to be_failure
+    end
+
     it "enqueues the digest keyed on the meeting" do
       expect { call }.to(have_enqueued_job(Meetings::SendParticipationDigestJob)
         .with { |target, since:| expect([target, since.present?]).to eq [meeting, true] })
@@ -142,6 +158,17 @@ RSpec.describe MeetingParticipants::RespondService do
       expect(occurrence_participant.reload).to be_participation_accepted
       expect(template_participant.reload).to be_participation_accepted
       expect(other_future_participant.reload).to be_participation_accepted
+    end
+
+    it "clears stale comments on every row the series sweep touches" do
+      occurrence_participant.update_column(:comment, "old comment")
+      template_participant.update_column(:comment, "old comment")
+
+      result = described_class.new(occurrence, current_user: user).call(status: "accepted", scope: "series")
+
+      expect(result).to be_success
+      expect(occurrence_participant.reload.comment).to be_nil
+      expect(template_participant.reload.comment).to be_nil
     end
 
     it "updates the responded-on occurrence for scope=series even when it has already started" do

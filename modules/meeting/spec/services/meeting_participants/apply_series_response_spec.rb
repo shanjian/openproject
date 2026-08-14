@@ -87,6 +87,13 @@ RSpec.describe MeetingParticipants::ApplySeriesResponse do
     expect(future_accepted.reload).to be_participation_accepted
   end
 
+  it "updates past occurrences still awaiting a response when only_awaiting is true (old email behavior)" do
+    service.call(status: "declined", stamp:, only_awaiting: true)
+
+    expect(past_pending.reload).to be_participation_declined
+    expect(past_pending.participation_responded_at).to eq stamp
+  end
+
   it "never touches past occurrences" do
     service.call(status: "declined", stamp:, only_awaiting: false)
 

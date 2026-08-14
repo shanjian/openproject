@@ -52,6 +52,13 @@ RSpec.describe "Meeting respond requests",
       expect(participant.reload).to be_participation_accepted
     end
 
+    it "closes the scope dialog and confirms with a flash" do
+      post respond_project_meeting_path(project, meeting, status: "accepted"), as: :turbo_stream
+
+      expect(response.body).to include("closeDialog")
+      expect(response.body).to include("op-primer-flash-message")
+    end
+
     it "renders an error for non-participants" do
       participant.destroy!
 
