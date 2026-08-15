@@ -29,6 +29,7 @@
 #++
 
 require "spec_helper"
+require "icalendar"
 
 RSpec.describe Meetings::ICalService, type: :model do # rubocop:disable RSpec/SpecFilePathFormat
   shared_let(:user) do

@@ -169,7 +169,7 @@ RSpec.describe AllMeetings::ICalService, type: :model do
              end_date: relevant_time.advance(weeks: 52).to_date,
              iterations: 52,
              project:,
-             time_zone: user.time_zone).tap do |rm|
+             time_zone: user.time_zone.name).tap do |rm|
         rm.template.participants = [
           MeetingParticipant.new(user:),
           MeetingParticipant.new(user: user2)
