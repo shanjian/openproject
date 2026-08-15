@@ -107,10 +107,12 @@ module RecurringMeetings
         )
 
         Meeting.transaction do
+          # ScheduledMeeting has no lock_version and is not rendered as its own
+          # ICS component, so a bare update_column is fine on that row.
           scheduled.update_column(:start_time, new_time)
           if scheduled.meeting_id.present? && scheduled.meeting.start_time.future?
             # for past meetings we do not change the time
-            scheduled.meeting.update_column(:start_time, new_time)
+            sync_occurrence_start_time(scheduled.meeting, new_time)
           end
         end
       end
@@ -140,11 +142,29 @@ module RecurringMeetings
           next_time = next_occurrences[index]&.to_time
 
           if next_time
+            # See update_time_of_day: only the Meeting row needs the
+            # calendar-visible treatment, the ScheduledMeeting row does not.
             scheduled.update_column(:start_time, next_time)
-            scheduled.meeting.update_column(:start_time, next_time)
+            sync_occurrence_start_time(scheduled.meeting, next_time)
           end
         end
       end
+    end
+
+    # update_columns (not update_column) so lock_version/updated_at bump too --
+    # otherwise the new start time is invisible to subscribed calendar clients
+    # even though the in-app page shows it immediately (SEQUENCE/LAST-MODIFIED
+    # on the occurrence's VEVENT derive from these two fields; see
+    # icalendar_builder.rb#add_single_meeting_event and
+    # #add_single_recurring_occurrence). Still skips validations/callbacks like
+    # the old update_column call did -- no per-occurrence mail fires from this
+    # sweep, the series-level update mail covers it.
+    def sync_occurrence_start_time(meeting, new_time)
+      meeting.update_columns(
+        start_time: new_time,
+        updated_at: Time.current,
+        lock_version: meeting.lock_version + 1
+      )
     end
 
     def cleanup_cancelled_schedules(recurring_meeting)
@@ -159,13 +179,33 @@ module RecurringMeetings
 
     def update_future_occurrence_titles(recurring_meeting)
       new_title = @template_params[:title]
-      return if new_title == @old_title
+      # blank? guards partial updates: WithTemplate#extract_template_params
+      # slices :title out of whatever params the caller passed, so any caller
+      # that does not touch the title at all (RecurringMeetings::EndService
+      # calls UpdateService.call(end_after:, end_date:)) yields nil here --
+      # which is neither equal to @old_title nor a title anybody asked for.
+      # Without this guard the sweep below blanks every future occurrence's
+      # title, and (since the sweep now bumps lock_version) publishes that
+      # null-out to subscribed calendar clients as well.
+      return if new_title.blank? || new_title == @old_title
 
       recurring_meeting
       .scheduled_instances(upcoming: true)
       .instantiated
       .each do |scheduled|
-        scheduled.meeting.update_column(:title, new_title)
+        # update_columns (not update_column) so lock_version/updated_at bump
+        # too — otherwise the propagated title is invisible to subscribed
+        # calendar clients even though the in-app page shows it immediately
+        # (SEQUENCE/LAST-MODIFIED on the occurrence's VEVENT derive from
+        # these two fields; see icalendar_builder.rb#add_single_meeting_event
+        # and #add_single_recurring_occurrence). Still skips
+        # validations/callbacks like the old update_column call did — no
+        # per-occurrence mail fires from this sync.
+        scheduled.meeting.update_columns(
+          title: new_title,
+          updated_at: Time.current,
+          lock_version: scheduled.meeting.lock_version + 1
+        )
       end
     end
 

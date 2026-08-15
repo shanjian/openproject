@@ -266,6 +266,19 @@ RSpec.describe RecurringMeetings::UpdateService, "integration", type: :model do
           expect(meeting.start_time).to eq(Time.zone.today + (index + 1).days + 14.hours + 30.minutes)
         end
       end
+
+      it "bumps the moved occurrence's lock_version and updated_at (ICS change-detection)" do
+        target = scheduled_meetings.first.meeting
+        target.update_column(:updated_at, 1.day.ago)
+        lock_version_before = target.lock_version
+
+        expect(service_result).to be_success
+
+        target.reload
+        expect(target.start_time).to eq(Time.zone.today + 1.day + 14.hours + 30.minutes)
+        expect(target.lock_version).to be > lock_version_before
+        expect(target.updated_at).to be_within(5.seconds).of(Time.current)
+      end
     end
 
     context "when changing the frequency from daily to weekly" do
@@ -281,6 +294,19 @@ RSpec.describe RecurringMeetings::UpdateService, "integration", type: :model do
           meeting.reload
           expect(meeting.start_time).to eq(Time.zone.tomorrow + (index * 7).days + 10.hours)
         end
+      end
+
+      it "bumps the rescheduled occurrence's lock_version and updated_at (ICS change-detection)" do
+        target = scheduled_meetings.first.meeting
+        target.update_column(:updated_at, 1.day.ago)
+        lock_version_before = target.lock_version
+
+        expect(service_result).to be_success
+
+        target.reload
+        expect(target.start_time).to eq(Time.zone.tomorrow + 10.hours)
+        expect(target.lock_version).to be > lock_version_before
+        expect(target.updated_at).to be_within(5.seconds).of(Time.current)
       end
 
       context "when one of the scheduled meetings is cancelled" do
@@ -404,6 +430,34 @@ RSpec.describe RecurringMeetings::UpdateService, "integration", type: :model do
       expect(service_result).to be_success
 
       expect(past_scheduled_meeting.meeting.reload.title).not_to eq("Updated series title")
+    end
+
+    context "when the params omit the title entirely (as RecurringMeetings::EndService does)" do
+      let(:params) { { end_after: "specific_date", end_date: 2.months.from_now } }
+
+      it "leaves future occurrence titles untouched instead of blanking them" do
+        titles_before = scheduled_meetings.map { |scheduled| scheduled.meeting.title }
+        expect(titles_before).to all(be_present)
+
+        expect(service_result).to be_success
+
+        scheduled_meetings.each_with_index do |scheduled, index|
+          expect(scheduled.meeting.reload.title).to eq(titles_before[index])
+        end
+      end
+    end
+
+    it "bumps the synced occurrence's lock_version and updated_at, not just its title (ICS change-detection)" do
+      target = scheduled_meetings.first.meeting
+      target.update_column(:updated_at, 1.day.ago)
+      lock_version_before = target.lock_version
+
+      expect(service_result).to be_success
+
+      target.reload
+      expect(target.title).to eq("Updated series title")
+      expect(target.lock_version).to be > lock_version_before
+      expect(target.updated_at).to be_within(5.seconds).of(Time.current)
     end
   end
 end

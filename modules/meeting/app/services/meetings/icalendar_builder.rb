@@ -50,10 +50,10 @@ module Meetings
       calendar.x_wr_calname = title
     end
 
-    def add_single_meeting_event(meeting:, cancelled: false) # rubocop:disable Metrics/AbcSize
+    def add_single_meeting_event(meeting:, cancelled: false, timezone: builder_internal_timezone) # rubocop:disable Metrics/AbcSize
       calendar.event do |e|
-        e.dtstart = ical_datetime(meeting.start_time)
-        e.dtend = ical_datetime(meeting.end_time)
+        e.dtstart = ical_datetime(meeting.start_time, timezone:)
+        e.dtend = ical_datetime(meeting.end_time, timezone:)
 
         e.created = meeting.created_at.utc
         e.last_modified = meeting.updated_at.utc
@@ -79,6 +79,8 @@ module Meetings
     end
 
     def add_series_event(recurring_meeting:, cancelled: false) # rubocop:disable Metrics/AbcSize
+      return add_ended_series_history(recurring_meeting:, cancelled:) if recurring_meeting.has_ended?
+
       calendar.event do |e|
         e.uid = recurring_meeting.uid
         e.summary = recurring_meeting.title
@@ -90,7 +92,7 @@ module Meetings
 
         e.created = recurring_meeting.template.created_at.utc
         e.last_modified = [recurring_meeting.template.updated_at, recurring_meeting.updated_at].max.utc
-        e.sequence = recurring_meeting.template.lock_version
+        e.sequence = recurring_meeting.lock_version + recurring_meeting.template.lock_version
 
         e.rrule = recurring_meeting.ical_schedule.rrules.first.to_ical # We currently only have one recurrence rule
         e.dtstart = ical_datetime(recurring_meeting.current_schedule_start, timezone: recurring_meeting.time_zone)
@@ -157,6 +159,48 @@ module Meetings
       end
     end
 
+    # Renders history for a series that has already ended: standalone VEVENTs
+    # for its past, non-cancelled instantiated occurrences (own UID each, no
+    # RECURRENCE-ID/RRULE — there is no live master to attach an override to
+    # once the series stops projecting future occurrences), plus one
+    # CANCELLED tombstone for the series UID so a client that cached the old
+    # master (and its overrides) under that UID is told it is gone.
+    #
+    # Filters on the *rendered* field (meeting.start_time), not
+    # scheduled_meeting.start_time: the two can diverge when a single
+    # occurrence's time was edited directly without its scheduled slot
+    # following, and filtering on the wrong one could still emit a future
+    # DTSTART for an "ended" series.
+    #
+    # With cancelled: true the caller is building a METHOD:CANCEL payload
+    # (MeetingMailer.cancelled_series -> RecurringMeetings::ICalService
+    # #generate_series -> #update_calendar_status): only the tombstone is
+    # rendered then. Shipping brand-new VEVENTs under UIDs the client has
+    # never seen inside a cancellation message is a protocol mismatch some
+    # clients resolve by *creating* those events. The historical occurrences
+    # are not flipped to CANCELLED either — they are meetings that actually
+    # took place, and retroactively cancelling them would misrepresent
+    # history; the tombstone already cancels the series identity itself.
+    def add_ended_series_history(recurring_meeting:, cancelled: false)
+      unless cancelled
+        recurring_meeting
+          .scheduled_meetings
+          .instantiated
+          .not_cancelled
+          .includes(meeting: [:project])
+          .select { |scheduled_meeting| scheduled_meeting.meeting.start_time <= Time.zone.now }
+          .each do |scheduled_meeting|
+            add_single_meeting_event(
+              meeting: scheduled_meeting.meeting,
+              cancelled: false,
+              timezone: recurring_meeting.time_zone
+            )
+          end
+      end
+
+      add_series_tombstone(recurring_meeting:)
+    end
+
     def update_calendar_status(cancelled:)
       if cancelled
         calendar.cancel
@@ -196,6 +240,36 @@ module Meetings
 
     private
 
+    def add_series_tombstone(recurring_meeting:) # rubocop:disable Metrics/AbcSize
+      # Defense in depth for the "no VEVENT with a future DTSTART may be emitted
+      # for an ended series" invariant: current_schedule_start is a rolling
+      # cursor maintained by RecurringMeetings::SetAttributesService and should
+      # never point past now once the series has ended, but the invariant is
+      # stated unconditionally, so clamp rather than trust the cursor.
+      tombstone_start = [recurring_meeting.current_schedule_start, Time.zone.now].min
+
+      calendar.event do |e|
+        e.uid = recurring_meeting.uid
+        e.summary = recurring_meeting.title
+        e.organizer = ical_organizer
+        e.status = "CANCELLED"
+        # +1: a naturally ended series (its schedule simply ran out, the scenario
+        # SendParticipationDigestJob calls a "naturally ended series") never bumps
+        # lock_version on recurring_meeting or its template -- nothing ever calls
+        # .update!/.save to end it. Without the +1 this tombstone's SEQUENCE could
+        # tie the last value a client already cached from the live series, and a
+        # compliant client is entitled to ignore a cancellation that doesn't
+        # strictly exceed what it has seen.
+        e.sequence = recurring_meeting.lock_version + recurring_meeting.template.lock_version + 1
+        e.last_modified = [recurring_meeting.updated_at, recurring_meeting.template.updated_at].max.utc
+        e.dtstart = ical_datetime(tombstone_start, timezone: recurring_meeting.time_zone)
+        e.dtend = ical_datetime(tombstone_start + recurring_meeting.template.duration.hours,
+                                timezone: recurring_meeting.time_zone)
+
+        add_attendees(event: e, meeting: recurring_meeting.template)
+      end
+    end
+
     def series_cache_loaded?
       @series_cache_loaded
     end
@@ -203,7 +277,12 @@ module Meetings
     def build_icalendar
       ::Icalendar::Calendar.new.tap do |calendar|
         calendar.prodid = "-//OpenProject GmbH//#{OpenProject::VERSION}//Meeting//EN"
-        calendar.refresh_interval = 6.hours.iso8601
+        # REFRESH-INTERVAL is the RFC 7986 property; X-PUBLISHED-TTL is the
+        # older de-facto one some clients (older Thunderbird/Lightning
+        # builds) read instead — set both so refresh timing is honored
+        # regardless of which one a given client supports.
+        calendar.refresh_interval = 15.minutes.iso8601
+        calendar.append_custom_property("X-PUBLISHED-TTL", 15.minutes.iso8601)
       end
     end
 
@@ -323,7 +402,7 @@ module Meetings
 
           e.created = recurring_meeting.template.created_at.utc
           e.last_modified = [recurring_meeting.template.updated_at, recurring_meeting.updated_at].max.utc
-          e.sequence = recurring_meeting.template.lock_version
+          e.sequence = recurring_meeting.lock_version + recurring_meeting.template.lock_version
 
           e.dtstart = ical_datetime(start_time, timezone: recurring_meeting.time_zone)
           e.dtend = ical_datetime(start_time + recurring_meeting.template.duration.hours, timezone: recurring_meeting.time_zone)

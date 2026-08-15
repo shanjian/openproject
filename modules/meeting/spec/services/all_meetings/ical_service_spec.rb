@@ -166,7 +166,7 @@ RSpec.describe AllMeetings::ICalService, type: :model do
              author: user,
              title: "Recurring meeting",
              start_time: relevant_time,
-             end_date: relevant_time.advance(week: 52).to_date,
+             end_date: relevant_time.advance(weeks: 52).to_date,
              iterations: 52,
              project:,
              time_zone: user.time_zone).tap do |rm|
@@ -200,8 +200,11 @@ RSpec.describe AllMeetings::ICalService, type: :model do
         expect(entry.dtstart.utc).to eq(relevant_time)
         expect(entry.dtstart).to eq relevant_time.in_time_zone(user.time_zone)
 
-        expect(entry.dtend.utc).to eq(relevant_time.advance(week: 52) + 1.hour)
-        expect(entry.dtend).to eq (relevant_time.advance(week: 52) + 1.hour).in_time_zone(user.time_zone)
+        # The master VEVENT's own DTEND is the first occurrence's end (start_time + duration);
+        # the RRULE governs repetition, it does not shift this event's own DTEND to the
+        # series' last occurrence.
+        expect(entry.dtend.utc).to eq(relevant_time + 1.hour)
+        expect(entry.dtend).to eq (relevant_time + 1.hour).in_time_zone(user.time_zone)
       end
     end
 
@@ -262,6 +265,36 @@ RSpec.describe AllMeetings::ICalService, type: :model do
           expect(recurring_entry.recurrence_id).to be_blank
           expect(recurring_entry.exdate).to contain_exactly(meeting.scheduled_meeting.start_time)
         end
+      end
+    end
+
+    context "when the series has ended" do
+      before do
+        recurring_meeting.update!(
+          start_time: 60.days.ago,
+          end_after: "specific_date",
+          end_date: 3.days.ago.to_date
+        )
+      end
+
+      let!(:past_occurrence) do
+        RecurringMeetings::InitOccurrenceService
+          .new(user: User.system, recurring_meeting:)
+          .call(start_time: relevant_time - 2.days)
+          .result
+      end
+
+      it "renders no VEVENT with a future DTSTART, and includes the past occurrence plus a series-UID tombstone",
+         :aggregate_failures do
+        expect(result).to be_a String
+        expect(ical.events).to all(satisfy { |e| e.dtstart.to_time <= Time.zone.now })
+
+        history_event = ical.events.find { |e| e.uid == past_occurrence.uid && e.recurrence_id.blank? }
+        expect(history_event).to be_present
+        expect(history_event.rrule).to be_empty
+
+        tombstone = ical.events.find { |e| e.uid == recurring_meeting.uid }
+        expect(tombstone.status).to eq "CANCELLED"
       end
     end
   end

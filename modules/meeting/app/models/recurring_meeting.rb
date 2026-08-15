@@ -185,8 +185,14 @@ class RecurringMeeting < ApplicationRecord
     super&.in_time_zone(time_zone)
   end
 
+  # Anchored on current_schedule_start (the rolling cursor maintained by
+  # RecurringMeetings::SetAttributesService), not on start_time (the series'
+  # original, never-changing first occurrence): both ICS consumers of this
+  # value render it as DTEND against a DTSTART derived from
+  # current_schedule_start, so anchoring on start_time yields DTEND < DTSTART
+  # (invalid per RFC 5545 §3.6.1) for any series past its first occurrence.
   def current_schedule_end
-    start_time + template.duration.hours
+    current_schedule_start + template.duration.hours
   end
 
   # Serializes series-wide participant sweeps (MeetingParticipants::ApplySeriesResponse)
