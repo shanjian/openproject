@@ -175,5 +175,22 @@ RSpec.describe "Meeting time_zone select field",
       expect(response.body).to include("EDT")
       expect(response.body).not_to include("EST")
     end
+
+    it "is reachable by a user with edit_meetings but no create_meetings permission " \
+       "(regression: fetch_timezone was only granted under create_meetings, but the " \
+       "live caption it powers is now also used on the edit form)" do
+      editor = create(:user,
+                      preferences: { time_zone: "Asia/Tokyo" },
+                      member_with_permissions: { project => %i[view_meetings edit_meetings] })
+      login_as editor
+
+      get fetch_timezone_project_meetings_path(
+        project,
+        meeting: { start_date: "2026-07-01", start_time_hour: "10:00", time_zone: "America/New_York" }
+      ), as: :turbo_stream
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("EDT")
+    end
   end
 end
