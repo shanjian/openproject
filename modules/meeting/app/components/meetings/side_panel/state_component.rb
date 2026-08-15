@@ -62,10 +62,15 @@ module Meetings
       change_state_project_meeting_path(@project, @meeting, state: state)
     end
 
-    def button_data_attributes(href)
+    def close_href
+      close_dialog_project_meeting_path(@project, @meeting)
+    end
+
+    def button_data_attributes(href, method: "PUT")
       {
         action: "click->meetings--submit#intercept",
-        href: href
+        href: href,
+        method: method
       }
     end
   end

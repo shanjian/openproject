@@ -29,6 +29,8 @@
 #++
 
 class MeetingsController < ApplicationController
+  CLOSE_SCOPES = %w[only_this this_and_future].freeze
+
   before_action :load_and_authorize_in_optional_project
 
   before_action :determine_date_range, only: %i[history]
@@ -199,6 +201,22 @@ class MeetingsController < ApplicationController
     call = ::Meetings::CancelService.new(@meeting, current_user:).call
 
     respond_to_state_service_call(call)
+  end
+
+  def close_dialog
+    respond_with_dialog Meetings::CloseDialogComponent.new(meeting: @meeting)
+  end
+
+  def close
+    scope = params[:scope].in?(CLOSE_SCOPES) ? params[:scope] : "only_this"
+
+    if scope == "this_and_future" && !@meeting.eligible_for_series_close?
+      return reject_ineligible_series_close
+    end
+
+    return reject_failed_occurrence_close unless close_occurrence
+
+    respond_with_close_streams(end_series(scope))
   end
 
   def restore
@@ -430,6 +448,15 @@ class MeetingsController < ApplicationController
 
   private
 
+  def respond_with_close_streams(end_result)
+    close_dialog_via_turbo_stream("#close-meeting-dialog")
+    render_close_result(end_result)
+
+    update_all_via_turbo_stream
+    update_backlog_via_turbo_stream(collapsed: nil)
+    respond_with_turbo_streams(status: end_result&.failure? ? :unprocessable_entity : :ok)
+  end
+
   def respond_to_state_service_call(call)
     # rubocop:disable Rails/ActionControllerFlashBeforeRender
     call
@@ -438,6 +465,47 @@ class MeetingsController < ApplicationController
     # rubocop:enable Rails/ActionControllerFlashBeforeRender
 
     redirect_to project_meeting_path(@project, @meeting), status: :see_other
+  end
+
+  def close_occurrence
+    @meeting.update(state: :closed) || false
+  rescue ActiveRecord::StaleObjectError
+    @meeting.errors.add(:base, t("meeting.close.stale"))
+    false
+  end
+
+  def series_end_date
+    @meeting.scheduled_meeting.start_time
+      .in_time_zone(@meeting.recurring_meeting.time_zone)
+      .to_date
+  end
+
+  def reject_ineligible_series_close
+    render_error_flash_message_via_turbo_stream(message: t("meeting.close.ineligible"))
+    respond_with_turbo_streams(status: :unprocessable_entity)
+  end
+
+  def reject_failed_occurrence_close
+    close_dialog_via_turbo_stream("#close-meeting-dialog")
+    update_sidebar_state_component_via_turbo_stream
+    render_error_flash_message_via_turbo_stream(message: @meeting.errors.full_messages.to_sentence)
+    respond_with_turbo_streams(status: :unprocessable_entity)
+  end
+
+  def end_series(scope)
+    return unless scope == "this_and_future"
+
+    ::RecurringMeetings::EndService
+      .new(@meeting.recurring_meeting, current_user:)
+      .call(end_date: series_end_date)
+  end
+
+  def render_close_result(end_result)
+    if end_result&.failure?
+      render_error_flash_message_via_turbo_stream(message: t("meeting.close.series_end_failed"))
+    else
+      render_success_flash_message_via_turbo_stream(message: t(:notice_successful_update))
+    end
   end
 
   def check_for_enterprise_token

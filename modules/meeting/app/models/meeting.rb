@@ -171,6 +171,10 @@ class Meeting < ApplicationRecord
     recurring_meeting_id.present?
   end
 
+  def eligible_for_series_close?
+    recurring? && scheduled_meeting.present? && scheduled_meeting.start_time <= Time.current
+  end
+
   ##
   # Cache key for detecting changes to be shown to the user
   def changed_hash

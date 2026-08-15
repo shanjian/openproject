@@ -1,0 +1,67 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+See COPYRIGHT and LICENSE files for more details.
+
+#%>
+
+<%=
+  render(Primer::Alpha::Dialog.new(id:, title: t("meeting.close.dialog_title"))) do |dialog|
+    dialog.with_header(variant: :large)
+    dialog.with_body do
+      primer_form_with(
+        url: close_project_meeting_path(@project, @meeting),
+        method: :post,
+        data: { turbo: true }
+      ) do
+        if eligible_for_series_close?
+          concat(
+            render(
+              Primer::Alpha::RadioButtonGroup.new(
+                name: "scope",
+                label: t("meeting.close.scope_label")
+              )
+            ) do |group|
+              group.radio_button(
+                value: "only_this",
+                checked: true,
+                label: t("meeting.close.scope_only_this")
+              )
+              group.radio_button(
+                value: "this_and_future",
+                label: t("meeting.close.scope_this_and_future")
+              )
+            end
+          )
+        else
+          concat hidden_field_tag(:scope, "only_this")
+        end
+
+        concat(
+          render(
+            Primer::Beta::Text.new(mt: 2)
+          ) do
+            t("meeting.close.confirmation_message")
+          end
+        )
+
+        concat(
+          render(
+            Primer::Beta::Button.new(
+              type: :submit,
+              scheme: :primary,
+              mt: 3,
+              test_selector: "confirm-close-meeting-button"
+            )
+          ) do
+            t("meeting.close.confirm_button")
+          end
+        )
+      end
+    end
+  end
+%>

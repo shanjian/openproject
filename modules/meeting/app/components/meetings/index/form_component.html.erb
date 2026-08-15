@@ -210,6 +210,25 @@
           modal_body.with_row(mt: 3) do
             render(Meetings::EmailUpdatesBannerComponent.new(@meeting))
           end
+
+          modal_body.with_row(mt: 3) do
+            render(
+              Primer::Alpha::RadioButtonGroup.new(
+                name: "meeting[apply_scope]",
+                label: t("recurring_meeting.update_scope.label")
+              )
+            ) do |group|
+              group.radio_button(
+                value: "future",
+                checked: true,
+                label: t("recurring_meeting.update_scope.future")
+              )
+              group.radio_button(
+                value: "all",
+                label: t("recurring_meeting.update_scope.all")
+              )
+            end
+          end
         end
       end
     end

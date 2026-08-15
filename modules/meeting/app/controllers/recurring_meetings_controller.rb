@@ -110,7 +110,7 @@ class RecurringMeetingsController < ApplicationController
   def update
     call = ::RecurringMeetings::UpdateService
       .new(model: @recurring_meeting, user: current_user)
-      .call(@converted_params)
+      .call(@converted_params, apply_scope: @apply_scope || "future")
 
     if call.success?
       fallback_location = project_recurring_meeting_path(@project, call.result)
@@ -354,7 +354,8 @@ class RecurringMeetingsController < ApplicationController
   def convert_params
     # We do some preprocessing of `meeting_params` that we will store in this
     # instance variable.
-    @converted_params = recurring_meeting_params.to_h
+    @converted_params = recurring_meeting_params.to_h.deep_symbolize_keys
+    @apply_scope = @converted_params.delete(:apply_scope)
 
     @converted_params[:project] = @project if @project.present?
     @converted_params[:duration] = @converted_params[:duration].to_hours if @converted_params[:duration].present?
@@ -365,6 +366,7 @@ class RecurringMeetingsController < ApplicationController
       .expect(meeting: [:project_id, :title, :location, :start_time_hour, :duration, :start_date,
                         :interval, :frequency, :end_after, :end_date, :iterations, :notify,
                         :preset, :schedule_mode_option, :schedule_mode, :month_day, :week_ordinal, :weekday,
+                        :apply_scope,
                         { weekdays: [] }])
   end
 
