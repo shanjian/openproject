@@ -39,13 +39,12 @@ module RecurringMeetings
       @current_user = current_user
     end
 
-    def call
-      # When we want the meeting to have ended today,
-      # yesterday remains the last possible occurrence, so we set end_date = yesterday.
-      # We do not want any occurrences today to remain.
+    def call(end_date: recurring_meeting.time_zone.today - 1.day)
+      # When we want the meeting to have ended today, yesterday in the series
+      # time zone remains the last possible occurrence.
       result = ::RecurringMeetings::UpdateService
         .new(model: recurring_meeting, user: current_user, contract_class: RecurringMeetings::EndSeriesContract)
-        .call(end_after: "specific_date", end_date: Time.zone.yesterday)
+        .call(end_after: "specific_date", end_date:)
 
       result.on_success do
         # Queued batched mails (update, response digest) must not arrive after the
@@ -68,7 +67,7 @@ module RecurringMeetings
     private
 
     def send_cancellation_for_future_instantiated_occurrences # rubocop:disable Metrics/AbcSize
-      recurring_meeting.scheduled_meetings.upcoming.instantiated.find_each do |scheduled_meeting|
+      future_scheduled_meetings.instantiated.find_each do |scheduled_meeting|
         meeting = scheduled_meeting.meeting
 
         meeting.participants.where(invited: true).find_each do |participant|
@@ -87,7 +86,7 @@ module RecurringMeetings
     # Delete any upcoming scheduled meetings and their instantiated meetings
     # (e.g., those that are instantiated or non-instantiated)
     def remove_scheduled_meetings
-      upcoming = recurring_meeting.scheduled_meetings.upcoming
+      upcoming = future_scheduled_meetings
 
       # First destroy the instantiated meetings
       upcoming.instantiated.find_each do |scheduled|
@@ -96,6 +95,10 @@ module RecurringMeetings
 
       # Then destroy all scheduled meetings
       upcoming.destroy_all
+    end
+
+    def future_scheduled_meetings
+      recurring_meeting.scheduled_meetings.where("start_time > ?", Time.current)
     end
 
     def send_ended_mail # rubocop:disable Metrics/AbcSize

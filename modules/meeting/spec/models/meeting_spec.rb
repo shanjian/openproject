@@ -44,6 +44,48 @@ RSpec.describe Meeting do
   it { is_expected.to belong_to :author }
   it { is_expected.to validate_presence_of :title }
 
+  describe "#eligible_for_series_close?" do
+    let(:current_time) { Time.zone.parse("2026-08-15 12:00:00") }
+    let(:scheduled_start) { current_time }
+    let(:recurring_meeting) do
+      create(:recurring_meeting,
+             project:,
+             author: user1,
+             start_time: current_time + 1.day)
+    end
+    let!(:scheduled_meeting) do
+      create(:scheduled_meeting,
+             :persisted,
+             recurring_meeting:,
+             start_time: scheduled_start)
+    end
+    let(:meeting) { scheduled_meeting.meeting }
+
+    around do |example|
+      travel_to(current_time, &example)
+    end
+
+    it "is eligible at the scheduled start boundary" do
+      expect(meeting).to be_eligible_for_series_close
+    end
+
+    context "when the scheduled start is in the future" do
+      let(:scheduled_start) { current_time + 1.second }
+
+      it "is not eligible" do
+        expect(meeting).not_to be_eligible_for_series_close
+      end
+    end
+
+    context "for a one-time meeting" do
+      let(:meeting) { create(:meeting, project:, author: user1, start_time: current_time) }
+
+      it "is not eligible" do
+        expect(meeting).not_to be_eligible_for_series_close
+      end
+    end
+  end
+
   describe "new instance" do
     let(:meeting) { build(:meeting, project:, title: "dingens") }
 

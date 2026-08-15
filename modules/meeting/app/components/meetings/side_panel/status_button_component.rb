@@ -129,10 +129,13 @@ module Meetings
                                        color_namespace: :meeting_status,
                                        icon: :"issue-closed",
                                        tag: :a,
-                                       href: href("closed"),
+                                       href: close_dialog_project_meeting_path(@project, @meeting),
                                        description: t("text_meeting_closed_dropdown_description"),
                                        content_arguments: {
-                                         data: data_attributes(href("closed"))
+                                         data: data_attributes(
+                                           close_dialog_project_meeting_path(@project, @meeting),
+                                           method: "GET"
+                                         )
                                        })
     end
 
@@ -140,10 +143,11 @@ module Meetings
       change_state_project_meeting_path(@project, @meeting, state: state)
     end
 
-    def data_attributes(href)
+    def data_attributes(href, method: "PUT")
       {
         action: "click->meetings--submit#intercept",
-        href: href
+        href: href,
+        method: method
       }
     end
   end

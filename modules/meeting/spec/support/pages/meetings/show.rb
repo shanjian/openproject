@@ -606,6 +606,10 @@ module Pages::Meetings
       page.within("#meetings-side-panel-state-component") do
         click_on("Close meeting")
       end
+
+      page.within_dialog(I18n.t("meeting.close.dialog_title")) do
+        find_test_selector("confirm-close-meeting-button").click
+      end
     end
 
     def open_meeting

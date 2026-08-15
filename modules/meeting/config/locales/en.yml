@@ -65,6 +65,7 @@ en:
       recurring_meeting:
         frequency: "Frequency"
         interval: "Interval"
+        apply_scope: "Apply changes to"
         start_date: "Starts on"
         start_time: "Start time"
         start_time_hour: "Start time"
@@ -337,6 +338,16 @@ en:
         All participants will be notified and the meeting will be removed from their calendars.
         Agenda items and outcomes are kept, and the meeting can be restored later.
       confirm_button: "Cancel meeting"
+    close:
+      dialog_title: "Close meeting"
+      confirmation_message: "Closing this meeting will prevent further changes to its agenda and outcomes."
+      confirm_button: "Close meeting"
+      scope_label: "Apply to"
+      scope_only_this: "Only this occurrence"
+      scope_this_and_future: "This occurrence and all future occurrences"
+      ineligible: "This occurrence cannot end the series because it has not started yet. Close only this occurrence instead."
+      series_end_failed: "The occurrence was closed, but ending the series failed. Use End meeting series to retry."
+      stale: "The meeting was changed elsewhere. Reload and try closing it again."
     delete_dialog:
       one_time:
         title: "Delete meeting"
@@ -490,6 +501,10 @@ en:
       first_created: >
         The first meeting has been successfuly created from template.
         All future meetings will be created automatically at the time of the previous occurrence.
+    update_scope:
+      label: "Apply changes to"
+      future: "This and all future occurrences"
+      all: "All occurrences"
     template:
       button_finalize: "Open first meeting"
       blank_title: "Your meeting series template is empty"

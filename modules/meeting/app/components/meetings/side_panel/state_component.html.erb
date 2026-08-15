@@ -96,10 +96,10 @@
               color: :accent,
               tag: :a,
               scheme: :link,
-              href: href("closed"),
+              href: close_href,
               classes: "hide-when-print",
               test_selector: "close-meeting-button",
-              data: button_data_attributes(href("closed"))
+              data: button_data_attributes(close_href, method: "GET")
             ) do |button|
               button.with_leading_visual_icon(icon: :unlock)
               t("label_meeting_close_action")

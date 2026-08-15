@@ -42,7 +42,9 @@ module RecurringMeetings
     end
 
     def meeting_ended
-      return if model.end_date == Time.zone.yesterday
+      # The close flow may end a series on any occurrence date up to today in
+      # the series' own time zone, rather than only on yesterday.
+      return if model.end_date.present? && !model.end_date.after?(model.time_zone.today)
 
       errors.add :end_date, :invalid
     end

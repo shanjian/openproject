@@ -32,12 +32,33 @@ module RecurringMeetings
   class UpdateService < ::BaseServices::Update
     include WithTemplate
 
+    APPLY_SCOPES = %w[future all].freeze
+    DETAIL_ATTRIBUTES = %i[title location duration].freeze
+
+    def call(attributes = {}, apply_scope: "future", **keyword_attributes)
+      @apply_scope = apply_scope
+      super(attributes.merge(keyword_attributes))
+    end
+
     protected
 
     def validate_params
       @old_schedule_model = model.dup
       @old_location = model.template.location
       @old_title = model.title
+      @old_duration = model.template.duration
+
+      return invalid_apply_scope_result unless APPLY_SCOPES.include?(@apply_scope)
+
+      super
+    end
+
+    def before_perform(call)
+      # apply_scope controls the occurrence sweep. It is not a model or
+      # contract attribute and must not reach SetAttributesService.
+      # WithTemplate's included before_perform is shadowed by this override, so
+      # extract its template attributes explicitly before Write sets the series.
+      @template_params = extract_template_params(params)
       super
     end
 
@@ -45,6 +66,8 @@ module RecurringMeetings
       return call unless call.success?
 
       recurring_meeting = call.result
+      call = update_template(call)
+      return call unless call.success?
 
       if should_reschedule?(recurring_meeting)
         reschedule_future_occurrences(recurring_meeting)
@@ -53,9 +76,9 @@ module RecurringMeetings
       end
 
       cleanup_cancelled_schedules(recurring_meeting)
-      update_future_occurrence_titles(recurring_meeting)
+      sync_occurrence_details(recurring_meeting)
 
-      update_template(call)
+      call
     end
 
     def update_template(call)
@@ -95,27 +118,35 @@ module RecurringMeetings
     end
 
     def update_time_of_day(recurring_meeting)
-      schedule_meetings = recurring_meeting.scheduled_meetings
-
-      schedule_meetings.each do |scheduled|
-        # Ensure we treat the start_time as a local time of the series
-        start_time = scheduled.start_time.in_time_zone(recurring_meeting.time_zone)
-        # so that we change the correct hour/minute
-        new_time = start_time.change(
-          hour: recurring_meeting.start_time.hour,
-          min: recurring_meeting.start_time.min
-        )
-
-        Meeting.transaction do
-          # ScheduledMeeting has no lock_version and is not rendered as its own
-          # ICS component, so a bare update_column is fine on that row.
-          scheduled.update_column(:start_time, new_time)
-          if scheduled.meeting_id.present? && scheduled.meeting.start_time.future?
-            # for past meetings we do not change the time
-            sync_occurrence_start_time(scheduled.meeting, new_time)
-          end
-        end
+      recurring_meeting.scheduled_meetings.each do |scheduled|
+        update_scheduled_time_of_day(scheduled, recurring_meeting)
       end
+    end
+
+    def update_scheduled_time_of_day(scheduled, recurring_meeting)
+      new_time = scheduled_time_of_day(scheduled, recurring_meeting)
+
+      Meeting.transaction do
+        # ScheduledMeeting has no lock_version and is not rendered as its own
+        # ICS component, so a bare update_column is fine on that row.
+        scheduled.update_column(:start_time, new_time)
+        sync_occurrence_start_time_if_future(scheduled, new_time)
+      end
+    end
+
+    def scheduled_time_of_day(scheduled, recurring_meeting)
+      # Ensure we treat the start_time as a local time of the series so that we
+      # change the correct hour/minute.
+      scheduled.start_time
+        .in_time_zone(recurring_meeting.time_zone)
+        .change(hour: recurring_meeting.start_time.hour, min: recurring_meeting.start_time.min)
+    end
+
+    def sync_occurrence_start_time_if_future(scheduled, new_time)
+      return unless scheduled.meeting_id.present? && scheduled.meeting.start_time.future?
+
+      # For past meetings we do not change the time.
+      sync_occurrence_start_time(scheduled.meeting, new_time)
     end
 
     def remove_cancelled_schedules(recurring_meeting)
@@ -177,36 +208,73 @@ module RecurringMeetings
       end
     end
 
-    def update_future_occurrence_titles(recurring_meeting)
-      new_title = @template_params[:title]
-      # blank? guards partial updates: WithTemplate#extract_template_params
-      # slices :title out of whatever params the caller passed, so any caller
-      # that does not touch the title at all (RecurringMeetings::EndService
-      # calls UpdateService.call(end_after:, end_date:)) yields nil here --
-      # which is neither equal to @old_title nor a title anybody asked for.
-      # Without this guard the sweep below blanks every future occurrence's
-      # title, and (since the sweep now bumps lock_version) publishes that
-      # null-out to subscribed calendar clients as well.
-      return if new_title.blank? || new_title == @old_title
+    def sync_occurrence_details(recurring_meeting)
+      detail_changes = changed_detail_attributes
 
-      recurring_meeting
-      .scheduled_instances(upcoming: true)
-      .instantiated
-      .each do |scheduled|
-        # update_columns (not update_column) so lock_version/updated_at bump
-        # too — otherwise the propagated title is invisible to subscribed
-        # calendar clients even though the in-app page shows it immediately
-        # (SEQUENCE/LAST-MODIFIED on the occurrence's VEVENT derive from
-        # these two fields; see icalendar_builder.rb#add_single_meeting_event
-        # and #add_single_recurring_occurrence). Still skips
-        # validations/callbacks like the old update_column call did — no
-        # per-occurrence mail fires from this sync.
-        scheduled.meeting.update_columns(
-          title: new_title,
-          updated_at: Time.current,
-          lock_version: scheduled.meeting.lock_version + 1
-        )
+      return if detail_changes.empty?
+
+      occurrence_scopes(recurring_meeting).each do |occurrences|
+        occurrences
+          .instantiated
+          .not_cancelled
+          .reorder(nil)
+          .find_in_batches(batch_size: 100) do |scheduled_batch|
+            sync_occurrence_detail_batch(scheduled_batch, detail_changes)
+          end
       end
+    end
+
+    def occurrence_scopes(recurring_meeting)
+      return [recurring_meeting.scheduled_instances(upcoming: true)] if @apply_scope == "future"
+
+      [
+        recurring_meeting.scheduled_instances(upcoming: false),
+        recurring_meeting.scheduled_instances(upcoming: true)
+      ]
+    end
+
+    def changed_detail_attributes
+      DETAIL_ATTRIBUTES.each_with_object({}) do |attribute, changes|
+        next unless @template_params.key?(attribute)
+
+        old_value = instance_variable_get("@old_#{attribute}")
+        new_value = @template_params[attribute]
+        changes[attribute] = new_value if detail_value_changed?(attribute, old_value, new_value)
+      end
+    end
+
+    def detail_value_changed?(attribute, old_value, new_value)
+      return old_value != new_value unless attribute == :duration
+      return old_value != new_value if old_value.nil? || new_value.nil?
+
+      old_value.to_d != new_value.to_d
+    end
+
+    def sync_occurrence_detail_batch(scheduled_batch, detail_changes)
+      meeting_ids = scheduled_batch.map(&:meeting_id)
+
+      return if meeting_ids.empty?
+
+      # update_all avoids callbacks and per-occurrence notifications while
+      # still making the change visible to calendar clients. Incrementing
+      # lock_version in SQL preserves the per-row calendar cache contract
+      # without issuing one write per occurrence.
+      Meeting
+        .where(id: meeting_ids)
+        .where.not(state: [Meeting.states[:closed], Meeting.states[:cancelled]])
+        .update_all(
+          detail_changes.merge(
+            updated_at: Time.current,
+            lock_version: Arel.sql("lock_version + 1")
+          )
+        )
+    end
+
+    def invalid_apply_scope_result
+      result = ServiceResult.success(result: model)
+      result.errors.add(:apply_scope, :inclusion)
+      result.success = false
+      result
     end
 
     def send_updated_mail(recurring_meeting)

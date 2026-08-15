@@ -485,4 +485,134 @@ RSpec.describe RecurringMeetings::UpdateService, "integration", type: :model do
       expect(target.updated_at).to be_within(5.seconds).of(Time.current)
     end
   end
+
+  describe "updating instantiated occurrence details by scope" do
+    let!(:past_scheduled_meeting) do
+      create(:scheduled_meeting,
+             :persisted,
+             recurring_meeting: series,
+             start_time: Time.zone.yesterday + 10.hours)
+    end
+    let!(:future_scheduled_meeting) do
+      create(:scheduled_meeting,
+             :persisted,
+             recurring_meeting: series,
+             start_time: Time.zone.tomorrow + 10.hours)
+    end
+    let!(:closed_scheduled_meeting) do
+      create(:scheduled_meeting,
+             :persisted,
+             recurring_meeting: series,
+             start_time: Time.zone.tomorrow + 1.day + 10.hours).tap do |scheduled|
+        scheduled.meeting.update_column(:state, Meeting.states[:closed])
+      end
+    end
+    let!(:cancelled_scheduled_meeting) do
+      create(:scheduled_meeting,
+             :persisted,
+             recurring_meeting: series,
+             start_time: Time.zone.tomorrow + 2.days + 10.hours).tap do |scheduled|
+        scheduled.update_column(:cancelled, true)
+      end
+    end
+
+    let(:params) do
+      {
+        title: "Updated details",
+        location: "Updated location",
+        duration: 2.0,
+        apply_scope: "all"
+      }
+    end
+
+    it "updates details on past and future open occurrences only" do
+      expect(service_result).to be_success
+
+      [past_scheduled_meeting, future_scheduled_meeting].each do |scheduled|
+        expect(scheduled.meeting.reload).to have_attributes(
+          title: "Updated details",
+          location: "Updated location",
+          duration: 2.0
+        )
+      end
+      expect(closed_scheduled_meeting.meeting.reload.title).not_to eq("Updated details")
+      expect(cancelled_scheduled_meeting.meeting.reload.title).not_to eq("Updated details")
+    end
+
+    it "does not change occurrence start times during detail synchronization" do
+      start_times = [past_scheduled_meeting, future_scheduled_meeting].to_h do |scheduled|
+        [scheduled.id, scheduled.meeting.start_time]
+      end
+
+      expect(service_result).to be_success
+
+      start_times.each do |scheduled_id, start_time|
+        expect(ScheduledMeeting.find(scheduled_id).meeting.reload.start_time).to eq(start_time)
+      end
+    end
+
+    context "with an unrecognized scope" do
+      let(:params) { { title: "Should not apply", apply_scope: "invalid" } }
+
+      it "fails without synchronizing occurrences" do
+        expect(service_result).not_to be_success
+        expect(service_result.errors[:apply_scope]).to be_present
+        expect(future_scheduled_meeting.meeting.reload.title).not_to eq("Should not apply")
+      end
+    end
+
+    context "with the default future scope" do
+      let(:params) do
+        {
+          location: "Future location",
+          duration: 3.0
+        }
+      end
+
+      it "synchronizes location and duration without changing past occurrences" do
+        expect(service_result).to be_success
+        expect(future_scheduled_meeting.meeting.reload).to have_attributes(
+          location: "Future location",
+          duration: 3.0
+        )
+        expect(past_scheduled_meeting.meeting.reload.location).not_to eq("Future location")
+      end
+    end
+
+    context "when an invalid duration is submitted" do
+      let(:params) do
+        {
+          duration: nil,
+          apply_scope: "all"
+        }
+      end
+
+      it "does not synchronize occurrences before template validation fails" do
+        original_duration = future_scheduled_meeting.meeting.duration
+
+        expect(service_result).not_to be_success
+        expect(future_scheduled_meeting.meeting.reload.duration).to eq(original_duration)
+      end
+    end
+
+    context "when the duration has the same decimal value with a different Ruby type" do
+      before do
+        series.template.update!(duration: BigDecimal("1.1"))
+      end
+
+      let(:params) do
+        {
+          duration: 1.1,
+          apply_scope: "all"
+        }
+      end
+
+      it "does not resynchronize occurrences" do
+        lock_version = future_scheduled_meeting.meeting.lock_version
+
+        expect(service_result).to be_success
+        expect(future_scheduled_meeting.meeting.reload.lock_version).to eq(lock_version)
+      end
+    end
+  end
 end

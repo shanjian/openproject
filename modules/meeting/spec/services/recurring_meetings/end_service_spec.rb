@@ -114,7 +114,7 @@ RSpec.describe RecurringMeetings::EndService, type: :model do
                 .and_return(update_service_instance)
         allow(update_service_instance)
           .to receive(:call)
-                .with(end_after: "specific_date", end_date: Time.zone.yesterday)
+                .with(end_after: "specific_date", end_date: recurring_meeting.time_zone.today - 1.day)
                 .and_return(ServiceResult.success)
       end
 
@@ -132,7 +132,7 @@ RSpec.describe RecurringMeetings::EndService, type: :model do
                 .with(model: recurring_meeting, user: user, contract_class: RecurringMeetings::EndSeriesContract)
         expect(update_service_instance)
           .to have_received(:call)
-                .with(end_after: "specific_date", end_date: Time.zone.yesterday)
+                .with(end_after: "specific_date", end_date: recurring_meeting.time_zone.today - 1.day)
       end
     end
 
@@ -147,7 +147,7 @@ RSpec.describe RecurringMeetings::EndService, type: :model do
                 .and_return(update_service_instance)
         allow(update_service_instance)
           .to receive(:call)
-                .with(end_after: "specific_date", end_date: Time.zone.yesterday)
+                .with(end_after: "specific_date", end_date: recurring_meeting.time_zone.today - 1.day)
                 .and_return(error_result)
       end
 
@@ -200,7 +200,7 @@ RSpec.describe RecurringMeetings::EndService, type: :model do
         .and_return(update_service_instance)
       allow(update_service_instance)
         .to receive(:call)
-        .with(end_after: "specific_date", end_date: Time.zone.yesterday)
+        .with(end_after: "specific_date", end_date: recurring_meeting.time_zone.today - 1.day)
         .and_return(ServiceResult.success)
     end
 
@@ -221,6 +221,19 @@ RSpec.describe RecurringMeetings::EndService, type: :model do
       expect { upcoming_scheduled_meeting.reload }.to raise_error(ActiveRecord::RecordNotFound)
       expect { cancelled_scheduled_meeting.reload }.to raise_error(ActiveRecord::RecordNotFound)
       expect { past_scheduled_meeting.reload }.not_to raise_error
+    end
+
+    it "does not remove a scheduled meeting at the exact current-time boundary" do
+      current_time = Time.zone.parse("2026-08-15 12:00:00")
+
+      travel_to current_time do
+        scheduled = upcoming_scheduled_meeting
+        scheduled.update_column(:start_time, current_time)
+
+        service.call
+
+        expect { scheduled.reload }.not_to raise_error
+      end
     end
   end
 
@@ -247,7 +260,7 @@ RSpec.describe RecurringMeetings::EndService, type: :model do
               .and_return(update_service_instance)
       allow(update_service_instance)
         .to receive(:call)
-              .with(end_after: "specific_date", end_date: Time.zone.yesterday)
+              .with(end_after: "specific_date", end_date: recurring_meeting.time_zone.today - 1.day)
               .and_return(ServiceResult.success)
     end
 
@@ -286,11 +299,11 @@ RSpec.describe RecurringMeetings::EndService, type: :model do
               .and_return(update_service_instance)
       allow(update_service_instance)
         .to receive(:call)
-              .with(end_after: "specific_date", end_date: Time.zone.yesterday)
+              .with(end_after: "specific_date", end_date: recurring_meeting.time_zone.today - 1.day)
               .and_return(ServiceResult.success)
     end
 
-    it "uses Time.zone.yesterday for end_date regardless of meeting timezone" do
+    it "uses yesterday in the meeting timezone for end_date" do
       service.call
 
       expect(RecurringMeetings::UpdateService)
@@ -298,7 +311,7 @@ RSpec.describe RecurringMeetings::EndService, type: :model do
               .with(model: recurring_meeting, user: user, contract_class: RecurringMeetings::EndSeriesContract)
       expect(update_service_instance)
         .to have_received(:call)
-              .with(end_after: "specific_date", end_date: Time.zone.yesterday)
+              .with(end_after: "specific_date", end_date: recurring_meeting.time_zone.today - 1.day)
     end
   end
 end

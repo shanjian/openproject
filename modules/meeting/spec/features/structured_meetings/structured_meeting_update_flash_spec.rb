@@ -160,8 +160,8 @@ RSpec.describe "Meetings CRUD",
 
           ## Close meeting
           find_test_selector("close-meeting-button").click
-          expect(page).to have_text "Once the meeting is complete, you can mark it as closed to lock it."
-          find_test_selector("close-meeting-button").click
+          expect(page).to have_text I18n.t("meeting.close.confirmation_message")
+          find_test_selector("confirm-close-meeting-button").click
           expect(page).to have_text "This meeting is closed."
 
           show_page.visit!

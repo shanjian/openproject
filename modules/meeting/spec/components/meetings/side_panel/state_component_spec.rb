@@ -62,4 +62,13 @@ RSpec.describe Meetings::SidePanel::StateComponent, type: :component do
       expect(subject).not_to have_test_selector("restore-meeting-button")
     end
   end
+
+  context "with an in-progress meeting" do
+    let(:user) { create(:user, member_with_permissions: { project => %i[view_meetings edit_meetings] }) }
+    let(:meeting) { create(:meeting, project:, state: "in_progress") }
+
+    it "routes the close button to the dialog with GET" do
+      expect(subject).to have_css('[data-test-selector="close-meeting-button"][data-method="GET"]')
+    end
+  end
 end
