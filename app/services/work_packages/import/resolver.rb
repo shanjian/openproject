@@ -50,10 +50,10 @@ module WorkPackages
         @user = user
       end
 
+      # A "Project" front matter key is purely informational: the import always targets the
+      # project it is run from, so the key is neither validated against it nor inherited into
+      # the nodes (OutlineParser#apply_inheritance excludes it).
       def call(document)
-        mismatch = front_matter_project_mismatch(document.front_matter)
-        return ServiceResult.failure(errors: [mismatch]) if mismatch
-
         @user_lookup = build_user_lookup
         @department_lookup = build_department_lookup
 
@@ -61,14 +61,6 @@ module WorkPackages
       end
 
       private
-
-      def front_matter_project_mismatch(front_matter)
-        declared = front_matter["Project"]
-        return nil if declared.blank? || declared == @project.name
-
-        { source_line: 1,
-          message: "document declares Project: #{declared.inspect}, but is being imported into #{@project.name.inspect}" }
-      end
 
       def resolve_node(node) # rubocop:disable Metrics/AbcSize
         type = @project.types.find_by(name: node.type_name)

@@ -46,8 +46,8 @@ RSpec.describe WorkPackages::Import::PreviewComponent, type: :component do
 
   describe "#subject_computed?" do
     # Types::ApplyPatterns#apply_patterns (create_service.rb) overwrites `subject` from the
-    # type's pattern strictly after save -- the typed heading is exactly as unreliable as
-    # start_date/due_date are for a row with children, and for the same reason.
+    # type's pattern strictly after save -- the typed heading is real but not what will persist,
+    # so the header shows a "computed on creation" marker instead of a misleading value.
     let(:autosubject_type) do
       create(:type, name: "Autosubject", patterns: { subject: { blueprint: "\#{{id}}", enabled: true } })
     end
@@ -102,12 +102,10 @@ RSpec.describe WorkPackages::Import::PreviewComponent, type: :component do
     expect(page).to have_text("Line 5: unknown type")
   end
 
-  describe "#computed_attribute_names" do
-    # Per the design's documented "computed on creation" categories: a row with at least one
-    # child never keeps the start_date/due_date resolved into its `work_package`, because
-    # WorkPackages::Import::CreateJob creates rows top-down and each child's creation runs
-    # `multi_update_ancestors`/`reschedule_related`, silently rewriting the parent's dates once
-    # the child actually exists -- regardless of what date the row was previewed with.
+  describe "attribute rows" do
+    # The preview lists only what the author actually typed (the resolver's attribute_matches).
+    # It deliberately does not surface derived_* fields or the scheduling rewrite of a parent
+    # row's dates as "computed on creation" rows -- that read as noise, not information.
     let(:parent_node) do
       WorkPackages::Import::OutlineParser::Node.new(level: 1, type_name: "Objective", subject: "Parent row",
                                                     attributes: {}, description: "", source_line: 1,
@@ -121,54 +119,35 @@ RSpec.describe WorkPackages::Import::PreviewComponent, type: :component do
     let(:parent_work_package) { build(:work_package, start_date: Date.new(2026, 1, 1), due_date: Date.new(2026, 1, 31)) }
     let(:child_work_package) { build(:work_package, start_date: Date.new(2026, 1, 5), due_date: Date.new(2026, 1, 10)) }
     let(:parent_row) do
-      WorkPackages::Import::Resolver::ResolvedRow.new(node: parent_node, work_package: parent_work_package,
-                                                      attribute_matches: [], errors: [])
-    end
-    let(:child_row) do
-      WorkPackages::Import::Resolver::ResolvedRow.new(node: child_node, work_package: child_work_package,
-                                                      attribute_matches: [], errors: [])
-    end
-    let(:component) { described_class.new(rows: [parent_row, child_row]) }
-
-    it "marks start_date and due_date as computed for a row that has a child, even with real dates set" do
-      expect(component.computed_attribute_names(parent_row, 0)).to include("start_date", "due_date")
-    end
-
-    it "does not mark start_date/due_date as computed for a leaf row" do
-      expect(component.computed_attribute_names(child_row, 1)).not_to include("start_date", "due_date")
-    end
-
-    it "renders the parent row's dates as computed on creation but the leaf row's as not" do
-      render_inline(component)
-
-      parent_li = page.find("li", text: "Parent row")
-      expect(parent_li).to have_text("start_date: #{I18n.t('work_packages.import.preview.computed_on_creation')}")
-      expect(parent_li).to have_text("due_date: #{I18n.t('work_packages.import.preview.computed_on_creation')}")
-
-      child_li = page.find("li", text: "Child row")
-      expect(child_li).to have_no_text("start_date")
-      expect(child_li).to have_no_text("due_date")
-    end
-
-    it "does not also show the author's typed Start date/Finish date as exact when the row has a child" do
-      # A parent row whose author explicitly wrote "Start date: ..." / "Finish date: ..." bullets
-      # gets those in `attribute_matches` (the resolver's record of what it matched), in addition
-      # to start_date/due_date landing in `computed_attribute_names` because the row has a child.
-      # Showing both is contradictory: one line says "2026-01-01", the next says "computed on
-      # creation" for the same field.
-      parent_row_with_typed_dates = WorkPackages::Import::Resolver::ResolvedRow.new(
+      WorkPackages::Import::Resolver::ResolvedRow.new(
         node: parent_node, work_package: parent_work_package,
         attribute_matches: [{ label: "Start date", formatted: "2026-01-01" },
                             { label: "Finish date", formatted: "2026-01-31" }],
         errors: []
       )
-      render_inline(described_class.new(rows: [parent_row_with_typed_dates, child_row]))
+    end
+    let(:child_row) do
+      WorkPackages::Import::Resolver::ResolvedRow.new(node: child_node, work_package: child_work_package,
+                                                      attribute_matches: [], errors: [])
+    end
+
+    it "renders no 'computed on creation' rows for derived or date attributes" do
+      render_inline(described_class.new(rows: [parent_row, child_row]))
 
       parent_li = page.find("li", text: "Parent row")
-      expect(parent_li).to have_no_text("Start date: 2026-01-01")
-      expect(parent_li).to have_no_text("Finish date: 2026-01-31")
-      expect(parent_li).to have_text("start_date: #{I18n.t('work_packages.import.preview.computed_on_creation')}")
-      expect(parent_li).to have_text("due_date: #{I18n.t('work_packages.import.preview.computed_on_creation')}")
+      expect(parent_li).to have_no_text("derived_done_ratio")
+      expect(parent_li).to have_no_text("derived_estimated_hours")
+      expect(parent_li).to have_no_text("derived_remaining_hours")
+      expect(parent_li).to have_no_text("start_date")
+      expect(parent_li).to have_no_text("due_date")
+    end
+
+    it "renders the author's typed dates as written, even for a row with children" do
+      render_inline(described_class.new(rows: [parent_row, child_row]))
+
+      parent_li = page.find("li", text: "Parent row")
+      expect(parent_li).to have_text("Start date: 2026-01-01")
+      expect(parent_li).to have_text("Finish date: 2026-01-31")
     end
   end
 

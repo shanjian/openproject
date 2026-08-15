@@ -174,13 +174,11 @@ RSpec.describe "Preview fidelity", type: :request do
     # to this plain Task, so every previewed attribute above matches exactly.
   end
 
-  # Per the design's documented "computed on creation" categories, a parent row's dates are one
-  # of them: WorkPackages::Import::CreateJob creates rows top-down, and creating the child below
-  # runs `multi_update_ancestors`/`reschedule_related`, which silently rewrites the parent's
-  # start_date/due_date -- even though the parent's own explicit dates resolve and preview fine
-  # in isolation. PreviewComponent#computed_attribute_names must mark them as computed for any
-  # row that has a child, not show the previewed exact date as if it would survive creation.
-  it "marks a parent row's dates as computed on creation instead of showing the exact previewed date",
+  # A parent row's dates can still be rewritten on creation (creating the child runs
+  # `multi_update_ancestors`/`reschedule_related`), but the preview deliberately shows only what
+  # the author typed: the "computed on creation" rows for dates and derived_* fields read as
+  # noise, not information, and were dropped from the preview.
+  it "shows the author's typed dates as written, without computed-on-creation rows",
      :skip_csrf do
     create(:type, name: "Objective", projects: [project])
     document = <<~MD
@@ -193,17 +191,13 @@ RSpec.describe "Preview fidelity", type: :request do
 
     post preview_project_work_packages_imports_path(project), { source: document }, "HTTP_ACCEPT" => "text/html"
 
-    # The parent row genuinely resolved with real dates (proving the "computed" marking below
-    # isn't just masking a resolution failure)...
     expect(last_response.body).to include("Start date: 2026-01-01")
     expect(last_response.body).to include("Finish date: 2026-01-31")
 
-    # ...but because it has a child, its dates get silently rewritten by
-    # multi_update_ancestors/reschedule_related once that child is actually created, so the
-    # preview must ALSO mark them as computed rather than implying the previewed date is final.
     computed = I18n.t("work_packages.import.preview.computed_on_creation")
-    expect(last_response.body).to include("start_date: #{computed}")
-    expect(last_response.body).to include("due_date: #{computed}")
+    expect(last_response.body).not_to include("start_date: #{computed}")
+    expect(last_response.body).not_to include("due_date: #{computed}")
+    expect(last_response.body).not_to include("derived_done_ratio")
   end
 end
 

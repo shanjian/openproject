@@ -28,7 +28,7 @@ See COPYRIGHT and LICENSE files for more details.
 ++#%>
 
 <ul class="work-package-import-preview">
-  <% rows.each_with_index do |row, index| %>
+  <% rows.each do |row| %>
     <li class="work-package-import-preview--row" style="margin-left: <%= row.node.level * 1.5 %>em">
       <strong><%= row.node.type_name %>:</strong>
       <% if subject_computed?(row) %>
@@ -38,11 +38,8 @@ See COPYRIGHT and LICENSE files for more details.
       <% end %>
 
       <ul>
-        <% attribute_matches_for(row, index).each do |match| %>
+        <% row.attribute_matches.each do |match| %>
           <li><%= match[:label] %>: <%= match[:formatted] %></li>
-        <% end %>
-        <% computed_attribute_names(row, index).each do |name| %>
-          <li><%= name %>: <%= t("work_packages.import.preview.computed_on_creation") %></li>
         <% end %>
       </ul>
 

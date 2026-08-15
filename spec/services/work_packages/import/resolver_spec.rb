@@ -299,7 +299,10 @@ RSpec.describe WorkPackages::Import::Resolver do
       expect(row.attribute_matches).to be_empty
     end
 
-    it "rejects a document whose front matter Project does not match" do
+    it "ignores a front matter Project key, matching or not" do
+      # The import always targets the project it is run from; a Project key in the document is
+      # purely informational. It must neither block the import when it differs from the target
+      # project's name nor leak into the nodes as an inherited attribute.
       doc = document(<<~MD)
         ---
         Project: Some Other Project
@@ -309,8 +312,11 @@ RSpec.describe WorkPackages::Import::Resolver do
       MD
       result = described_class.new(project:, user: jane).call(doc)
 
-      expect(result).to be_failure
-      expect(result.errors.first[:message]).to include("Some Other Project")
+      expect(result).to be_success
+      row = result.result.first
+      expect(row.errors).to be_empty
+      expect(row.attribute_matches).to be_empty
+      expect(row.work_package.project).to eq(project)
     end
   end
 
