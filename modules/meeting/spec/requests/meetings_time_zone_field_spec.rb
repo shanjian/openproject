@@ -103,6 +103,25 @@ RSpec.describe "Meeting time_zone select field",
     end
   end
 
+  describe "preselecting a persisted alias zone whose Rails name differs from its canonical identifier (P1 regression)" do
+    it "marks the UTC option selected for a one-time meeting stored with the raw string \"UTC\", " \
+       "not only its canonical identifier \"Etc/UTC\"" do
+      meeting = create(:meeting, project:, author: user, time_zone: "UTC")
+
+      get details_dialog_project_meeting_path(project, meeting), as: :turbo_stream
+
+      expect(response.body).to include('<option selected="selected" value="Etc/UTC">')
+    end
+
+    it "marks the UTC option selected for a recurring series stored with the raw string \"UTC\"" do
+      recurring_meeting = create(:recurring_meeting, project:, time_zone: "UTC")
+
+      get details_dialog_project_recurring_meeting_path(project, recurring_meeting), as: :turbo_stream
+
+      expect(response.body).to include('<option selected="selected" value="Etc/UTC">')
+    end
+  end
+
   describe "time zone select on a series occurrence's edit form (Finding 4 regression)" do
     it "is disabled, since the occurrence's own time_zone column is functionally unused " \
        "(the reader always delegates to the series for recurring? meetings)" do

@@ -134,13 +134,23 @@ class Meeting::TimeGroup < ApplicationForm
   end
 
   def initial_time_zone_value(meeting)
-    if meeting.persisted? || (meeting.is_a?(RecurringMeeting) && meeting.template&.persisted?)
-      meeting.time_zone.name
-    else
-      # New record: default to the creator's profile zone; if they have none set,
-      # show UTC explicitly in the select rather than applying it silently.
-      User.current.time_zone.name
-    end
+    zone =
+      if meeting.persisted? || (meeting.is_a?(RecurringMeeting) && meeting.template&.persisted?)
+        meeting.time_zone
+      else
+        # New record: default to the creator's profile zone; if they have none set,
+        # show UTC explicitly in the select rather than applying it silently.
+        User.current.time_zone
+      end
+
+    # The select's option values are canonical tzinfo identifiers
+    # (`build_time_zone_entry`), but `ActiveSupport::TimeZone#name` returns
+    # whichever string was used to look the zone up - e.g. "UTC" for
+    # `ActiveSupport::TimeZone["UTC"]`, whose canonical identifier is
+    # "Etc/UTC". Comparing on `#name` left no option selected for any zone
+    # where those differ, so the browser silently submitted the first option
+    # on save. Compare canonical identifiers instead.
+    zone.tzinfo.canonical_zone.identifier
   end
 
   def duration_value(meeting)
