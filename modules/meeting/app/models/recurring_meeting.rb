@@ -70,6 +70,7 @@ class RecurringMeeting < ApplicationRecord
             inclusion: { in: [-1, *1..4], allow_nil: true }
   validates :weekday,
             inclusion: { in: 1..7, allow_nil: true }
+  validate :time_zone_resolves
 
   after_initialize :set_defaults
 
@@ -295,7 +296,7 @@ class RecurringMeeting < ApplicationRecord
     (previous ? previous_changes : changes)
       .keys
       .intersect?(%w[frequency start_date start_time start_time_hour iterations interval end_after end_date location
-                     weekdays schedule_mode month_day week_ordinal weekday])
+                     weekdays schedule_mode month_day week_ordinal weekday time_zone])
   end
 
   # The form preset (R1) this schedule corresponds to, or "custom" when the stored
@@ -481,6 +482,12 @@ class RecurringMeeting < ApplicationRecord
 
   def weekdays_constraints
     errors.add(:weekdays, :invalid) unless weekdays.all? { |day| ISO_WEEKDAY_SYMBOLS.key?(day) }
+  end
+
+  def time_zone_resolves
+    return if self[:time_zone].blank?
+
+    errors.add(:time_zone, :invalid) if ActiveSupport::TimeZone[self[:time_zone]].nil?
   end
 
   def weekly_schedule_in_words # rubocop:disable Metrics/AbcSize

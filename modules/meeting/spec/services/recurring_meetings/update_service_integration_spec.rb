@@ -242,6 +242,31 @@ RSpec.describe RecurringMeetings::UpdateService, "integration", type: :model do
     end
   end
 
+  describe "rescheduling due to a time_zone change" do
+    context "when only the series time_zone changes" do
+      let(:series) do
+        create(:recurring_meeting,
+               project:,
+               author: user,
+               time_zone: "UTC",
+               start_time: 1.week.from_now.change(hour: 10))
+      end
+
+      let(:params) { { time_zone: "Europe/Berlin" } }
+
+      it "reschedules (enqueues the update mail) but leaves occurrence start times unchanged" do
+        original_occurrence_times = series.scheduled_occurrences(limit: 3).to_a
+
+        expect { service_result }.to have_enqueued_job(RecurringMeetings::SendUpdatedNotificationJob)
+        expect(service_result).to be_success
+
+        series.reload
+        expect(series.time_zone).to eq(ActiveSupport::TimeZone["Europe/Berlin"])
+        expect(series.scheduled_occurrences(limit: 3).to_a).to eq(original_occurrence_times)
+      end
+    end
+  end
+
   describe "rescheduling occurrences" do
     let!(:scheduled_meetings) do
       Array.new(3) do |i|
