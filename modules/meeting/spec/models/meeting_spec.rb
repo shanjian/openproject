@@ -414,4 +414,85 @@ RSpec.describe Meeting do
       end
     end
   end
+
+  describe "#time_zone" do
+    shared_let(:zone_user) { create(:user, preferences: { time_zone: "Asia/Tokyo" }) }
+
+    context "when the meeting is a standalone (non-recurring) meeting" do
+      context "with an explicit time_zone column value" do
+        let(:meeting) { build(:meeting, project:, time_zone: "Europe/Berlin") }
+
+        it "resolves the stored column" do
+          expect(meeting.time_zone).to eq(ActiveSupport::TimeZone["Europe/Berlin"])
+        end
+      end
+
+      context "with no time_zone column value" do
+        let(:meeting) { build(:meeting, project:, time_zone: nil, author: zone_user) }
+
+        it "falls back to the current user's time zone" do
+          User.execute_as(zone_user) do
+            expect(meeting.time_zone).to eq(ActiveSupport::TimeZone["Asia/Tokyo"])
+          end
+        end
+      end
+
+      context "with an invalid raw time_zone string" do
+        let(:meeting) { build(:meeting, project:, time_zone: "Not/AZone") }
+
+        it "is invalid" do
+          expect(meeting).not_to be_valid
+          expect(meeting.errors[:time_zone]).to be_present
+        end
+      end
+
+      context "with an invalid raw time_zone string and start_date/start_time_hour set " \
+              "(the real request-path shape; Finding 1 regression)" do
+        let(:meeting) do
+          build(:meeting, project:, author: zone_user, time_zone: "Not/AZone",
+                          start_date: Date.tomorrow.iso8601, start_time_hour: "09:00")
+        end
+
+        it "never returns nil, falling back to the current user's zone instead of crashing" do
+          User.execute_as(zone_user) do
+            expect(meeting.time_zone).to eq(ActiveSupport::TimeZone["Asia/Tokyo"])
+          end
+        end
+
+        it "does not raise when computing start_time (regression: parsed_start_time crashed on nil time_zone)" do
+          User.execute_as(zone_user) do
+            expect { meeting.start_time }.not_to raise_error
+          end
+        end
+
+        it "is still rejected as a validation error, not silently accepted" do
+          expect(meeting).not_to be_valid
+          expect(meeting.errors[:time_zone]).to be_present
+        end
+      end
+    end
+
+    context "when the meeting is a series occurrence or template" do
+      let(:recurring_meeting) { create(:recurring_meeting, project:, time_zone: "Australia/Sydney") }
+      let(:meeting) { recurring_meeting.template }
+
+      it "delegates to the recurring meeting's time zone, ignoring its own column" do
+        meeting.time_zone = "Europe/Berlin" # should never win
+        expect(meeting.time_zone).to eq(ActiveSupport::TimeZone["Australia/Sydney"])
+      end
+    end
+
+    context "parsing start_date/start_time_hour in a non-UTC zone across a DST boundary" do
+      let(:meeting) do
+        build(:meeting, project:, time_zone: "America/New_York",
+                        start_date: "2025-03-09", start_time_hour: "01:30")
+      end
+
+      it "interprets the entered local time in the selected zone, not UTC" do
+        # 2025-03-09 02:00 America/New_York is the spring-forward DST gap; 01:30 is
+        # the last valid local time before it, still EST (UTC-5).
+        expect(meeting.start_time).to eq(Time.utc(2025, 3, 9, 6, 30))
+      end
+    end
+  end
 end

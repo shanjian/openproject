@@ -29,6 +29,7 @@
 #++
 
 require "spec_helper"
+require "icalendar"
 
 RSpec.describe Meetings::ICalService, type: :model do # rubocop:disable RSpec/SpecFilePathFormat
   shared_let(:user) do
@@ -97,6 +98,24 @@ RSpec.describe Meetings::ICalService, type: :model do # rubocop:disable RSpec/Sp
       real_daylight = Time.zone.parse("14-03-2021 07:00:00")
       expect(standard.strftime("%a, %d %b %Y %H:%M:%S")).to eq(real_standard.strftime("%a, %d %b %Y %H:%M:%S"))
       expect(daylight.strftime("%a, %d %b %Y %H:%M:%S")).to eq(real_daylight.strftime("%a, %d %b %Y %H:%M:%S"))
+    end
+  end
+
+  context "when the meeting has its own time_zone, different from the viewing user's" do
+    let(:zoned_meeting) do
+      create(:meeting,
+             author: user,
+             project:,
+             title: "Zoned meeting",
+             time_zone: "Asia/Tokyo",
+             start_time: Time.zone.parse("2025-08-30T10:00:00Z"))
+    end
+    let(:zoned_service) { described_class.new(user:, meeting: zoned_meeting) }
+    let(:zoned_result) { zoned_service.call.result }
+    let(:zoned_entry) { Icalendar::Event.parse(zoned_result).first }
+
+    it "renders TZID as the meeting's own zone, not the viewing user's America/New_York" do
+      expect(zoned_entry.dtstart.ical_params["tzid"]).to eq(["Asia/Tokyo"])
     end
   end
 end

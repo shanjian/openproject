@@ -28,28 +28,32 @@
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-module RecurringMeetings
-  class SetAttributesService < ::BaseServices::SetAttributes
-    private
+require "spec_helper"
 
-    def set_attributes(params)
-      super
+RSpec.describe "Recurring meeting time_zone param",
+               :skip_csrf,
+               type: :rails_request do
+  shared_let(:project) { create(:project, enabled_module_names: %i[meetings]) }
+  shared_let(:user) do
+    create(:user, member_with_permissions: { project => %i[view_meetings create_meetings] })
+  end
 
-      model.change_by_system do
-        if model.frequency_working_days?
-          model.interval = 1
-        end
+  before { login_as user }
 
-        model.current_schedule_start = model.next_occurrence(from_time: Time.current) || model.start_time
-      end
-    end
+  it "persists an explicitly submitted time_zone (regression: recurring_meeting_params didn't permit it)" do
+    post recurring_meetings_path,
+         params: {
+           project_id: project.id,
+           meeting: {
+             title: "Zoned series", project_id: project.id,
+             start_date: Date.tomorrow.iso8601, start_time_hour: "09:00", duration: "1",
+             frequency: "weekly", interval: "1", end_after: "never",
+             time_zone: "Asia/Tokyo"
+           }
+         }
 
-    def set_default_attributes(_params)
-      model.change_by_system do
-        model.time_zone = user.time_zone.name if model[:time_zone].blank?
-        model.author = user
-        model.duration ||= 1
-      end
-    end
+    series = RecurringMeeting.find_by(title: "Zoned series")
+    expect(series).to be_present
+    expect(series[:time_zone]).to eq("Asia/Tokyo")
   end
 end

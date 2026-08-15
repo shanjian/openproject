@@ -28,28 +28,8 @@
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-module RecurringMeetings
-  class SetAttributesService < ::BaseServices::SetAttributes
-    private
-
-    def set_attributes(params)
-      super
-
-      model.change_by_system do
-        if model.frequency_working_days?
-          model.interval = 1
-        end
-
-        model.current_schedule_start = model.next_occurrence(from_time: Time.current) || model.start_time
-      end
-    end
-
-    def set_default_attributes(_params)
-      model.change_by_system do
-        model.time_zone = user.time_zone.name if model[:time_zone].blank?
-        model.author = user
-        model.duration ||= 1
-      end
-    end
+class AddTimeZoneToMeetings < ActiveRecord::Migration[8.0]
+  def change
+    add_column :meetings, :time_zone, :string, null: true
   end
 end

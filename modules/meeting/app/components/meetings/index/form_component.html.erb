@@ -9,6 +9,7 @@
         controller: [
           "show-when-value-selected",
           "show-when-checked",
+          "meetings--form",
           @meeting.is_a?(RecurringMeeting) ? "recurring-meetings--form" : nil
         ].compact.join(" "),
         "recurring-meetings--form-persisted-value": @meeting.persisted?

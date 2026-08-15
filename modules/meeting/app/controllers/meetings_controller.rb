@@ -362,11 +362,11 @@ class MeetingsController < ApplicationController
   end
 
   def fetch_timezone
-    return unless timezone_params.keys.count == 2
+    return unless timezone_params.key?("start_date") && timezone_params.key?("start_time_hour")
 
     User.execute_as(User.current) do
       meeting = Meeting.new(timezone_params)
-      @text = friendly_timezone_name(User.current.time_zone, period: meeting.start_time)
+      @text = friendly_timezone_name(meeting.time_zone, period: meeting.start_time)
     end
 
     add_caption_to_input_element_via_turbo_stream("input[name='meeting[start_time_hour]']",
@@ -578,7 +578,7 @@ class MeetingsController < ApplicationController
       params
         .require(:meeting) # rubocop:disable Rails/StrongParametersExpect
         .permit(:title, :location, :start_time, :project_id,
-                :duration, :start_date, :start_time_hour, :notify,
+                :duration, :start_date, :start_time_hour, :notify, :time_zone,
                 participants_attributes: %i[email name invited attended user user_id meeting id])
     end
   end
@@ -668,7 +668,7 @@ class MeetingsController < ApplicationController
   end
 
   def timezone_params
-    @timezone_params ||= params.expect(meeting: %i[start_date start_time_hour]).compact_blank
+    @timezone_params ||= params.expect(meeting: %i[start_date start_time_hour time_zone]).compact_blank
   end
 
   def export_pdf

@@ -42,7 +42,7 @@ module AllMeetings
         calendar = Meetings::IcalendarBuilder.new(timezone: Time.zone || Time.zone_default)
 
         single_meetings.each do |meeting|
-          calendar.add_single_meeting_event(meeting:, cancelled: false)
+          calendar.add_single_meeting_event(meeting:, cancelled: false, timezone: meeting.time_zone)
         end
 
         calendar.preload_for_recurring_meetings(recurring_meetings: recurring_meetings)

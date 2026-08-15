@@ -625,4 +625,26 @@ RSpec.describe RecurringMeeting,
         .to change(recurring_meeting, :lock_version).by(1)
     end
   end
+
+  describe "#reschedule_required?" do
+    let(:recurring_meeting) { create(:recurring_meeting, project: create(:project), time_zone: "UTC") }
+
+    it "is true when only time_zone changed" do
+      recurring_meeting.time_zone = "Europe/Berlin"
+      expect(recurring_meeting.reschedule_required?).to be true
+    end
+
+    it "is true when only time_zone changed, checking previous_changes after save" do
+      recurring_meeting.update!(time_zone: "Europe/Berlin")
+      expect(recurring_meeting.reschedule_required?(previous: true)).to be true
+    end
+  end
+
+  describe "#time_zone validation" do
+    it "rejects a raw zone string that does not resolve" do
+      recurring_meeting = build(:recurring_meeting, project: create(:project), time_zone: "Not/AZone")
+      expect(recurring_meeting).not_to be_valid
+      expect(recurring_meeting.errors[:time_zone]).to be_present
+    end
+  end
 end

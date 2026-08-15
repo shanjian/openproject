@@ -126,6 +126,8 @@ class Meeting < ApplicationRecord
 
   validates :duration, numericality: { greater_than: 0 }
 
+  validate :time_zone_resolves
+
   before_save :add_new_participants_as_watcher
 
   after_update :send_updated_mail, if: -> {
@@ -220,10 +222,15 @@ class Meeting < ApplicationRecord
     template? && recurring_meeting_id.nil?
   end
 
-  # One-time meeting time zone
-  # is always in the user's time zone
+  # One-time meeting time zone. Series meetings (template or occurrence) never
+  # carry a private zone — the series' own column always wins. Otherwise the
+  # stored column, falling back to the current user's zone when unset.
   def time_zone
-    User.current.time_zone
+    if recurring?
+      recurring_meeting.time_zone
+    else
+      (self[:time_zone].presence && ActiveSupport::TimeZone[self[:time_zone]]) || User.current.time_zone
+    end
   end
 
   # Returns true if user or current user is allowed to view the meeting
@@ -366,6 +373,12 @@ class Meeting < ApplicationRecord
     elsif cancelled?
       errors.add(:base, :cancelled_readonly)
     end
+  end
+
+  def time_zone_resolves
+    return if self[:time_zone].blank?
+
+    errors.add(:time_zone, :invalid) if ActiveSupport::TimeZone[self[:time_zone]].nil?
   end
 
   # Informational like the updated mail: gated by the organizer-level notify?

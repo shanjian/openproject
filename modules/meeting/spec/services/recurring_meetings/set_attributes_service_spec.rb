@@ -129,4 +129,39 @@ RSpec.describe RecurringMeetings::SetAttributesService, type: :model do
       expect(model_instance.duration).to eq 1
     end
   end
+
+  describe "#set_default_attributes" do
+    context "when the params already include an explicit time_zone" do
+      let(:params) do
+        {
+          title: "Zoned series",
+          start_time: Time.current.iso8601,
+          frequency: "weekly",
+          time_zone: "Asia/Tokyo"
+        }
+      end
+
+      it "keeps the submitted zone instead of overwriting it with the user's profile zone" do
+        subject
+
+        expect(model_instance.time_zone.name).to eq "Asia/Tokyo"
+      end
+    end
+
+    context "when the params do not include a time_zone" do
+      let(:params) do
+        {
+          title: "Unzoned series",
+          start_time: Time.current.iso8601,
+          frequency: "weekly"
+        }
+      end
+
+      it "still defaults to the user's profile zone" do
+        subject
+
+        expect(model_instance.time_zone).to eq current_user.time_zone
+      end
+    end
+  end
 end

@@ -363,7 +363,7 @@ class RecurringMeetingsController < ApplicationController
   def recurring_meeting_params
     params
       .expect(meeting: [:project_id, :title, :location, :start_time_hour, :duration, :start_date,
-                        :interval, :frequency, :end_after, :end_date, :iterations, :notify,
+                        :interval, :frequency, :end_after, :end_date, :iterations, :notify, :time_zone,
                         :preset, :schedule_mode_option, :schedule_mode, :month_day, :week_ordinal, :weekday,
                         { weekdays: [] }])
   end
