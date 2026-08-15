@@ -68,4 +68,68 @@ RSpec.describe "Meeting time_zone param",
       expect(legacy_meeting.title).to eq("Renamed")
     end
   end
+
+  # Finding 1 regression: an unresolvable submitted time_zone must be rejected as a
+  # normal validation error, not crash with a NoMethodError. The create and update
+  # crashes were on two different lines (parsed_start_time vs.
+  # Meeting::TimeGroup#initial_time_zone_value), so both real request paths are
+  # covered here: POST /meetings (the new-meeting dialog form) and PUT
+  # update_details (the side-panel edit form's actual submit path - see
+  # Meetings::SidePanel::DetailsFormComponent).
+  describe "submitting an invalid time_zone" do
+    describe "create" do
+      it "is rejected as a normal validation error, not an unhandled exception " \
+         "(regression: crashed in parsed_start_time)" do
+        expect do
+          post project_meetings_path(project),
+               params: {
+                 project_id: project.id,
+                 meeting: {
+                   title: "Bad zone meeting", project_id: project.id,
+                   start_date: Date.tomorrow.iso8601, start_time_hour: "09:00", duration: "1",
+                   time_zone: "Not/AZone"
+                 }
+               },
+               as: :turbo_stream
+        end.not_to raise_error
+
+        expect(response).to have_http_status(:bad_request)
+        expect(Meeting.find_by(title: "Bad zone meeting")).to be_nil
+      end
+    end
+
+    describe "update (via update_details, the form's real submit path)" do
+      shared_let(:existing_meeting) { create(:meeting, project:, author: user, time_zone: "Europe/Berlin") }
+
+      it "is rejected as a normal validation error, not an unhandled exception " \
+         "(regression: crashed in Meeting::TimeGroup#initial_time_zone_value on re-render)" do
+        expect do
+          put update_details_project_meeting_path(project, existing_meeting),
+              params: { meeting: { time_zone: "Not/AZone" } },
+              as: :turbo_stream
+        end.not_to raise_error
+
+        expect(response).to have_http_status(:bad_request)
+        expect(existing_meeting.reload[:time_zone]).to eq("Europe/Berlin")
+      end
+    end
+  end
+
+  # Finding 4 regression: a series occurrence never carries a private zone - its
+  # reader always delegates to the series (Meeting#time_zone, when recurring?).
+  # The occurrence's own time_zone select is disabled in the form (see the
+  # request spec in meetings_time_zone_field_spec.rb), but this confirms the
+  # underlying read-side guarantee holds even if a value is submitted anyway.
+  describe "submitting a different time_zone for a series occurrence" do
+    shared_let(:recurring_meeting) { create(:recurring_meeting, project:, time_zone: "America/New_York") }
+    shared_let(:occurrence) { create(:meeting, project:, author: user, recurring_meeting:) }
+
+    it "does not change what the occurrence's time_zone reports afterward" do
+      put update_details_project_meeting_path(project, occurrence),
+          params: { meeting: { time_zone: "Asia/Tokyo" } },
+          as: :turbo_stream
+
+      expect(occurrence.reload.time_zone).to eq(ActiveSupport::TimeZone["America/New_York"])
+    end
+  end
 end

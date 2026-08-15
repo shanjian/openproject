@@ -361,13 +361,12 @@ class MeetingsController < ApplicationController
     redirect_to action: :show, id: @meeting
   end
 
-  def fetch_timezone # rubocop:disable Metrics/AbcSize
+  def fetch_timezone
     return unless timezone_params.key?("start_date") && timezone_params.key?("start_time_hour")
 
     User.execute_as(User.current) do
-      meeting = Meeting.new(timezone_params.except(:time_zone))
-      zone = timezone_params[:time_zone].presence&.then { |tz| ActiveSupport::TimeZone[tz] } || User.current.time_zone
-      @text = friendly_timezone_name(zone, period: meeting.start_time)
+      meeting = Meeting.new(timezone_params)
+      @text = friendly_timezone_name(meeting.time_zone, period: meeting.start_time)
     end
 
     add_caption_to_input_element_via_turbo_stream("input[name='meeting[start_time_hour]']",

@@ -445,6 +445,31 @@ RSpec.describe Meeting do
           expect(meeting.errors[:time_zone]).to be_present
         end
       end
+
+      context "with an invalid raw time_zone string and start_date/start_time_hour set " \
+              "(the real request-path shape; Finding 1 regression)" do
+        let(:meeting) do
+          build(:meeting, project:, author: zone_user, time_zone: "Not/AZone",
+                          start_date: Date.tomorrow.iso8601, start_time_hour: "09:00")
+        end
+
+        it "never returns nil, falling back to the current user's zone instead of crashing" do
+          User.execute_as(zone_user) do
+            expect(meeting.time_zone).to eq(ActiveSupport::TimeZone["Asia/Tokyo"])
+          end
+        end
+
+        it "does not raise when computing start_time (regression: parsed_start_time crashed on nil time_zone)" do
+          User.execute_as(zone_user) do
+            expect { meeting.start_time }.not_to raise_error
+          end
+        end
+
+        it "is still rejected as a validation error, not silently accepted" do
+          expect(meeting).not_to be_valid
+          expect(meeting.errors[:time_zone]).to be_present
+        end
+      end
     end
 
     context "when the meeting is a series occurrence or template" do

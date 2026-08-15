@@ -94,6 +94,7 @@ class Meeting::TimeGroup < ApplicationForm
       required: true,
       include_blank: false,
       input_width: :large,
+      disabled: series_occurrence?,
       data: {
         action: "input->meetings--form#updateTimezoneText"
       }
@@ -151,12 +152,18 @@ class Meeting::TimeGroup < ApplicationForm
   end
 
   def timezone_caption
-    return if editing_recurring?
-
-    friendly_timezone_name(User.current.time_zone, period: @meeting.start_time || Time.zone.now)
+    friendly_timezone_name(@meeting.time_zone, period: @meeting.start_time || Time.zone.now)
   end
 
   def editing_recurring?
     @meeting.is_a?(RecurringMeeting) && @meeting.persisted?
+  end
+
+  # A series occurrence never carries a private zone - Meeting#time_zone always
+  # delegates to the series once recurring? is true - so its own select would be
+  # silently inert if left editable. The series/template case (a RecurringMeeting)
+  # is untouched and stays fully editable.
+  def series_occurrence?
+    @meeting.is_a?(Meeting) && @meeting.recurring?
   end
 end

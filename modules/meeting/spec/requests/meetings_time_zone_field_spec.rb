@@ -78,6 +78,46 @@ RSpec.describe "Meeting time_zone select field",
     expect(response.body).to include(I18n.t("recurring_meeting.time_zone_difference_banner.title"))
   end
 
+  describe "start-time field caption on first paint (Finding 2 regression)" do
+    it "reflects a standalone meeting's own stored zone, not the viewer's" do
+      meeting = create(:meeting, project:, author: user, time_zone: "America/New_York",
+                                 start_time: DateTime.iso8601("2026-07-01T10:00:00-04:00"))
+
+      get details_dialog_project_meeting_path(project, meeting), as: :turbo_stream
+
+      expect(response.body).to include("EDT")
+      expect(response.body).not_to include("JST")
+    end
+
+    it "reflects a persisted recurring series' own stored zone, not the viewer's " \
+       "(previously suppressed entirely by an early return for this exact case)" do
+      recurring_meeting = create(:recurring_meeting, project:, time_zone: "America/New_York",
+                                                     start_time: DateTime.iso8601("2026-07-01T10:00:00-04:00"))
+
+      get details_dialog_project_recurring_meeting_path(project, recurring_meeting), as: :turbo_stream
+
+      # Note: "JST" legitimately still appears elsewhere in the response, in the
+      # unrelated time-zone-difference banner's mention of the viewer's own zone -
+      # so we only assert the caption itself (the only place "EDT" can appear).
+      expect(response.body).to include("EDT")
+    end
+  end
+
+  describe "time zone select on a series occurrence's edit form (Finding 4 regression)" do
+    it "is disabled, since the occurrence's own time_zone column is functionally unused " \
+       "(the reader always delegates to the series for recurring? meetings)" do
+      recurring_meeting = create(:recurring_meeting, project:, time_zone: "America/New_York")
+      occurrence = create(:meeting, project:, author: user, recurring_meeting:)
+
+      get details_dialog_project_meeting_path(project, occurrence), as: :turbo_stream
+
+      expect(response.body).to include('name="meeting[time_zone]"')
+      select_tag = response.body[/<select[^>]*name="meeting\[time_zone\]"[^>]*>/]
+      expect(select_tag).to be_present
+      expect(select_tag).to match(/\bdisabled="disabled"/)
+    end
+  end
+
   describe "GET fetch_timezone (the live DST-caption turbo-stream endpoint)" do
     it "reflects the selected zone's DST abbreviation, not the viewer's own zone" do
       get fetch_timezone_project_meetings_path(
@@ -97,6 +137,24 @@ RSpec.describe "Meeting time_zone select field",
       ), as: :turbo_stream
 
       expect(response.body).to include("JST")
+    end
+
+    it "computes the DST abbreviation in the selected zone, not the viewer's " \
+       "(Finding 3 regression: the submitted date/time were parsed in the viewer's zone " \
+       "before asking the selected zone for its abbreviation, which flips the answer " \
+       "when the two interpretations straddle a DST transition)" do
+      # 2026-03-08 is the US spring-forward day: 02:00 America/New_York becomes 03:00.
+      # A naive 10:00 wall-clock entry is unambiguously EDT in New York's own zone,
+      # but misinterpreting it as 10:00 Asia/Tokyo (UTC+9, no DST) first lands the
+      # instant at 01:00 UTC - still 20:00 EST the previous day in New York - which
+      # is the wrong side of the transition.
+      get fetch_timezone_project_meetings_path(
+        project,
+        meeting: { start_date: "2026-03-08", start_time_hour: "10:00", time_zone: "America/New_York" }
+      ), as: :turbo_stream
+
+      expect(response.body).to include("EDT")
+      expect(response.body).not_to include("EST")
     end
   end
 end

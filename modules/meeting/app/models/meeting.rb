@@ -228,10 +228,8 @@ class Meeting < ApplicationRecord
   def time_zone
     if recurring?
       recurring_meeting.time_zone
-    elsif self[:time_zone].present?
-      ActiveSupport::TimeZone[self[:time_zone]]
     else
-      User.current.time_zone
+      (self[:time_zone].presence && ActiveSupport::TimeZone[self[:time_zone]]) || User.current.time_zone
     end
   end
 
