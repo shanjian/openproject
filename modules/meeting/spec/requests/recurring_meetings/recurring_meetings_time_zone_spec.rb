@@ -28,47 +28,32 @@
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-module Meetings
-  class BaseContract < ::ModelContract
-    def self.model
-      Meeting
-    end
+require "spec_helper"
 
-    attribute :title
-    attribute :author_id
-    attribute :project_id
-    attribute :location
-    attribute :duration
-    attribute :state do
-      validate_state_not_transitioning_cancelled
-    end
-    attribute :start_date
-    attribute :start_time
-    attribute :start_time_hour
-    attribute :template
-    attribute :notify
-    attribute :time_zone
-    attribute :sharing do
-      validate_sharing_only_on_onetime_templates
-    end
+RSpec.describe "Recurring meeting time_zone param",
+               :skip_csrf,
+               type: :rails_request do
+  shared_let(:project) { create(:project, enabled_module_names: %i[meetings]) }
+  shared_let(:user) do
+    create(:user, member_with_permissions: { project => %i[view_meetings create_meetings] })
+  end
 
-    private
+  before { login_as user }
 
-    # The cancelled state is owned by Meetings::CancelService/RestoreService, which
-    # stamp state_before_cancellation and send the mandatory mails. Persisted
-    # transitions are guarded by Meeting#guard_cancelled_state (which contract
-    # validation picks up via the model errors); this only rejects creating a
-    # meeting directly in the cancelled state.
-    def validate_state_not_transitioning_cancelled
-      return if model.persisted?
+  it "persists an explicitly submitted time_zone (regression: recurring_meeting_params didn't permit it)" do
+    post recurring_meetings_path,
+         params: {
+           project_id: project.id,
+           meeting: {
+             title: "Zoned series", project_id: project.id,
+             start_date: Date.tomorrow.iso8601, start_time_hour: "09:00", duration: "1",
+             frequency: "weekly", interval: "1", end_after: "never",
+             time_zone: "Asia/Tokyo"
+           }
+         }
 
-      errors.add :state, :invalid if model.state == "cancelled"
-    end
-
-    def validate_sharing_only_on_onetime_templates
-      return if model.onetime_template?
-
-      errors.add :sharing, :not_allowed if model.sharing.present?
-    end
+    series = RecurringMeeting.find_by(title: "Zoned series")
+    expect(series).to be_present
+    expect(series[:time_zone]).to eq("Asia/Tokyo")
   end
 end
