@@ -265,6 +265,8 @@ module Meetings
         e.dtstart = ical_datetime(tombstone_start, timezone: recurring_meeting.time_zone)
         e.dtend = ical_datetime(tombstone_start + recurring_meeting.template.duration.hours,
                                 timezone: recurring_meeting.time_zone)
+
+        add_attendees(event: e, meeting: recurring_meeting.template)
       end
     end
 

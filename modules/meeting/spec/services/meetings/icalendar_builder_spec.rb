@@ -563,6 +563,15 @@ RSpec.describe Meetings::IcalendarBuilder,
       expect(parsed_calendar.events.map(&:uid)).to all(eq(recurring_meeting.uid).or(eq(past_occurrence.meeting.uid)))
     end
 
+    it "includes the series' attendees on the CANCELLED tombstone" do
+      builder.add_ended_series_history(recurring_meeting:)
+
+      tombstone = parsed_calendar.events.find { |e| e.uid == recurring_meeting.uid }
+      expect(tombstone.attendee).not_to be_empty
+      author_attendee = tombstone.attendee.find { |a| a.to_s.include?(recurring_meeting.author.mail) }
+      expect(author_attendee).to be_present
+    end
+
     it "emits a CANCELLED tombstone for the series UID with no RECURRENCE-ID or RRULE" do
       builder.add_ended_series_history(recurring_meeting:)
 
