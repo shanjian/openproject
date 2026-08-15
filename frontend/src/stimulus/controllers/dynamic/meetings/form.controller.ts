@@ -47,7 +47,7 @@ export default class extends ApplicationController {
     const urlSearchParams = new URLSearchParams();
     let key:string;
 
-    ['start_date', 'start_time_hour'].forEach((name) => {
+    ['start_date', 'start_time_hour', 'time_zone'].forEach((name) => {
       key = `meeting[${name}]`;
       urlSearchParams.append(key, data.get(key) as string);
     });

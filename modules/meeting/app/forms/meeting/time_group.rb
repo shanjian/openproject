@@ -42,11 +42,6 @@ class Meeting::TimeGroup < ApplicationForm
           )
         ) { I18n.t("recurring_meeting.time_zone_difference_banner.title") }
       end
-
-      meeting_form.hidden(
-        name: :time_zone,
-        value: @meeting.time_zone.name
-      )
     end
 
     meeting_form.group(layout: :horizontal) do |group|
@@ -92,6 +87,21 @@ class Meeting::TimeGroup < ApplicationForm
         }
       )
     end
+
+    meeting_form.select_list(
+      name: :time_zone,
+      label: I18n.t(:label_time_zone),
+      required: true,
+      include_blank: false,
+      input_width: :large,
+      data: {
+        action: "input->meetings--form#updateTimezoneText"
+      }
+    ) do |list|
+      available_time_zones.each do |zone_label, value|
+        list.option(label: zone_label, value:, selected: value == @initial_time_zone)
+      end
+    end
   end
 
   def initialize(meeting:)
@@ -100,12 +110,37 @@ class Meeting::TimeGroup < ApplicationForm
     @meeting = meeting
     @initial_time = meeting.start_time_hour.presence
     @initial_date = meeting.start_date.presence
+    @initial_time_zone = initial_time_zone_value(meeting)
 
     duration = duration_value(meeting)
     @duration = duration.nil? ? "" : ChronicDuration.output(duration * 3600, format: :hours_only)
   end
 
   private
+
+  def available_time_zones
+    @available_time_zones ||= UserPreferences::UpdateContract
+      .assignable_time_zones
+      .group_by { it.tzinfo.canonical_zone }
+      .map { |canonical_zone, included_zones| build_time_zone_entry(canonical_zone, included_zones) }
+  end
+
+  def build_time_zone_entry(canonical_zone, zones)
+    zone_names = zones.map(&:name).join(", ")
+    offset = ActiveSupport::TimeZone.seconds_to_utc_offset(canonical_zone.base_utc_offset)
+
+    ["(UTC#{offset}) #{zone_names}", canonical_zone.identifier]
+  end
+
+  def initial_time_zone_value(meeting)
+    if meeting.persisted? || (meeting.is_a?(RecurringMeeting) && meeting.template&.persisted?)
+      meeting.time_zone.name
+    else
+      # New record: default to the creator's profile zone; if they have none set,
+      # show UTC explicitly in the select rather than applying it silently.
+      User.current.time_zone.name
+    end
+  end
 
   def duration_value(meeting)
     if meeting.is_a?(RecurringMeeting) && meeting.template
