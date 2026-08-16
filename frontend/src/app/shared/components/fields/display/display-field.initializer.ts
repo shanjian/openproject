@@ -111,7 +111,8 @@ export function initializeCoreDisplayFields(displayFieldService:DisplayFieldServ
         'Version',
         'Category',
         'CustomField::Hierarchy::Item',
-        'CustomOption'])
+        'CustomOption',
+        'Department'])
       .addFieldType(ProjectPhaseDisplayField, 'projectPhase', ['ProjectPhase'])
       .addFieldType(ResourcesDisplayField, 'resources', ['[]CustomOption', '[]CustomField::Hierarchy::Item'])
       .addFieldType(ResourcesDisplayField, 'resources', ['[]Version'])

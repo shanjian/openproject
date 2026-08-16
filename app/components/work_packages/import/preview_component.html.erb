@@ -43,10 +43,21 @@ See COPYRIGHT and LICENSE files for more details.
         <% end %>
       </ul>
 
-      <% row.errors.each do |error| %>
-        <p class="work-package-import-preview--error">
-          <%= t("work_packages.import.preview.error_on_line", line: error[:source_line], message: error[:message]) %>
+      <% if row.duplicate %>
+        <p class="work-package-import-preview--warning">
+          <%= duplicate_notice(row) %>
         </p>
+      <% end %>
+
+      <%# Duplicate rows are skipped by CreateJob without ever being validated, so their
+          resolution errors are irrelevant: showing them would ask the author to fix
+          attributes of an item that will not be created. %>
+      <% unless row.duplicate %>
+        <% row.errors.each do |error| %>
+          <p class="work-package-import-preview--error">
+            <%= t("work_packages.import.preview.error_on_line", line: error[:source_line], message: error[:message]) %>
+          </p>
+        <% end %>
       <% end %>
     </li>
   <% end %>

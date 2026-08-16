@@ -35,6 +35,7 @@ class WorkPackages::SetAttributesService < BaseServices::SetAttributes
 
   def set_attributes(attributes)
     validate_custom_fields = attributes.delete(:validate_custom_fields)
+    @skip_templated_description = attributes.delete(:skip_templated_description)
     file_links_ids = attributes.delete(:file_links_ids)
     model.file_links = Storages::FileLink.where(id: file_links_ids) if file_links_ids
 
@@ -228,6 +229,11 @@ class WorkPackages::SetAttributesService < BaseServices::SetAttributes
   end
 
   def set_templated_description
+    # Callers that create work packages from an external definition (e.g. the markdown
+    # import) opt out entirely: there a blank description means "no description", not
+    # "fill in the type's template".
+    return if @skip_templated_description
+
     # We only set this if the work package is new
     return unless work_package.new_record?
 

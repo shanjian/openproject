@@ -47,6 +47,20 @@ module WorkPackages
       HEADING = /\A(#+)\s+(.+)\z/
       BULLET = /\A-\s+([^:]+):\s*(.*)\z/
 
+      # Subjects are plain text in OpenProject, so inline markdown in a heading
+      # (`**bold**`, `*italic*`, `` `code` ``, "\$"-style escapes) must not survive
+      # into the subject. Underscore emphasis is only stripped at word boundaries:
+      # intra-word underscores (snake_case identifiers) are not emphasis in markdown.
+      # Backslash-escaped markers ("\*foo\*") are not emphasis either -- the (?<!\\)
+      # guards keep them for the escape pass below, which unescapes them to literals.
+      # Descriptions stay untouched -- they are rendered as markdown.
+      INLINE_MARKDOWN = [
+        [/(?<!\\)(\*{1,3})(?=\S)(.+?)(?<=\S)(?<!\\)\1/, '\2'],
+        [/(?<![[:alnum:]_\\])(_{1,3})(?=\S)(.+?)(?<=\S)(?<!\\)\1(?![[:alnum:]_])/, '\2'],
+        [/(?<!\\)`([^`]+?)(?<!\\)`/, '\1']
+      ].freeze
+      ESCAPED_PUNCTUATION = /\\([[:punct:]])/
+
       def self.call(markdown)
         new(markdown).call
       end
@@ -118,7 +132,7 @@ module WorkPackages
               parent_index = stack.last[:index]
             end
 
-            node = Node.new(level:, type_name: type_name.strip, subject: subject.strip,
+            node = Node.new(level:, type_name: type_name.strip, subject: strip_inline_markdown(subject.strip),
                             attributes: {}, description: "", source_line: index + 1, parent_index:)
             nodes << node
             stack.push(level:, index: nodes.length - 1)
@@ -158,6 +172,17 @@ module WorkPackages
         node.description = description_lines.join("\n").strip
 
         index
+      end
+
+      def strip_inline_markdown(text)
+        result = text
+        loop do
+          stripped = INLINE_MARKDOWN.reduce(result) { |acc, (pattern, replacement)| acc.gsub(pattern, replacement) }
+          break if stripped == result
+
+          result = stripped
+        end
+        result.gsub(ESCAPED_PUNCTUATION, '\1')
       end
 
       def apply_inheritance(nodes, front_matter)

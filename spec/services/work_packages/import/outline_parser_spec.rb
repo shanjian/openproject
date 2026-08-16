@@ -130,6 +130,61 @@ RSpec.describe WorkPackages::Import::OutlineParser do
     end
   end
 
+  context "with inline markdown formatting in a heading subject" do
+    let(:markdown) { <<~MD }
+      # Key Result: Achieve a CAC payback period of no more than **15 months** and an NCAC below **\\$50 by Q4**.
+    MD
+
+    it "strips emphasis markers and backslash escapes from the subject" do
+      expect(call.result.nodes.first.subject)
+        .to eq("Achieve a CAC payback period of no more than 15 months and an NCAC below $50 by Q4.")
+    end
+  end
+
+  context "with single-asterisk emphasis and inline code in a heading subject" do
+    let(:markdown) { "# Task: Fix *this* bug in `app.rb` _soon_\n" }
+
+    it "strips the markers" do
+      expect(call.result.nodes.first.subject).to eq("Fix this bug in app.rb soon")
+    end
+  end
+
+  context "with backslash-escaped emphasis markers in a heading subject" do
+    let(:markdown) { "# Task: Keep \\*these\\* and \\_those\\_ literal\n" }
+
+    it "unescapes them instead of treating them as emphasis" do
+      expect(call.result.nodes.first.subject).to eq("Keep *these* and _those_ literal")
+    end
+  end
+
+  context "with an escaped closing marker in a heading subject" do
+    let(:markdown) { "# Task: A literal *foo\\* stays\n" }
+
+    it "does not treat the escaped marker as closing emphasis" do
+      expect(call.result.nodes.first.subject).to eq("A literal *foo* stays")
+    end
+  end
+
+  context "with intra-word underscores in a heading subject" do
+    let(:markdown) { "# Task: Rename user_name to display_name\n" }
+
+    it "keeps them (they are not markdown emphasis)" do
+      expect(call.result.nodes.first.subject).to eq("Rename user_name to display_name")
+    end
+  end
+
+  context "with markdown in a node description" do
+    let(:markdown) { <<~MD }
+      # Objective: Increase retention
+
+      Keep **markdown** in descriptions.
+    MD
+
+    it "leaves the description untouched" do
+      expect(call.result.nodes.first.description).to eq("Keep **markdown** in descriptions.")
+    end
+  end
+
   context "with a duplicate attribute key" do
     let(:markdown) { <<~MD }
       # Objective: Increase retention

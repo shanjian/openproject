@@ -47,7 +47,7 @@ module API
           # match a department. Both types fall through to the same searchable multiselect in
           # query-filter.component.html, so this only removes that bogus option.
           def type
-            "[]Group"
+            "[]Department"
           end
 
           private

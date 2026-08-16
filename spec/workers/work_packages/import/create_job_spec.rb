@@ -116,6 +116,207 @@ RSpec.describe WorkPackages::Import::CreateJob do
     end
   end
 
+  context "with a type that has a default description template" do
+    let!(:objective_type) do
+      create(:type, name: "Objective", projects: [project],
+                    description: "Purpose:\nMeasurable evidence that the Objective was achieved.")
+    end
+
+    context "when the document provides no description" do
+      let(:source) { "# Objective: Increase retention\n" }
+
+      it "leaves the description empty instead of applying the template" do
+        perform_enqueued_jobs { described_class.perform_later(import_run:) }
+        import_run.reload
+
+        expect(import_run).to be_succeeded
+        work_package = WorkPackage.find(import_run.created_work_package_ids.first)
+        expect(work_package.description).to be_blank
+      end
+    end
+
+    context "when the document provides a description" do
+      let(:source) { <<~MD }
+        # Objective: Increase retention
+
+        We expect gains from onboarding.
+      MD
+
+      it "keeps the document's description" do
+        perform_enqueued_jobs { described_class.perform_later(import_run:) }
+        import_run.reload
+
+        expect(import_run).to be_succeeded
+        work_package = WorkPackage.find(import_run.created_work_package_ids.first)
+        expect(work_package.description).to eq("We expect gains from onboarding.")
+      end
+    end
+  end
+
+  context "when a status named Draft exists" do
+    let!(:draft_status) { create(:status, name: "Draft") }
+    # SetAttributesService#reassign_invalid_status_if_type_changed reverts any status that is
+    # not used by the type's workflows (or the instance default), so the status must be part
+    # of a workflow of the created item's type to survive creation.
+    let!(:draft_workflow) { create(:workflow, type: objective_type, old_status: draft_status) }
+
+    context "and the document does not specify a status" do
+      let(:source) { "# Objective: Increase retention\n" }
+
+      it "gives imported items the Draft status" do
+        perform_enqueued_jobs { described_class.perform_later(import_run:) }
+        import_run.reload
+
+        expect(import_run).to be_succeeded
+        work_package = WorkPackage.find(import_run.created_work_package_ids.first)
+        expect(work_package.status).to eq(draft_status)
+      end
+    end
+
+    context "and the document specifies a status" do
+      let!(:in_progress_status) { create(:status, name: "In progress") }
+      let!(:in_progress_workflow) { create(:workflow, type: objective_type, old_status: in_progress_status) }
+      let(:source) { <<~MD }
+        ---
+        Status: In progress
+        ---
+
+        # Objective: Increase retention
+      MD
+
+      it "keeps the document's status" do
+        perform_enqueued_jobs { described_class.perform_later(import_run:) }
+        import_run.reload
+
+        expect(import_run).to be_succeeded
+        work_package = WorkPackage.find(import_run.created_work_package_ids.first)
+        expect(work_package.status).to eq(in_progress_status)
+      end
+    end
+  end
+
+  context "without a Draft status" do
+    let(:source) { "# Objective: Increase retention\n" }
+
+    it "falls back to the instance default status" do
+      perform_enqueued_jobs { described_class.perform_later(import_run:) }
+      import_run.reload
+
+      expect(import_run).to be_succeeded
+      work_package = WorkPackage.find(import_run.created_work_package_ids.first)
+      expect(work_package.status).to eq(default_status)
+    end
+  end
+
+  context "when an existing work package matches on subject and organizational unit" do
+    let!(:department_field) do
+      cf = create(:department_wp_custom_field, name: "Organization Unit")
+      project.work_package_custom_fields << cf
+      objective_type.custom_fields << cf
+      task_type.custom_fields << cf
+      cf
+    end
+    let!(:marketing) { create(:department, lastname: "Marketing") }
+    let!(:existing_objective) do
+      create(:work_package, project:, type: objective_type, subject: "Increase retention",
+                            custom_values: { department_field.id => marketing.id.to_s })
+    end
+
+    let(:source) { <<~MD }
+      # Objective: INCREASE retention
+      - Organization Unit: Marketing
+
+      ## Task: Rework the sequence
+      - Organization Unit: Marketing
+    MD
+
+    it "skips the duplicate (case-insensitively), warns, and attaches children to the existing work package" do
+      perform_enqueued_jobs { described_class.perform_later(import_run:) }
+      import_run.reload
+
+      expect(import_run).to be_succeeded
+
+      created = WorkPackage.where(id: import_run.created_work_package_ids)
+      expect(created.pluck(:subject)).to eq(["Rework the sequence"])
+      expect(created.first.parent_id).to eq(existing_objective.id)
+
+      expect(import_run.warnings.size).to eq(1)
+      expect(import_run.warnings.first["message"])
+        .to include("INCREASE retention").and include("##{existing_objective.id}")
+    end
+
+    context "when the organizational unit differs" do
+      let!(:sales) { create(:department, lastname: "Sales") }
+      let(:source) { <<~MD }
+        # Objective: Increase retention
+        - Organization Unit: Sales
+      MD
+
+      it "creates the item and records no warning" do
+        perform_enqueued_jobs { described_class.perform_later(import_run:) }
+        import_run.reload
+
+        expect(import_run).to be_succeeded
+        expect(import_run.created_work_package_ids.size).to eq(1)
+        expect(import_run.warnings).to be_empty
+      end
+    end
+  end
+
+  context "when the type generates its subject from a pattern" do
+    let!(:autosubject_type) do
+      create(:type, name: "Auto", projects: [project],
+                    patterns: { subject: { blueprint: '#{{id}}', enabled: true } })
+    end
+    # Types::ApplyPatterns overwrites the subject after save, so identical headings still
+    # produce distinct persisted subjects -- they must not be treated as duplicates.
+    let(:source) { <<~MD }
+      # Auto: Recurring heading
+
+      # Auto: Recurring heading
+    MD
+
+    it "creates both items instead of skipping the second as a duplicate" do
+      perform_enqueued_jobs { described_class.perform_later(import_run:) }
+      import_run.reload
+
+      expect(import_run).to be_succeeded
+      expect(import_run.created_work_package_ids.size).to eq(2)
+      expect(import_run.warnings).to be_empty
+
+      subjects = WorkPackage.where(id: import_run.created_work_package_ids).pluck(:subject)
+      expect(subjects.uniq.size).to eq(2)
+    end
+  end
+
+  context "when the document contains two items with the same subject and organizational unit" do
+    let(:source) { <<~MD }
+      # Objective: Increase retention
+
+      ## Task: First piece
+
+      # Objective: Increase retention
+
+      ## Task: Second piece
+    MD
+
+    it "creates the first, skips the second, and parents both children under the first" do
+      perform_enqueued_jobs { described_class.perform_later(import_run:) }
+      import_run.reload
+
+      expect(import_run).to be_succeeded
+
+      created = WorkPackage.where(id: import_run.created_work_package_ids)
+      objectives = created.where(subject: "Increase retention")
+      expect(objectives.count).to eq(1)
+      expect(created.where.not(subject: "Increase retention").pluck(:parent_id).uniq)
+        .to eq([objectives.first.id])
+
+      expect(import_run.warnings.size).to eq(1)
+      expect(import_run.warnings.first["message"]).to include("line 1")
+    end
+  end
+
   context "when a later node fails" do
     let(:source) { <<~MD }
       # Objective: Increase retention
