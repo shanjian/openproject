@@ -62,16 +62,16 @@ RSpec.describe API::V3::Queries::Schemas::DepartmentFilterDependencyRepresenter 
   # The frontend prepends a "Me" option to anything whose values type contains "User"
   # (filter-searchable-multiselect-value.component.ts#isUserResource). "Me" is never a department,
   # so this must not inherit the "[]User" of PrincipalFilterDependencyRepresenter.
-  it "declares a group values type so the frontend offers no 'Me' option" do
+  it "declares a department values type so the frontend offers no 'Me' option" do
     values_type = JSON.parse(generated).dig("values", "type")
 
-    expect(values_type).to eq("[]Group")
+    expect(values_type).to eq("[]Department")
     expect(values_type).not_to include("User")
   end
 
   describe "values" do
     let(:path) { "values" }
-    let(:type) { "[]Group" }
+    let(:type) { "[]Department" }
     # Organisational units only, and deliberately not narrowed to members of the filter's project:
     # a department is an organisational unit rather than a project member, so a member filter would
     # answer an empty list and leave the filter unusable.

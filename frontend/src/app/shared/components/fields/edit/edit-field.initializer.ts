@@ -98,7 +98,7 @@ export function initializeCoreEditFields(editFieldService:EditFieldService, sele
         'Status',
         'Type',
         'Version',
-        'Group',
+        'Department',
         'TimeEntriesActivity',
         'Category',
         'CustomOption',

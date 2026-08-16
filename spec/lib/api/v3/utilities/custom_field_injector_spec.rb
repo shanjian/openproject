@@ -218,7 +218,7 @@ RSpec.describe API::V3::Utilities::CustomFieldInjector do
 
       it_behaves_like "has basic schema properties" do
         let(:path) { cf_path }
-        let(:type) { "Group" }
+        let(:type) { "Department" }
         let(:name) { custom_field.name }
         let(:required) { true }
         let(:writable) { true }

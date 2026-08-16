@@ -43,7 +43,7 @@ module API
           "bool" => "Boolean",
           "user" => "User",
           "version" => "Version",
-          "department" => "Group",
+          "department" => "Department",
           "list" => "CustomOption",
           "hierarchy" => "CustomField::Hierarchy::Item",
           "weighted_item_list" => "CustomField::Hierarchy::Item",
