@@ -53,6 +53,11 @@ module WorkPackages
         "Finish date" => :due_date
       }.freeze
 
+      # Short-hand type names accepted in a heading in place of the real work package type name.
+      TYPE_NAME_ALIASES = {
+        "KR" => "Key Result"
+      }.freeze
+
       def initialize(project:, user:)
         @project = project
         @user = user
@@ -73,8 +78,8 @@ module WorkPackages
 
       private
 
-      def resolve_node(node) # rubocop:disable Metrics/AbcSize
-        type = @project.types.find_by(name: node.type_name)
+      def resolve_node(node) # rubocop:disable Metrics/AbcSize,Metrics/PerceivedComplexity
+        type = @project.types.find_by(name: TYPE_NAME_ALIASES.fetch(node.type_name, node.type_name))
 
         if type.nil?
           message = "unknown or disabled work package type #{node.type_name.inspect}"
@@ -96,7 +101,10 @@ module WorkPackages
         department_values = []
 
         node.attributes.each do |label, raw_value|
-          resolved = resolve_attribute(work_package, label, raw_value)
+          inherited = node.inherited_keys&.include?(label) || false
+          resolved = resolve_attribute(work_package, label, raw_value, inherited:)
+          next unless resolved
+
           attributes[resolved[:key]] = resolved[:value]
           department_values << resolved[:value].to_s if resolved[:department]
           attribute_matches << { label:, formatted: resolved[:formatted] }
@@ -192,11 +200,11 @@ module WorkPackages
           .group_by(&:first)
       end
 
-      def resolve_attribute(work_package, label, raw_value)
+      def resolve_attribute(work_package, label, raw_value, inherited:)
         if BUILTIN_ATTRIBUTE_KEYS.key?(label)
           resolve_builtin_attribute(label, raw_value)
         else
-          resolve_custom_field_attribute(work_package, label, raw_value)
+          resolve_custom_field_attribute(work_package, label, raw_value, inherited:)
         end
       end
 
@@ -215,7 +223,7 @@ module WorkPackages
           formatted: format_value(value) }
       end
 
-      def resolve_custom_field_attribute(work_package, label, raw_value) # rubocop:disable Metrics/AbcSize
+      def resolve_custom_field_attribute(work_package, label, raw_value, inherited:) # rubocop:disable Metrics/AbcSize
         # Deliberately goes through the same project- and type-aware availability list that
         # acts_as_customizable's custom_field_<id> accessors are gated on (see
         # WorkPackage.available_custom_fields), not the type-only `type.custom_fields`
@@ -223,7 +231,13 @@ module WorkPackages
         # separate admin step) must be rejected here too, or SetAttributesService would later
         # silently drop the very attribute this method just reported as resolved.
         custom_field = work_package.available_custom_fields.find { |cf| cf.name == label }
-        unless custom_field
+        if custom_field.nil?
+          # An inherited attribute (front matter or an ancestor's own bullet) is a document-wide
+          # default, not something this node asked for -- a type it does not apply to should
+          # silently ignore it instead of failing the row. Only a bullet the node wrote itself
+          # can be genuinely wrong.
+          return nil if inherited
+
           raise AttributeError, "no field named #{label.inspect} on type #{work_package.type.name.inspect}"
         end
 

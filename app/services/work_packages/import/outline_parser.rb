@@ -32,7 +32,7 @@ module WorkPackages
   module Import
     class OutlineParser
       Node = Struct.new(:level, :type_name, :subject, :attributes, :description,
-                        :source_line, :parent_index)
+                        :source_line, :parent_index, :inherited_keys)
       Document = Struct.new(:front_matter, :nodes)
 
       class ParseError < StandardError
@@ -80,9 +80,15 @@ module WorkPackages
 
       private
 
-      def parse_front_matter(index) # rubocop:disable Metrics/AbcSize,Metrics/PerceivedComplexity
-        return [{}, index] unless @lines[index]&.strip == "---"
+      def parse_front_matter(index)
+        if @lines[index]&.strip == "---"
+          parse_fenced_front_matter(index)
+        else
+          parse_unfenced_front_matter(index)
+        end
+      end
 
+      def parse_fenced_front_matter(index) # rubocop:disable Metrics/AbcSize
         front_matter = {}
         cursor = index + 1
 
@@ -91,11 +97,7 @@ module WorkPackages
           unless line.strip.empty?
             raise ParseError.new("malformed front matter line", cursor + 1) unless line.include?(":")
 
-            key, _sep, value = line.partition(":")
-            key = key.strip
-            raise ParseError.new("duplicate front matter key #{key.inspect}", cursor + 1) if front_matter.key?(key)
-
-            front_matter[key] = value.strip
+            add_front_matter_line(front_matter, line, cursor)
           end
           cursor += 1
         end
@@ -103,6 +105,35 @@ module WorkPackages
         raise ParseError.new("unterminated front matter", index + 1) if cursor >= @lines.length
 
         [front_matter, cursor + 1]
+      end
+
+      # The "---" fences are optional: a document may simply open with "Key: value" lines.
+      # Everything before the first heading is then front matter. Bullets stop the scan so
+      # parse_nodes still reports them as "attribute bullet before any heading"; prose without
+      # a colon keeps its established "unexpected content before any heading" error.
+      def parse_unfenced_front_matter(index)
+        front_matter = {}
+        cursor = index
+
+        while cursor < @lines.length && !HEADING.match?(@lines[cursor]) && !BULLET.match?(@lines[cursor])
+          line = @lines[cursor]
+          unless line.strip.empty?
+            raise ParseError.new("unexpected content before any heading", cursor + 1) unless line.include?(":")
+
+            add_front_matter_line(front_matter, line, cursor)
+          end
+          cursor += 1
+        end
+
+        [front_matter, cursor]
+      end
+
+      def add_front_matter_line(front_matter, line, cursor)
+        key, _sep, value = line.partition(":")
+        key = key.strip
+        raise ParseError.new("duplicate front matter key #{key.inspect}", cursor + 1) if front_matter.key?(key)
+
+        front_matter[key] = value.strip
       end
 
       def parse_nodes(start_index) # rubocop:disable Metrics/AbcSize,Metrics/PerceivedComplexity
@@ -189,8 +220,13 @@ module WorkPackages
         inheritable_front_matter = front_matter.except("Project")
 
         nodes.each do |node|
+          own_keys = node.attributes.keys
           inherited = ancestors_root_first(nodes, node)
                         .reduce(inheritable_front_matter) { |acc, ancestor| acc.merge(ancestor.attributes) }
+          # A key the node also sets itself via its own bullet counts as the node's own, even
+          # though it is also present in `inherited` -- the resolver only needs to know which
+          # keys reached this node WITHOUT it asking for them.
+          node.inherited_keys = inherited.keys - own_keys
           node.attributes = inherited.merge(node.attributes)
         end
       end

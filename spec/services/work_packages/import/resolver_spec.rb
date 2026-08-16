@@ -299,6 +299,37 @@ RSpec.describe WorkPackages::Import::Resolver do
       expect(row.attribute_matches).to be_empty
     end
 
+    it "skips an inherited attribute naming a field the node's type does not have" do
+      # A front matter (or ancestor) attribute is a document-wide default. Types it does not
+      # apply to must ignore it instead of failing the row — only an attribute written on the
+      # node itself may error as unknown.
+      doc = document(<<~MD)
+        ---
+        OKR Level: Strategic
+        ---
+
+        # Task: Rework the sequence
+      MD
+      row = described_class.new(project:, user: jane).call(doc).result.first
+
+      expect(row.errors).to be_empty
+      expect(row.attribute_matches).to be_empty
+    end
+
+    it "reports an unknown field only on the node that wrote it, not on children inheriting it" do
+      doc = document(<<~MD)
+        # Task: Parent
+        - Not A Real Field: whatever
+
+        ## Task: Child
+      MD
+      rows = described_class.new(project:, user: jane).call(doc).result
+
+      expect(rows.first.errors)
+        .to eq([{ source_line: 1, message: 'Not A Real Field: no field named "Not A Real Field" on type "Task"' }])
+      expect(rows.second.errors).to be_empty
+    end
+
     it "ignores a front matter Project key, matching or not" do
       # The import always targets the project it is run from; a Project key in the document is
       # purely informational. It must neither block the import when it differs from the target
@@ -343,6 +374,14 @@ RSpec.describe WorkPackages::Import::Resolver do
     let!(:sam) { create(:user, mail: "sam.lee@example.com") }
     let!(:default_status) { create(:default_status) }
     let!(:default_priority) { create(:default_priority) }
+
+    it 'accepts "KR" as an alias for the "Key Result" type' do
+      doc = document("# KR: Increase annual renewals from 65% to 75%\n")
+      row = described_class.new(project:, user: sam).call(doc).result.first
+
+      expect(row.errors).to be_empty
+      expect(row.work_package.type).to eq(key_result_type)
+    end
 
     it "resolves every custom field to its stored value" do
       doc = document(<<~MD)

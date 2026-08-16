@@ -57,6 +57,51 @@ RSpec.describe WorkPackages::Import::OutlineParser do
     end
   end
 
+  context "with unfenced front matter" do
+    let(:markdown) { <<~MD }
+      Project: Company OKRs
+      Version: FY2026 Q3
+
+      # Objective: Increase retention
+    MD
+
+    it "parses leading key-value lines as front matter without --- fences" do
+      expect(call.result.front_matter).to eq("Project" => "Company OKRs", "Version" => "FY2026 Q3")
+    end
+
+    it "keeps node source lines absolute" do
+      expect(call.result.nodes.first.source_line).to eq(4)
+    end
+
+    it "still rejects leading prose without a colon" do
+      result = described_class.call("Some introduction\n\n# Objective: A\n")
+
+      expect(result).to be_failure
+      expect(result.errors).to eq([{ source_line: 1, message: "unexpected content before any heading" }])
+    end
+
+    it "still rejects a duplicate front matter key" do
+      result = described_class.call("Version: A\nVersion: B\n\n# Objective: A\n")
+
+      expect(result).to be_failure
+      expect(result.errors.first[:message]).to eq('duplicate front matter key "Version"')
+    end
+
+    it "still rejects an attribute bullet before any heading" do
+      result = described_class.call("Version: A\n- Accountable: jane.doe@example.com\n\n# Objective: A\n")
+
+      expect(result).to be_failure
+      expect(result.errors.first[:message]).to eq("attribute bullet before any heading")
+    end
+
+    it "parses a document starting directly with a heading as having no front matter" do
+      result = described_class.call("# Objective: A\n")
+
+      expect(result.result.front_matter).to eq({})
+      expect(result.result.nodes.first.subject).to eq("A")
+    end
+  end
+
   context "with nested headings" do
     let(:markdown) { <<~MD }
       # Strategic Initiative: Subscription Growth
@@ -242,6 +287,15 @@ RSpec.describe WorkPackages::Import::OutlineParser do
       nps = call.result.nodes.find { |n| n.subject == "NPS to 60" }
       expect(nps.attributes).not_to have_key("Accountable")
       expect(renewals.attributes["Accountable"]).to eq("sam.lee@example.com")
+    end
+
+    it "records which attribute keys were inherited rather than written on the node" do
+      renewals = call.result.nodes.find { |n| n.subject == "Renewals to 75%" }
+      nps = call.result.nodes.find { |n| n.subject == "NPS to 60" }
+
+      expect(renewals.inherited_keys).to contain_exactly("Version", "Organizational Unit")
+      # An inherited key the node overrides with its own bullet counts as the node's own.
+      expect(nps.inherited_keys).to eq(["Version"])
     end
 
     it "does not inherit front matter Project into node attributes" do
