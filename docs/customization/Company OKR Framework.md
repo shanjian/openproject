@@ -187,19 +187,19 @@ OKR Health indicates whether an Objective or Key Result is expected to achieve i
 Use:
 
 - **Not Started** — meaningful work has not yet begun
-- **On Track** — expected to achieve the target
+- **On Track** — expected to achieve the target./install_rpm_from_run.sh 31965008178
 - **At Risk** — target is still achievable, but attention or intervention is needed
 - **Off Track** — target is unlikely to be achieved without a significant change
 
 OKR Health is different from OpenProject workflow status. The workflow status
-describes the lifecycle of the OKR item (Draft → Needs Review → Reviewed →
-Closed / Moved to Next Quarter — see **Department and Team OKR Process**),
+describes the lifecycle of the OKR item (Draft → Committed →
+Completed / Moved to Next Quarter — see **Department and Team OKR Process**),
 while OKR Health describes the likelihood of achieving the intended result.
 
 For example:
 
 ```text
-Status: Reviewed
+Status: Committed
 OKR Health: At Risk
 ```
 
