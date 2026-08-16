@@ -51,11 +51,13 @@ module WorkPackages
       # (`**bold**`, `*italic*`, `` `code` ``, "\$"-style escapes) must not survive
       # into the subject. Underscore emphasis is only stripped at word boundaries:
       # intra-word underscores (snake_case identifiers) are not emphasis in markdown.
+      # Backslash-escaped markers ("\*foo\*") are not emphasis either -- the (?<!\\)
+      # guards keep them for the escape pass below, which unescapes them to literals.
       # Descriptions stay untouched -- they are rendered as markdown.
       INLINE_MARKDOWN = [
-        [/(\*{1,3})(?=\S)(.+?)(?<=\S)\1/, '\2'],
-        [/(?<![[:alnum:]_])(_{1,3})(?=\S)(.+?)(?<=\S)\1(?![[:alnum:]_])/, '\2'],
-        [/`([^`]+)`/, '\1']
+        [/(?<!\\)(\*{1,3})(?=\S)(.+?)(?<=\S)(?<!\\)\1/, '\2'],
+        [/(?<![[:alnum:]_\\])(_{1,3})(?=\S)(.+?)(?<=\S)(?<!\\)\1(?![[:alnum:]_])/, '\2'],
+        [/(?<!\\)`([^`]+?)(?<!\\)`/, '\1']
       ].freeze
       ESCAPED_PUNCTUATION = /\\([[:punct:]])/
 

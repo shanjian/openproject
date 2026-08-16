@@ -263,6 +263,32 @@ RSpec.describe WorkPackages::Import::CreateJob do
     end
   end
 
+  context "when the type generates its subject from a pattern" do
+    let!(:autosubject_type) do
+      create(:type, name: "Auto", projects: [project],
+                    patterns: { subject: { blueprint: '#{{id}}', enabled: true } })
+    end
+    # Types::ApplyPatterns overwrites the subject after save, so identical headings still
+    # produce distinct persisted subjects -- they must not be treated as duplicates.
+    let(:source) { <<~MD }
+      # Auto: Recurring heading
+
+      # Auto: Recurring heading
+    MD
+
+    it "creates both items instead of skipping the second as a duplicate" do
+      perform_enqueued_jobs { described_class.perform_later(import_run:) }
+      import_run.reload
+
+      expect(import_run).to be_succeeded
+      expect(import_run.created_work_package_ids.size).to eq(2)
+      expect(import_run.warnings).to be_empty
+
+      subjects = WorkPackage.where(id: import_run.created_work_package_ids).pluck(:subject)
+      expect(subjects.uniq.size).to eq(2)
+    end
+  end
+
   context "when the document contains two items with the same subject and organizational unit" do
     let(:source) { <<~MD }
       # Objective: Increase retention

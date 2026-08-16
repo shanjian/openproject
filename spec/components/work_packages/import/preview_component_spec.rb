@@ -80,6 +80,30 @@ RSpec.describe WorkPackages::Import::PreviewComponent, type: :component do
 
       expect(described_class.new(rows: [row]).any_errors?).to be false
     end
+
+    # CreateJob skips duplicate rows without ever validating them, so their resolution
+    # errors must neither block the confirm button nor render as blocking errors.
+    it "ignores resolution errors on duplicate rows for any_errors?" do
+      row = WorkPackages::Import::Resolver::ResolvedRow.new(
+        node:, work_package: build(:work_package), attribute_matches: [],
+        errors: [{ source_line: 1, message: "no user found" }],
+        duplicate: { kind: :existing, work_package_id: 123 }
+      )
+
+      expect(described_class.new(rows: [row]).any_errors?).to be false
+    end
+
+    it "does not render error paragraphs for duplicate rows" do
+      row = WorkPackages::Import::Resolver::ResolvedRow.new(
+        node:, work_package: build(:work_package), attribute_matches: [],
+        errors: [{ source_line: 1, message: "no user found" }],
+        duplicate: { kind: :existing, work_package_id: 123 }
+      )
+      render_inline(described_class.new(rows: [row]))
+
+      expect(page).to have_css(".work-package-import-preview--warning")
+      expect(page).to have_no_css(".work-package-import-preview--error")
+    end
   end
 
   describe "#subject_computed?" do

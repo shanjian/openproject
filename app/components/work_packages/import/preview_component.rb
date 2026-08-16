@@ -36,8 +36,11 @@ module WorkPackages
         @rows = rows
       end
 
+      # Duplicate rows are skipped by CreateJob without being validated, so their
+      # resolution errors must not block the confirm button (CreateJob likewise
+      # excludes them from its own error check).
       def any_errors?
-        @rows.any? { |row| row.errors.any? }
+        @rows.any? { |row| row.duplicate.nil? && row.errors.any? }
       end
 
       # `Types::ApplyPatterns#apply_patterns` (create_service.rb) overwrites `subject` from the

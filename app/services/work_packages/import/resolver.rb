@@ -130,7 +130,13 @@ module WorkPackages
       def mark_duplicates(rows) # rubocop:disable Metrics/AbcSize
         keyed = []
         rows.each_with_index do |row, index|
-          keyed << [dedup_key(row), row, index] if row.work_package && row.node.subject.present?
+          next unless row.work_package && row.node.subject.present?
+          # The heading subject never persists for a type with an enabled subject pattern
+          # (Types::ApplyPatterns overwrites it after save), so it cannot identify
+          # duplicates: identical headings still yield distinct generated subjects.
+          next if row.work_package.type&.replacement_pattern_defined_for?(:subject)
+
+          keyed << [dedup_key(row), row, index]
         end
         return if keyed.empty?
 

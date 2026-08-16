@@ -149,6 +149,22 @@ RSpec.describe WorkPackages::Import::OutlineParser do
     end
   end
 
+  context "with backslash-escaped emphasis markers in a heading subject" do
+    let(:markdown) { "# Task: Keep \\*these\\* and \\_those\\_ literal\n" }
+
+    it "unescapes them instead of treating them as emphasis" do
+      expect(call.result.nodes.first.subject).to eq("Keep *these* and _those_ literal")
+    end
+  end
+
+  context "with an escaped closing marker in a heading subject" do
+    let(:markdown) { "# Task: A literal *foo\\* stays\n" }
+
+    it "does not treat the escaped marker as closing emphasis" do
+      expect(call.result.nodes.first.subject).to eq("A literal *foo* stays")
+    end
+  end
+
   context "with intra-word underscores in a heading subject" do
     let(:markdown) { "# Task: Rename user_name to display_name\n" }
 
