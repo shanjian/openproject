@@ -30,9 +30,9 @@ Quarterly OKR cycles are managed using OpenProject **Versions**.
 Example:
 
 ```text
-FY2026 Q3
-FY2026 Q4
-FY2027 Q1
+2026 Q3
+2026 Q4
+2027 Q1
 ```
 
 # Organizational Model
@@ -152,7 +152,7 @@ Organizational Unit:
 Marketing / Retention
 
 Version:
-FY2026 Q3
+2026 Q3
 
 OKR Health:
 On Track
@@ -197,7 +197,7 @@ Organizational Unit:
 Marketing / Audience Development
 
 Version:
-FY2026 Q3
+2026 Q3
 
 Baseline:
 30%
@@ -415,8 +415,8 @@ Last Check-in
 3. Score Key Results
 4. Review Objective outcomes
 5. Capture lessons learned
-6. Close completed work
-7. Identify any OKRs that should move to the next quarter
+6. Set finished items to **Completed**
+7. Identify any OKRs that continue and set them to **Moved to Next Quarter**
 8. Create the next quarter's OKRs
 9. Close the completed quarterly Version after review
 
@@ -430,9 +430,8 @@ Use **Status** to describe the lifecycle of the OKR item itself:
 
 ```text
 Draft                    Being written during quarterly planning
-Needs Review             Submitted for department or leadership review
-Reviewed                 Approved and committed for the quarter
-Closed                   Quarter ended; the item has been scored and closed
+Committed                Reviewed and committed for the quarter
+Completed                Quarter ended; the item has been scored and completed
 Moved to Next Quarter    Carried over; a copy continues in the next quarter
 ```
 
@@ -441,8 +440,8 @@ Draft is the initial status of newly created and imported items.
 Execution progress of Objectives and Key Results is **not** tracked through Status.
 Use OKR Health, Progress %, and Confidence for that.
 
-For OKR Tasks — which represent actual work — an additional **In Progress** status
-between Reviewed and Closed may be used to track execution.
+OKR Tasks use the same four statuses. Execution progress of a Key Result is
+visible through its metric fields, not through additional task statuses.
 
 Use **OKR Health** to describe the likelihood of achieving the intended result:
 
@@ -456,7 +455,7 @@ Off Track
 Example:
 
 ```text
-Status: Reviewed
+Status: Committed
 OKR Health: At Risk
 ```
 
@@ -469,10 +468,9 @@ Statuses and workflows are administered globally by an OpenProject administrator
 **Administration → Work packages → Status**
 
 - Create **Draft**. Check **Default**, so new items start as Draft.
-- Create **Reviewed**.
+- Create **Committed**.
+- Create **Completed**. Check **Closed**.
 - Create **Moved to Next Quarter**. Check **Closed**.
-- Reuse the existing **Needs Review** and **Closed** statuses.
-  **Closed** must have its **Closed** flag checked.
 
 Note: the default status applies to the whole OpenProject instance, not only to
 OKR types. Every newly created work package in every project will start as Draft.
@@ -491,9 +489,8 @@ role that manages OKRs:
 2. Allow these transitions:
 
 ```text
-Draft         → Needs Review
-Needs Review  → Draft, Reviewed
-Reviewed      → Closed, Moved to Next Quarter
+Draft      → Committed
+Committed  → Draft, Completed, Moved to Next Quarter
 ```
 
 A status is only offered for a type when the type's workflow uses it, and the
@@ -515,15 +512,15 @@ matter (inherited by every item):
 
 ```text
 ---
-Version: FY2026 Q3
-Status: Needs Review
+Version: 2026 Q3
+Status: Committed
 ---
 ```
 
 or per item, with its own attribute bullet:
 
 ```text
-- Status: Needs Review
+- Status: Committed
 ```
 
 If neither Draft nor an explicit status applies (for example the Draft status
