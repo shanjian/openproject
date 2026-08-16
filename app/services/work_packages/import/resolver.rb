@@ -79,7 +79,7 @@ module WorkPackages
       private
 
       def resolve_node(node) # rubocop:disable Metrics/AbcSize,Metrics/PerceivedComplexity
-        type = @project.types.find_by(name: TYPE_NAME_ALIASES.fetch(node.type_name, node.type_name))
+        type = resolve_type(node.type_name)
 
         if type.nil?
           message = "unknown or disabled work package type #{node.type_name.inspect}"
@@ -123,6 +123,13 @@ module WorkPackages
         end
 
         ResolvedRow.new(node:, work_package: result.result, attribute_matches:, errors:, department_values:)
+      end
+
+      # A project's own type named exactly "KR" (unrelated to the OKR "Key Result" shorthand)
+      # must win over the alias -- only fall back to it when no type has the literal name.
+      def resolve_type(type_name)
+        @project.types.find_by(name: type_name) ||
+          (TYPE_NAME_ALIASES[type_name] && @project.types.find_by(name: TYPE_NAME_ALIASES[type_name]))
       end
 
       def default_status_id

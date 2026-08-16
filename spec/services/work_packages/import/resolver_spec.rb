@@ -383,6 +383,27 @@ RSpec.describe WorkPackages::Import::Resolver do
       expect(row.work_package.type).to eq(key_result_type)
     end
 
+    context "when the project also has its own type literally named KR" do
+      # A project may enable its own type literally called "KR" (unrelated to the OKR "Key
+      # Result" shorthand). The exact name must win so that project's own imports keep working
+      # instead of being silently redirected to a different type. `literal_kr_type` is enabled
+      # on `project` from the start (rather than added to an already-created project) so the
+      # contract's own-project.types lookup, evaluated during #call, sees it too.
+      let!(:literal_kr_type) { create(:type, name: "KR") }
+      let(:project) do
+        create(:project, types: [key_result_type, literal_kr_type],
+                         member_with_permissions: { sam => %i[add_work_packages work_package_assigned] })
+      end
+
+      it "resolves to the literal type, not the alias target" do
+        doc = document("# KR: Ship the report\n")
+        row = described_class.new(project:, user: sam).call(doc).result.first
+
+        expect(row.errors).to be_empty
+        expect(row.work_package.type).to eq(literal_kr_type)
+      end
+    end
+
     it "resolves every custom field to its stored value" do
       doc = document(<<~MD)
         # Key Result: Increase annual renewals from 65% to 75%
