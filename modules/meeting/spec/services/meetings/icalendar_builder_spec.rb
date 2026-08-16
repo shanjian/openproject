@@ -439,6 +439,30 @@ RSpec.describe Meetings::IcalendarBuilder,
       end
     end
 
+    context "when the caller cancels an active (not-yet-ended) series" do
+      subject(:builder) { described_class.new(timezone:) }
+
+      let(:parsed_calendar) { Icalendar::Calendar.parse(builder.to_ical).first }
+
+      it "marks every VEVENT in the payload CANCELLED, not just the series master" do
+        # REGRESSION: RecurringMeetings::DeleteService cancelling a series that
+        # hasn't ended yet builds this exact payload (MeetingMailer.cancelled_series
+        # -> RecurringMeetings::ICalService#generate_series(cancelled: true) ->
+        # #add_series_event). third_occurence is instantiated but never individually
+        # cancelled, so before the fix its override VEVENT stayed CONFIRMED inside a
+        # METHOD:CANCEL payload -- a client honoring the master's CANCELLED status
+        # could still leave that occurrence behind on the calendar.
+        builder.add_series_event(recurring_meeting:, cancelled: true)
+
+        master = parsed_calendar.events.find { |e| e.rrule.present? }
+        overrides = parsed_calendar.events.select { |e| e.recurrence_id.present? }
+
+        expect(master.status).to eq("CANCELLED")
+        expect(overrides).not_to be_empty
+        expect(overrides.map(&:status)).to all(eq("CANCELLED"))
+      end
+    end
+
     context "when current user has accepted all invitations" do
       subject(:builder) do
         described_class.new(timezone:, user: user1)
@@ -748,6 +772,18 @@ RSpec.describe Meetings::IcalendarBuilder,
       # user 2 has declined the single occurrence via interim response
       user2_single = single_recurrence_event.attendee.find { |a| a.to_s.include?(user2.mail) }
       expect(user2_single.ical_params["partstat"]).to eq(["DECLINED"])
+    end
+
+    it "marks the interim-response virtual event CANCELLED too when the series is cancelled" do
+      # REGRESSION: same METHOD:CANCEL/CONFIRMED-VEVENT mismatch as the
+      # instantiated-occurrence case, but for the virtual events synthesized from
+      # RecurringMeetingInterimResponse rows (add_virtual_occurences_for_interim_responses
+      # hardcoded CONFIRMED regardless of the caller's cancelled: argument).
+      builder.add_series_event(recurring_meeting:, cancelled: true)
+
+      single_recurrence_event = parsed_calendar.events.find { |e| e.recurrence_id.present? }
+      expect(single_recurrence_event).to be_present
+      expect(single_recurrence_event.status).to eq("CANCELLED")
     end
   end
 

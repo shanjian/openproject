@@ -119,11 +119,13 @@ module Meetings
         set_excluded_recurrence_dates(event: e, recurring_meeting: recurring_meeting)
       end
 
-      # Add single events for all occurrences
-      add_instantiated_occurrences(recurring_meeting: recurring_meeting)
+      # Add single events for all occurrences. A METHOD:CANCEL payload for the
+      # whole series must cancel every VEVENT it carries, not just the master --
+      # a compliant client is only told to drop what is explicitly CANCELLED.
+      add_instantiated_occurrences(recurring_meeting: recurring_meeting, cancelled:)
 
       # add single events for leftover interim responses
-      add_virtual_occurences_for_interim_responses(recurring_meeting: recurring_meeting)
+      add_virtual_occurences_for_interim_responses(recurring_meeting: recurring_meeting, cancelled:)
     end
 
     def add_single_recurring_occurrence(scheduled_meeting:, cancelled: false) # rubocop:disable Metrics/AbcSize
@@ -377,13 +379,13 @@ module Meetings
     end
 
     # Methods for recurring meetings
-    def add_instantiated_occurrences(recurring_meeting:)
+    def add_instantiated_occurrences(recurring_meeting:, cancelled: false)
       upcoming_instantiated_schedules(recurring_meeting).each do |scheduled_meeting|
-        add_single_recurring_occurrence(scheduled_meeting:)
+        add_single_recurring_occurrence(scheduled_meeting:, cancelled:)
       end
     end
 
-    def add_virtual_occurences_for_interim_responses(recurring_meeting:) # rubocop:disable Metrics/AbcSize
+    def add_virtual_occurences_for_interim_responses(recurring_meeting:, cancelled: false) # rubocop:disable Metrics/AbcSize
       interim_responses_for(recurring_meeting).each do |start_time, responses|
         # Ensure interim responses still match the meeting
         unless recurring_meeting.schedule.occurs_at?(start_time)
@@ -414,7 +416,7 @@ module Meetings
             meeting: recurring_meeting.template,
             override_participation_status: responses.index_by(&:user_id)
           )
-          e.status = "CONFIRMED"
+          e.status = cancelled ? "CANCELLED" : "CONFIRMED"
         end
       end
     end
