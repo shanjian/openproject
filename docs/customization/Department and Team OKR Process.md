@@ -426,14 +426,23 @@ If an unfinished OKR continues into the next quarter, preserve the historical re
 
 OpenProject Status and OKR Health serve different purposes.
 
-Use **Status** to describe the lifecycle of the work:
+Use **Status** to describe the lifecycle of the OKR item itself:
 
 ```text
-New
-In Progress
-Closed
-Moved to Next Quarter
+Draft                    Being written during quarterly planning
+Needs Review             Submitted for department or leadership review
+Reviewed                 Approved and committed for the quarter
+Closed                   Quarter ended; the item has been scored and closed
+Moved to Next Quarter    Carried over; a copy continues in the next quarter
 ```
+
+Draft is the initial status of newly created and imported items.
+
+Execution progress of Objectives and Key Results is **not** tracked through Status.
+Use OKR Health, Progress %, and Confidence for that.
+
+For OKR Tasks — which represent actual work — an additional **In Progress** status
+between Reviewed and Closed may be used to track execution.
 
 Use **OKR Health** to describe the likelihood of achieving the intended result:
 
@@ -447,9 +456,96 @@ Off Track
 Example:
 
 ```text
-Status: In Progress
+Status: Reviewed
 OKR Health: At Risk
 ```
+
+# Configuring the Statuses
+
+Statuses and workflows are administered globally by an OpenProject administrator.
+
+## Step 1 — Create the statuses
+
+**Administration → Work packages → Status**
+
+- Create **Draft**. Check **Default**, so new items start as Draft.
+- Create **Reviewed**.
+- Create **Moved to Next Quarter**. Check **Closed**.
+- Reuse the existing **Needs Review** and **Closed** statuses.
+  **Closed** must have its **Closed** flag checked.
+
+Note: the default status applies to the whole OpenProject instance, not only to
+OKR types. Every newly created work package in every project will start as Draft.
+(Until this change, the instance default was "Needs Review", which is why newly
+imported OKR items appeared with that status.)
+
+## Step 2 — Allow the transitions
+
+**Administration → Work packages → Workflow**
+
+For each OKR type (Strategic Initiative, Objective, Key Result, OKR Task) and each
+role that manages OKRs:
+
+1. Select the type and the role, uncheck "Only display statuses that are used by
+   this type", and click **Edit**.
+2. Allow these transitions:
+
+```text
+Draft         → Needs Review
+Needs Review  → Draft, Reviewed
+Reviewed      → Closed, Moved to Next Quarter
+```
+
+A status is only offered for a type when the type's workflow uses it, and the
+status dropdown of a new work package only offers the default status plus the
+statuses reachable from it. The workflow above is what makes the whole
+lifecycle selectable.
+
+The **Copy** function on the workflow page copies a finished workflow to the
+other OKR types and roles.
+
+## Step 3 — Status of imported OKRs
+
+The markdown import automatically gives every item the **Draft** status, as
+long as a status with that exact name exists and is part of the item type's
+workflow. No front matter is needed for this.
+
+A document can still choose a different status explicitly — once in the front
+matter (inherited by every item):
+
+```text
+---
+Version: FY2026 Q3
+Status: Needs Review
+---
+```
+
+or per item, with its own attribute bullet:
+
+```text
+- Status: Needs Review
+```
+
+If neither Draft nor an explicit status applies (for example the Draft status
+has not been created yet, or it is not in the type's workflow), the item falls
+back to the instance default status.
+
+# Duplicate Protection on Import
+
+The import skips any item whose **Subject and Organizational Unit** (compared
+case-insensitively on the subject) match:
+
+- an existing work package in the project, or
+- an earlier item in the same document.
+
+Skipped items are listed as warnings on the preview and on the import result
+page — they do not block the import. Children of a skipped item are attached
+to the already-existing work package instead, so re-importing a corrected or
+extended document adds only what is new.
+
+Because the quarter (Version) is *not* part of the duplicate check, an OKR
+that continues into the next quarter must be given a distinguishable subject
+or be created as a copy manually, per the end-of-quarter process.
 
 # Golden Rule
 

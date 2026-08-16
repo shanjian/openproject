@@ -191,12 +191,15 @@ Use:
 - **At Risk** — target is still achievable, but attention or intervention is needed
 - **Off Track** — target is unlikely to be achieved without a significant change
 
-OKR Health is different from OpenProject workflow status.
+OKR Health is different from OpenProject workflow status. The workflow status
+describes the lifecycle of the OKR item (Draft → Needs Review → Reviewed →
+Closed / Moved to Next Quarter — see **Department and Team OKR Process**),
+while OKR Health describes the likelihood of achieving the intended result.
 
 For example:
 
 ```text
-Status: In Progress
+Status: Reviewed
 OKR Health: At Risk
 ```
 
