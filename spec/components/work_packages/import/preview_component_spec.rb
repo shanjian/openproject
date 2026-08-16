@@ -44,6 +44,44 @@ RSpec.describe WorkPackages::Import::PreviewComponent, type: :component do
     expect(page).to have_text("Do the thing")
   end
 
+  describe "duplicate notices" do
+    it "renders a skip notice for a row duplicating an existing work package" do
+      row = WorkPackages::Import::Resolver::ResolvedRow.new(
+        node:, work_package: build(:work_package), attribute_matches: [], errors: [],
+        duplicate: { kind: :existing, work_package_id: 123 }
+      )
+      render_inline(described_class.new(rows: [row]))
+
+      expect(page).to have_css(".work-package-import-preview--warning", text: "#123")
+    end
+
+    it "renders a skip notice for a row duplicating an earlier item in the document" do
+      original = WorkPackages::Import::Resolver::ResolvedRow.new(
+        node:, work_package: build(:work_package), attribute_matches: [], errors: []
+      )
+      duplicate_node = WorkPackages::Import::OutlineParser::Node.new(
+        level: 1, type_name: "Task", subject: "Do the thing",
+        attributes: {}, description: "", source_line: 5, parent_index: nil
+      )
+      duplicate = WorkPackages::Import::Resolver::ResolvedRow.new(
+        node: duplicate_node, work_package: build(:work_package), attribute_matches: [], errors: [],
+        duplicate: { kind: :in_document, node_index: 0 }
+      )
+      render_inline(described_class.new(rows: [original, duplicate]))
+
+      expect(page).to have_css(".work-package-import-preview--warning", text: "line 1")
+    end
+
+    it "does not block the confirm button (duplicates are warnings, not errors)" do
+      row = WorkPackages::Import::Resolver::ResolvedRow.new(
+        node:, work_package: build(:work_package), attribute_matches: [], errors: [],
+        duplicate: { kind: :existing, work_package_id: 123 }
+      )
+
+      expect(described_class.new(rows: [row]).any_errors?).to be false
+    end
+  end
+
   describe "#subject_computed?" do
     # Types::ApplyPatterns#apply_patterns (create_service.rb) overwrites `subject` from the
     # type's pattern strictly after save -- the typed heading is real but not what will persist,

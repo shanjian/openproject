@@ -2387,4 +2387,32 @@ RSpec.describe WorkPackages::SetAttributesService,
       expect(work_package.subject).to eq("My custom subject")
     end
   end
+
+  describe "templated description for new work packages" do
+    let(:work_package) { new_work_package }
+    let(:type_with_default) { create(:type, description: "Default description template") }
+
+    context "when no description is given" do
+      let(:call_attributes) { { type: type_with_default } }
+      let(:expected_attributes) { { description: "Default description template" } }
+
+      it_behaves_like "service call", description: "applies the type's default description"
+    end
+
+    context "when skip_templated_description is given" do
+      let(:call_attributes) { { type: type_with_default, skip_templated_description: true } }
+      let(:expected_attributes) { { description: nil } }
+
+      it_behaves_like "service call", description: "leaves the description empty"
+    end
+
+    context "when skip_templated_description is given together with a description" do
+      let(:call_attributes) do
+        { type: type_with_default, skip_templated_description: true, description: "From the import document" }
+      end
+      let(:expected_attributes) { { description: "From the import document" } }
+
+      it_behaves_like "service call", description: "keeps the provided description"
+    end
+  end
 end

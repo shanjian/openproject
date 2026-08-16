@@ -33,7 +33,15 @@ module WorkPackages
     class Resolver
       class AttributeError < StandardError; end
 
-      ResolvedRow = Struct.new(:node, :work_package, :attribute_matches, :errors)
+      ResolvedRow = Struct.new(:node, :work_package, :attribute_matches, :errors,
+                               :duplicate, :department_values)
+
+      # Imported items default to this status (when the instance has one) instead of the
+      # instance-wide default status. An explicit `Status:` attribute in the document wins.
+      # Note that SetAttributesService#reassign_invalid_status_if_type_changed still reverts
+      # any status that is not part of the item type's workflows (or the instance default),
+      # so "Draft" must be included in the OKR types' workflows to actually stick.
+      DEFAULT_STATUS_NAME = "Draft"
 
       BUILTIN_ATTRIBUTE_KEYS = {
         "Accountable" => :responsible_id,
@@ -57,7 +65,10 @@ module WorkPackages
         @user_lookup = build_user_lookup
         @department_lookup = build_department_lookup
 
-        ServiceResult.success(result: document.nodes.map { |node| resolve_node(node) })
+        rows = document.nodes.map { |node| resolve_node(node) }
+        mark_duplicates(rows)
+
+        ServiceResult.success(result: rows)
       end
 
       private
@@ -75,13 +86,19 @@ module WorkPackages
         # @project, set via `project:`) is what WorkPackage#available_custom_fields needs to
         # compute the project- and type-aware set of enabled custom fields.
         work_package = WorkPackage.new(project: @project, type_id: type.id)
-        attributes = { type_id: type.id, subject: node.subject, description: node.description }
+        # skip_templated_description: an imported node without prose must stay without a
+        # description; SetAttributesService would otherwise fill in the type's default text.
+        attributes = { type_id: type.id, subject: node.subject, description: node.description,
+                       skip_templated_description: true }
+        attributes[:status_id] = default_status_id if default_status_id && !node.attributes.key?("Status")
         attribute_matches = []
         errors = []
+        department_values = []
 
         node.attributes.each do |label, raw_value|
           resolved = resolve_attribute(work_package, label, raw_value)
           attributes[resolved[:key]] = resolved[:value]
+          department_values << resolved[:value].to_s if resolved[:department]
           attribute_matches << { label:, formatted: resolved[:formatted] }
         rescue AttributeError => e
           errors << { source_line: node.source_line, message: "#{label}: #{e.message}" }
@@ -97,7 +114,76 @@ module WorkPackages
           end)
         end
 
-        ResolvedRow.new(node:, work_package: result.result, attribute_matches:, errors:)
+        ResolvedRow.new(node:, work_package: result.result, attribute_matches:, errors:, department_values:)
+      end
+
+      def default_status_id
+        return @default_status_id if defined?(@default_status_id)
+
+        @default_status_id = Status.find_by(name: DEFAULT_STATUS_NAME)&.id
+      end
+
+      # Marks rows that duplicate either an existing work package of the project or an earlier
+      # row of the same document, keyed on the department ("Organization Unit") custom field
+      # values plus the case-folded subject. Marked rows are skipped by CreateJob and reported
+      # as warnings; their children are re-parented onto the duplicate's target.
+      def mark_duplicates(rows) # rubocop:disable Metrics/AbcSize
+        keyed = []
+        rows.each_with_index do |row, index|
+          keyed << [dedup_key(row), row, index] if row.work_package && row.node.subject.present?
+        end
+        return if keyed.empty?
+
+        existing = existing_work_package_ids_by_key(keyed.map(&:first))
+        seen = {}
+
+        keyed.each do |key, row, index|
+          row.duplicate = duplicate_for(key, existing, seen)
+          seen[key] = index unless row.duplicate
+        end
+      end
+
+      def duplicate_for(key, existing, seen)
+        if (work_package_id = existing[key])
+          { kind: :existing, work_package_id: }
+        elsif (original_index = seen[key])
+          { kind: :in_document, node_index: original_index }
+        end
+      end
+
+      def dedup_key(row)
+        [row.department_values.sort, row.node.subject.downcase]
+      end
+
+      # One batched lookup instead of a query per row: fetch every work package of the project
+      # whose subject case-insensitively matches any subject of the document, then their
+      # department custom values, and index them by the same key #dedup_key produces. The oldest
+      # match wins so re-imports keep pointing children at the original work package.
+      def existing_work_package_ids_by_key(keys) # rubocop:disable Metrics/AbcSize
+        subjects = keys.map(&:last).uniq
+        work_packages = WorkPackage
+                          .where(project: @project)
+                          .where("LOWER(work_packages.subject) IN (?)", subjects)
+                          .order(:id)
+                          .pluck(:id, :subject)
+        return {} if work_packages.empty?
+
+        department_values = department_values_by_work_package_id(work_packages.map(&:first))
+
+        work_packages.each_with_object({}) do |(id, subject), result|
+          key = [(department_values[id] || []).map(&:last).sort, subject.downcase]
+          result[key] ||= id
+        end
+      end
+
+      def department_values_by_work_package_id(work_package_ids)
+        CustomValue
+          .where(customized_type: "WorkPackage",
+                 customized_id: work_package_ids,
+                 custom_field_id: WorkPackageCustomField.where(field_format: "department"))
+          .where.not(value: [nil, ""])
+          .pluck(:customized_id, :value)
+          .group_by(&:first)
       end
 
       def resolve_attribute(work_package, label, raw_value)
@@ -144,7 +230,8 @@ module WorkPackages
 
         stored_value = value.is_a?(ActiveRecord::Base) ? value.id.to_s : value
 
-        { key: :"custom_field_#{custom_field.id}", value: stored_value, formatted: format_value(value) }
+        { key: :"custom_field_#{custom_field.id}", value: stored_value, formatted: format_value(value),
+          department: custom_field.department? }
       end
 
       def format_value(value)

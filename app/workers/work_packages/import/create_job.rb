@@ -54,8 +54,8 @@ module WorkPackages
         # `Exports::ExportJob` uses around its own `upsert_status` calls.
         User.execute_as(import_run.user) do
           WorkPackage.transaction do
-            created_ids = create_tree!
-            import_run.update!(status: :succeeded, created_work_package_ids: created_ids)
+            created_ids, warnings = create_tree!
+            import_run.update!(status: :succeeded, created_work_package_ids: created_ids, warnings:)
             upsert_status(status: :success)
           end
         rescue CreationFailed => e
@@ -97,27 +97,76 @@ module WorkPackages
         raise CreationFailed.from_error(resolution.errors.first) if resolution.failure?
 
         rows = resolution.result
-        first_row_error = rows.flat_map(&:errors).first
+        # Rows marked as duplicates are skipped, so their resolution errors must not block the
+        # import -- nothing about them will be created.
+        first_row_error = rows.reject(&:duplicate).flat_map(&:errors).first
         raise CreationFailed.from_error(first_row_error) if first_row_error
 
         created_ids = []
+        # Distinct from created_ids (which feeds the run record and the undo link, and must
+        # never contain pre-existing work packages): effective_ids maps every node index to
+        # the work package that stands in for it as a parent -- the created one, or the
+        # duplicate's target for skipped rows.
+        effective_ids = []
+        warnings = []
 
         rows.each_with_index do |row, index|
-          parent_id = row.node.parent_index && created_ids[row.node.parent_index]
+          if row.duplicate
+            effective_ids[index] = duplicate_target_id(row, effective_ids)
+            warnings << duplicate_warning(row, rows)
+            next
+          end
 
+          parent_id = row.node.parent_index && effective_ids[row.node.parent_index]
+
+          # skip_templated_description must be repeated here: CreateService runs its own
+          # SetAttributesService pass, which would re-apply the type's default description
+          # to the (deliberately) blank description the Resolver produced.
           result = WorkPackages::CreateService
             .new(user: import_run.user)
-            .call(work_package: row.work_package, parent_id:, send_notifications: false)
+            .call(work_package: row.work_package, parent_id:, send_notifications: false,
+                  skip_templated_description: true)
 
           if result.failure?
             raise CreationFailed.from_error({ source_line: row.node.source_line,
                                               message: result.errors.full_messages.join(", ") })
           end
 
-          created_ids[index] = result.result.id
+          effective_ids[index] = result.result.id
+          created_ids << result.result.id
         end
 
-        created_ids
+        [created_ids, warnings]
+      end
+
+      def duplicate_target_id(row, effective_ids)
+        case row.duplicate[:kind]
+        when :existing
+          row.duplicate[:work_package_id]
+        when :in_document
+          # The original may itself have been a duplicate of an existing work package;
+          # effective_ids already resolved that chain, since rows are processed in order
+          # and a duplicate always points at an earlier index.
+          effective_ids[row.duplicate[:node_index]]
+        end
+      end
+
+      def duplicate_warning(row, rows)
+        { source_line: row.node.source_line, message: duplicate_warning_message(row, rows) }
+      end
+
+      def duplicate_warning_message(row, rows) # rubocop:disable Metrics/AbcSize
+        if row.duplicate[:kind] == :existing
+          I18n.t("work_packages.import.warnings.duplicate_existing",
+                 line: row.node.source_line,
+                 subject: row.node.subject,
+                 id: row.duplicate[:work_package_id])
+        else
+          I18n.t("work_packages.import.warnings.duplicate_in_document",
+                 line: row.node.source_line,
+                 subject: row.node.subject,
+                 original_line: rows[row.duplicate[:node_index]].node.source_line)
+        end
       end
     end
   end

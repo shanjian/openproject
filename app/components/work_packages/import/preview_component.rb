@@ -55,6 +55,15 @@ module WorkPackages
         row.work_package.type&.enabled_patterns&.key?(:subject) || false
       end
 
+      def duplicate_notice(row)
+        if row.duplicate[:kind] == :existing
+          t("work_packages.import.preview.duplicate_existing", id: row.duplicate[:work_package_id])
+        else
+          t("work_packages.import.preview.duplicate_in_document",
+            line: rows[row.duplicate[:node_index]].node.source_line)
+        end
+      end
+
       private
 
       attr_reader :rows

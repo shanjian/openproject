@@ -43,6 +43,12 @@ See COPYRIGHT and LICENSE files for more details.
         <% end %>
       </ul>
 
+      <% if row.duplicate %>
+        <p class="work-package-import-preview--warning">
+          <%= duplicate_notice(row) %>
+        </p>
+      <% end %>
+
       <% row.errors.each do |error| %>
         <p class="work-package-import-preview--error">
           <%= t("work_packages.import.preview.error_on_line", line: error[:source_line], message: error[:message]) %>

@@ -1133,11 +1133,17 @@ en:
       preview:
         computed_on_creation: "computed on creation"
         error_on_line: "Line %{line}: %{message}"
+        duplicate_existing: "Will be skipped: work package #%{id} already has this subject and organizational unit. Children are attached to it instead."
+        duplicate_in_document: "Will be skipped: duplicates the item on line %{line}. Children are attached to that item instead."
       show:
         title: "Import result"
         status: "Status: %{status}"
         undo: "Undo this import"
         undo_confirm: "This will delete every work package this import created. Continue?"
+        skipped_title: "Skipped as duplicates (same subject and organizational unit):"
+      warnings:
+        duplicate_existing: 'Line %{line}: "%{subject}" was skipped — work package #%{id} already has this subject and organizational unit. Children were attached to it instead.'
+        duplicate_in_document: 'Line %{line}: "%{subject}" was skipped — it duplicates the item on line %{original_line}. Children were attached to that item instead.'
 
     datepicker_modal:
       banner:
