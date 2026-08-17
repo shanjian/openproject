@@ -274,6 +274,9 @@ en:
       closed:
         header: "Closed: Meeting '%{title}'"
         summary: "'%{title}' has been closed by %{actor}. Agenda and outcomes are final now."
+      reopened:
+        header: "Reopened: Meeting '%{title}'"
+        summary: "'%{title}' has been reopened by %{actor}."
       participation_digest:
         header: "Responses for '%{title}'"
         summary: "Participants have responded to '%{title}'"
