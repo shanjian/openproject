@@ -288,12 +288,31 @@ RSpec.describe Meeting do
       expect(ActionMailer::Base.deliveries.first.subject).to include("Reopened")
     end
 
+    it "mails the participants when the meeting is reopened into in-progress" do
+      meeting.in_progress!
+      perform_enqueued_jobs
+
+      expect(ActionMailer::Base.deliveries.flat_map(&:to)).to contain_exactly(participant_user.mail)
+      expect(ActionMailer::Base.deliveries.first.subject).to include("Reopened")
+    end
+
     it "sends nothing for a transition to open that did not come from closed" do
       draft_meeting = create(:meeting, project:, notify:, state: "draft")
       create(:meeting_participant, meeting: draft_meeting, user: participant_user, invited: true)
       ActionMailer::Base.deliveries.clear
 
       draft_meeting.open!
+      perform_enqueued_jobs
+
+      expect(ActionMailer::Base.deliveries).to be_empty
+    end
+
+    it "sends nothing for the normal open -> in_progress start-meeting transition" do
+      open_meeting = create(:meeting, project:, notify:, state: "open")
+      create(:meeting_participant, meeting: open_meeting, user: participant_user, invited: true)
+      ActionMailer::Base.deliveries.clear
+
+      open_meeting.in_progress!
       perform_enqueued_jobs
 
       expect(ActionMailer::Base.deliveries).to be_empty

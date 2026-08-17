@@ -137,10 +137,12 @@ class Meeting < ApplicationRecord
   # Covers every close path (side panel, presentation mode).
   after_update :send_closed_mail, if: -> { saved_change_to_state? && closed? }
 
-  # Only the closed -> open transition (the side panel's "Reopen meeting" action).
-  # Other paths into "open" (e.g. exiting draft mode) never sent invitations for
-  # this state and have their own separate mailer flows.
-  after_update :send_reopened_mail, if: -> { saved_change_to_state? && saved_change_to_state == %w[closed open] }
+  # Notify for either active state reached from closed. Other paths into "open"
+  # (e.g. exiting draft mode) never sent invitations for this state and have
+  # their own separate mailer flows.
+  after_update :send_reopened_mail, if: -> {
+    saved_change_to_state? && saved_change_to_state.in?([%w[closed open], %w[closed in_progress]])
+  }
 
   # Set by Meetings::CancelService/RestoreService, which own the cancelled state
   # (they stamp state_before_cancellation and send the mandatory mails).
