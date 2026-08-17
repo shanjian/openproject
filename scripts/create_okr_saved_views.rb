@@ -105,7 +105,22 @@ safe_col = lambda do |field|
   field.column_name
 end
 
-def create_public_view!(project:, name:, filters:, columns:, failures:, sort_criteria: nil, group_by: nil)
+# Every name/prefix this script ever generates, used below to find and remove stale
+# leftovers (a renamed/removed department, or a department that lost its last team)
+# without touching an unrelated public view someone created by hand in this project.
+MANAGED_VIEW_SINGLETON_NAMES = ["Company Objectives", "Key Results", "At-Risk OKRs"].freeze
+MANAGED_VIEW_PREFIXES = ["Department Objectives - ", "Team Objectives - "].freeze
+
+def managed_view_name?(name)
+  MANAGED_VIEW_SINGLETON_NAMES.include?(name) || MANAGED_VIEW_PREFIXES.any? { |prefix| name.start_with?(prefix) }
+end
+
+def create_public_view!(project:, name:, filters:, columns:, failures:, expected:, sort_criteria: nil, group_by: nil)
+  # Recorded unconditionally, even if creation fails below: a transient failure to
+  # regenerate a view must not make reconciliation treat the last-known-good version
+  # of that same view as stale and delete it.
+  expected << name
+
   # Filter hash keys must be symbols (Queries::WorkPackages::FilterSerializer /
   # the filter registry look them up as symbols; string keys are silently ignored).
   symbolized_filters = filters.transform_keys { |k| k.to_s.to_sym }
@@ -144,6 +159,11 @@ end
 # still reflects that the setup is incomplete instead of reading as a clean run.
 view_failures = []
 
+# Every view name this run intends to have exist, used by the reconciliation pass
+# at the end to find and remove stale views this script previously created but no
+# longer regenerates (e.g. a removed department, or one that lost its last team).
+expected_view_names = []
+
 # --- Company Objectives ----------------------------------------------------
 # Items owned directly by Company rather than delegated to a department - an exact
 # match on the Organization Unit field, same mechanism as the Department/Team views
@@ -151,6 +171,7 @@ view_failures = []
 create_public_view!(
   project:,
   failures: view_failures,
+  expected: expected_view_names,
   name: "Company Objectives",
   filters: {
     type_id: { operator: "=", values: [objective_type.id.to_s] },
@@ -174,6 +195,7 @@ departments.each do |department|
   create_public_view!(
     project:,
     failures: view_failures,
+    expected: expected_view_names,
     name: "Department Objectives - #{department.name}",
     filters: {
       type_id: { operator: "=", values: [objective_type.id.to_s] },
@@ -193,6 +215,7 @@ departments.each do |department|
   create_public_view!(
     project:,
     failures: view_failures,
+    expected: expected_view_names,
     name: "Team Objectives - #{department.name}",
     filters: {
       type_id: { operator: "=", values: [objective_type.id.to_s] },
@@ -208,6 +231,7 @@ end
 create_public_view!(
   project:,
   failures: view_failures,
+  expected: expected_view_names,
   name: "Key Results",
   filters: {
     type_id: { operator: "=", values: [key_result_type.id.to_s] },
@@ -225,6 +249,7 @@ if at_risk_option_ids.size == 2
   create_public_view!(
     project:,
     failures: view_failures,
+    expected: expected_view_names,
     name: "At-Risk OKRs",
     filters: {
       version_id: { operator: "=", values: [version.id.to_s] },
@@ -236,6 +261,25 @@ if at_risk_option_ids.size == 2
 else
   found = okr_health_cf.custom_options.where(value: ["At Risk", "Off Track"]).pluck(:value)
   puts "Skipped 'At-Risk OKRs': expected OKR Health options 'At Risk' and 'Off Track', found #{found.inspect}"
+  # Still "expected": a missing OKR Health option is a config problem to fix, not a
+  # reason to delete whatever "At-Risk OKRs" view is already there from a prior run.
+  expected_view_names << "At-Risk OKRs"
+end
+
+# --- Reconciliation: remove stale generated views ---------------------------
+# A department/team renamed, removed, or reparented since the last run leaves behind
+# a same-named public query that this run no longer regenerates (it's not in
+# expected_view_names) - delete it so a stale Department/Team Objectives view can't
+# keep matching the wrong (or no longer existing) department/team forever. Only
+# touches names this script owns (per managed_view_name?), so an unrelated public
+# view someone created by hand in this project is left alone.
+stale_view_names = Query.where(project:, public: true)
+                         .pluck(:name)
+                         .select { |name| managed_view_name?(name) } - expected_view_names
+
+stale_view_names.each do |stale_name|
+  Query.where(project:, name: stale_name, public: true).destroy_all
+  puts "Removed stale view: #{stale_name}"
 end
 
 if view_failures.any?
