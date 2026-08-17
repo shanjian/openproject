@@ -3,14 +3,22 @@
 # in the Company OKRs project.
 #
 # Usage (RPM/packaged install, no Docker):
-#   sudo openproject run bundle exec rails runner scripts/create_okr_saved_views.rb
+#   sudo OKR_VERSION="2026 Q3" openproject run bundle exec rails runner scripts/create_okr_saved_views.rb
 #
-# Or paste the body into an interactive console:
+# (env vars set on the sudo command line this way reach the sudo'd process even though
+# sudo does not forward the calling shell's environment by default)
+#
+# Or paste the body into an interactive console (set ENV["OKR_VERSION"] first):
 #   sudo openproject run bundle exec rails console
 #
 # Safe to re-run: an existing public view with the same name has its filters/columns
 # updated in place rather than being skipped, so column/filter edits here take effect
-# on a re-run.
+# on a re-run. Re-run it:
+#   - every quarter, with the new quarter's OKR_VERSION - views are pinned to whichever
+#     Version name they were last generated with and do not follow a rollover on their own
+#   - whenever a department or team is added, removed, or reparented - the Department/Team
+#     Objectives views below match specific Group ids captured at generation time, so a
+#     hierarchy change is invisible to them until the script runs again
 #
 # Runs as the System user throughout. Query.available_columns / custom-field visibility
 # checks (on_visible_type_and_project) filter through Project.visible(User.current), and
@@ -19,7 +27,13 @@
 # account, so Project.visible takes admins' fast-path (sees everything).
 
 PROJECT_IDENTIFIER = "company-okrs"
-VERSION_NAME = "2026 Q3"
+
+# No hardcoded default: a stale fallback here would let a re-run after quarter rollover
+# silently keep targeting the closed quarter instead of failing loudly.
+VERSION_NAME = ENV.fetch("OKR_VERSION") do
+  raise "Set OKR_VERSION to the quarter these views should target, e.g.:\n  " \
+        'OKR_VERSION="2026 Q4" sudo openproject run bundle exec rails runner scripts/create_okr_saved_views.rb'
+end
 
 User.current = User.system
 
@@ -51,7 +65,9 @@ org_unit_cf     = cf("Organization Unit")   or raise "Custom field 'Organization
 okr_health_cf   = cf("OKR Health")          or raise "Custom field 'OKR Health' not found"
 confidence_cf   = cf("Confidence")
 baseline_cf     = cf("Baseline")
-target_cf       = cf("Target Metric")
+# "Target Metric" is a fallback for older setups; the docs (Required Fields, Executive
+# Review recommended columns) consistently name this field "Target".
+target_cf       = cf("Target") || cf("Target Metric")
 current_cf      = cf("Current Metric")
 progress_cf     = cf("Progress %") || cf("Progress")
 checkin_cf      = cf("Last Check-in")
@@ -62,7 +78,7 @@ checkin_cf      = cf("Last Check-in")
 ACCOUNTABLE_COLUMN = :responsible
 
 named_cfs = { "Organization Unit" => org_unit_cf, "OKR Health" => okr_health_cf,
-              "Confidence" => confidence_cf, "Baseline" => baseline_cf, "Target Metric" => target_cf,
+              "Confidence" => confidence_cf, "Baseline" => baseline_cf, "Target" => target_cf,
               "Current Metric" => current_cf, "Progress %" => progress_cf, "Last Check-in" => checkin_cf }
 
 missing = named_cfs.select { |_, v| v.nil? }.keys
@@ -89,7 +105,7 @@ safe_col = lambda do |field|
   field.column_name
 end
 
-def create_public_view!(project:, name:, filters:, columns:, sort_criteria: nil, group_by: nil)
+def create_public_view!(project:, name:, filters:, columns:, failures:, sort_criteria: nil, group_by: nil)
   # Filter hash keys must be symbols (Queries::WorkPackages::FilterSerializer /
   # the filter registry look them up as symbols; string keys are silently ignored).
   symbolized_filters = filters.transform_keys { |k| k.to_s.to_sym }
@@ -119,8 +135,14 @@ def create_public_view!(project:, name:, filters:, columns:, sort_criteria: nil,
   View.find_or_create_by!(type: "work_packages_table", query:)
   puts "#{action}: #{name}"
 rescue StandardError => e
+  failures << name
   puts "FAILED: #{name} (#{e.class}: #{e.message})"
 end
+
+# Shared across every create_public_view! call below so a failure partway through still
+# lets the remaining views attempt to create/update, while the exit status at the end
+# still reflects that the setup is incomplete instead of reading as a clean run.
+view_failures = []
 
 # --- Company Objectives ----------------------------------------------------
 # Items owned directly by Company rather than delegated to a department - an exact
@@ -128,6 +150,7 @@ end
 # below. No separate "OKR Level" field needed: the tree position already says this.
 create_public_view!(
   project:,
+  failures: view_failures,
   name: "Company Objectives",
   filters: {
     type_id: { operator: "=", values: [objective_type.id.to_s] },
@@ -150,6 +173,7 @@ end
 departments.each do |department|
   create_public_view!(
     project:,
+    failures: view_failures,
     name: "Department Objectives - #{department.name}",
     filters: {
       type_id: { operator: "=", values: [objective_type.id.to_s] },
@@ -168,6 +192,7 @@ departments.each do |department|
 
   create_public_view!(
     project:,
+    failures: view_failures,
     name: "Team Objectives - #{department.name}",
     filters: {
       type_id: { operator: "=", values: [objective_type.id.to_s] },
@@ -182,6 +207,7 @@ end
 # --- Key Results (recommended columns per the docs) -----------------------
 create_public_view!(
   project:,
+  failures: view_failures,
   name: "Key Results",
   filters: {
     type_id: { operator: "=", values: [key_result_type.id.to_s] },
@@ -198,6 +224,7 @@ at_risk_option_ids = okr_health_cf.custom_options.where(value: ["At Risk", "Off 
 if at_risk_option_ids.size == 2
   create_public_view!(
     project:,
+    failures: view_failures,
     name: "At-Risk OKRs",
     filters: {
       version_id: { operator: "=", values: [version.id.to_s] },
@@ -211,4 +238,10 @@ else
   puts "Skipped 'At-Risk OKRs': expected OKR Health options 'At Risk' and 'Off Track', found #{found.inspect}"
 end
 
-puts "Done."
+if view_failures.any?
+  # abort (not just a nonzero `exit`) also prints to stderr, so this surfaces in cron/CI
+  # logs even if stdout is swallowed - a partial setup must not look like a clean run.
+  abort "Done with failures: #{view_failures.join(', ')} - see the FAILED lines above"
+else
+  puts "Done."
+end
