@@ -43,6 +43,12 @@ See COPYRIGHT and LICENSE files for more details.
         <% end %>
       </ul>
 
+      <% if row.node.description.present? %>
+        <%# Shown as the raw text the author typed (markdown untouched), matching what will be
+            stored on the created work package. %>
+        <p class="work-package-import-preview--description" style="white-space: pre-line"><%= row.node.description %></p>
+      <% end %>
+
       <% if row.duplicate %>
         <p class="work-package-import-preview--warning">
           <%= duplicate_notice(row) %>
