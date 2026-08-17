@@ -236,6 +236,28 @@
       />
   </spot-selector-field>
 
+  <spot-selector-field
+    [label]="text.meeting_updated"
+    [control]="form.get('meetingUpdated')">
+    <input
+      slot="input"
+      type="checkbox"
+      formControlName="meetingUpdated"
+      data-qa-global-notification-type="meeting_updated"
+      />
+  </spot-selector-field>
+
+  <spot-selector-field
+    [label]="text.meeting_responses"
+    [control]="form.get('meetingResponses')">
+    <input
+      slot="input"
+      type="checkbox"
+      formControlName="meetingResponses"
+      data-qa-global-notification-type="meeting_responses"
+      />
+  </spot-selector-field>
+
 
   <div class="op-form--section-header">
     <h3 class="op-form--section-header-title">{{ text.projectSpecific.title }}</h3>
