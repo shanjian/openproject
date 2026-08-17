@@ -47,7 +47,7 @@ class MeetingNotificationService
   end
 
   def skip_recipient?(action, recipient)
-    %i[updated closed].include?(action) && opted_in_user_ids.exclude?(recipient.user_id)
+    %i[updated closed reopened].include?(action) && opted_in_user_ids.exclude?(recipient.user_id)
   end
 
   # The meeting_updated preference is global-only by design: project-scoped rows

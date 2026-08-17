@@ -134,8 +134,13 @@ class Meeting < ApplicationRecord
     saved_change_to_start_time? || saved_change_to_duration? || saved_change_to_location? || saved_change_to_title?
   }
 
-  # Covers every close path (side panel, presentation mode). Reopening sends nothing.
+  # Covers every close path (side panel, presentation mode).
   after_update :send_closed_mail, if: -> { saved_change_to_state? && closed? }
+
+  # Only the closed -> open transition (the side panel's "Reopen meeting" action).
+  # Other paths into "open" (e.g. exiting draft mode) never sent invitations for
+  # this state and have their own separate mailer flows.
+  after_update :send_reopened_mail, if: -> { saved_change_to_state? && saved_change_to_state == %w[closed open] }
 
   # Set by Meetings::CancelService/RestoreService, which own the cancelled state
   # (they stamp state_before_cancellation and send the mandatory mails).
@@ -391,6 +396,16 @@ class Meeting < ApplicationRecord
     return if template?
 
     MeetingNotificationService.new(self).call(:closed)
+  end
+
+  # Informational like the closed mail: gated by the organizer-level notify?
+  # toggle (inside the service) and the per-user meeting_updated preference.
+  # No .ics attachment: open vs. closed carries no distinct calendar status,
+  # so there is nothing calendar-side to update.
+  def send_reopened_mail
+    return if template?
+
+    MeetingNotificationService.new(self).call(:reopened)
   end
 
   def updated_mail_old_values
