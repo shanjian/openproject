@@ -105,14 +105,37 @@ safe_col = lambda do |field|
   field.column_name
 end
 
-# Every name/prefix this script ever generates, used below to find and remove stale
-# leftovers (a renamed/removed department, or a department that lost its last team)
-# without touching an unrelated public view someone created by hand in this project.
+# Every name/prefix this script ever generates. Name alone is not a safe ownership
+# marker - nothing stops someone from creating their own public query called e.g.
+# "Team Objectives - Legal" by hand, and Query has no uniqueness constraint on
+# (project, name, public), so more than one query can share that exact name. The
+# actual "this is ours" marker used everywhere below is `user: User.system`: this
+# script always creates as System (never reassigned by an update), while a human
+# creating a public view through the UI owns it as themselves. Name matching only
+# narrows *which* system-owned queries are in scope; it never substitutes for the
+# ownership check.
 MANAGED_VIEW_SINGLETON_NAMES = ["Company Objectives", "Key Results", "At-Risk OKRs"].freeze
 MANAGED_VIEW_PREFIXES = ["Department Objectives - ", "Team Objectives - "].freeze
 
 def managed_view_name?(name)
   MANAGED_VIEW_SINGLETON_NAMES.include?(name) || MANAGED_VIEW_PREFIXES.any? { |prefix| name.start_with?(prefix) }
+end
+
+# Finds this script's own previously-created query for `name`, if any (scoped to
+# `user: User.system` - see the comment above MANAGED_VIEW_PREFIXES). Warns instead of
+# silently shadowing when a same-named query already exists under a different owner,
+# since create_public_view! will then create a second, separately-named-looking query
+# rather than overwrite someone's manually created view.
+def find_system_query(project:, name:)
+  query = Query.where(project:, name:, public: true, user: User.system).first
+  return query if query
+
+  if Query.where(project:, name:, public: true).where.not(user: User.system).exists?
+    puts "WARNING: a public query named '#{name}' already exists but is not owned by " \
+         "the System user - leaving it untouched and creating a separate System-owned " \
+         "one instead. Rename one of them to avoid two views with the same name."
+  end
+  nil
 end
 
 def create_public_view!(project:, name:, filters:, columns:, failures:, expected:, sort_criteria: nil, group_by: nil)
@@ -138,7 +161,7 @@ def create_public_view!(project:, name:, filters:, columns:, failures:, expected
     show_hierarchies: group_by.nil?
   }
 
-  query = Query.find_by(project:, name:, public: true)
+  query = find_system_query(project:, name:)
   if query
     query.update!(attrs)
     action = "Updated"
@@ -270,15 +293,19 @@ end
 # A department/team renamed, removed, or reparented since the last run leaves behind
 # a same-named public query that this run no longer regenerates (it's not in
 # expected_view_names) - delete it so a stale Department/Team Objectives view can't
-# keep matching the wrong (or no longer existing) department/team forever. Only
-# touches names this script owns (per managed_view_name?), so an unrelated public
-# view someone created by hand in this project is left alone.
-stale_view_names = Query.where(project:, public: true)
+# keep matching the wrong (or no longer existing) department/team forever.
+#
+# Scoped to `user: User.system` in addition to managed_view_name?, matching the same
+# lookup this script's own create/update path uses - so this can only ever destroy a
+# query this script itself created. A manually created query that happens to share a
+# managed name (or a name collision between several queries, since Query has no
+# uniqueness constraint on name) is never touched, however it's named.
+stale_view_names = Query.where(project:, public: true, user: User.system)
                          .pluck(:name)
                          .select { |name| managed_view_name?(name) } - expected_view_names
 
 stale_view_names.each do |stale_name|
-  Query.where(project:, name: stale_name, public: true).destroy_all
+  Query.where(project:, name: stale_name, public: true, user: User.system).destroy_all
   puts "Removed stale view: #{stale_name}"
 end
 
