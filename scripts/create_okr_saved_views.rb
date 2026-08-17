@@ -29,12 +29,14 @@ version = Version.find_by!(project:, name: VERSION_NAME)
 objective_type = Type.find_by!(name: "Objective")
 key_result_type = Type.find_by!(name: "Key Result")
 
-# Departments = Organizational Units at the top of the Department hierarchy
-# (Group.organizational_units is the "Department" custom-field-format scope;
-# top-level = no parent group, matching the flat department examples in the docs).
-# Group's `parent` lives on the separate group_details table (has_details_table),
-# not as a plain column on Group/users, hence where_detail instead of where.
-departments = Group.organizational_units.where_detail(parent_id: nil).order(:lastname)
+# "Company" is the actual root of the Department hierarchy (Group.organizational_units
+# is the "Department" custom-field-format scope), with departments like Marketing/
+# Editorial/Technology as its direct children and teams as their direct children in turn.
+# Looked up by name, same as the cf() custom-field lookups below, since these Groups are
+# all created by hand in the Admin UI - there's no seeder/migration guaranteeing an id.
+company = Group.organizational_units.find_by(name: "Company") or
+  raise "Department 'Company' not found - it must be the root of the Department hierarchy"
+departments = company.children.order(:lastname)
 
 # Custom fields are looked up by name, scoped to WorkPackageCustomField so a
 # same-named field on another customized class (Group/Project/User/Version/...)
@@ -120,32 +122,29 @@ rescue StandardError => e
   puts "FAILED: #{name} (#{e.class}: #{e.message})"
 end
 
-# --- Company Objectives ---------------------------------------------------
-okr_level_cf = cf("OKR Level")
-if okr_level_cf
-  company_option_id = okr_level_cf.custom_options.find_by(value: "Company")&.id
-  if company_option_id
-    create_public_view!(
-      project:,
-      name: "Company Objectives",
-      filters: {
-        type_id: { operator: "=", values: [objective_type.id.to_s] },
-        okr_level_cf.column_name.to_sym => { operator: "=", values: [company_option_id.to_s] },
-        version_id: { operator: "=", values: [version.id.to_s] }
-      },
-      columns: [safe_col.call(org_unit_cf), :subject, :id, :status, ACCOUNTABLE_COLUMN,
-                safe_col.call(confidence_cf), safe_col.call(okr_health_cf)]
-    )
-  else
-    puts "Skipped 'Company Objectives': no 'Company' option found on OKR Level custom field"
-  end
-else
-  puts "Skipped 'Company Objectives': custom field 'OKR Level' not found"
-end
+# --- Company Objectives ----------------------------------------------------
+# Items owned directly by Company rather than delegated to a department - an exact
+# match on the Organization Unit field, same mechanism as the Department/Team views
+# below. No separate "OKR Level" field needed: the tree position already says this.
+create_public_view!(
+  project:,
+  name: "Company Objectives",
+  filters: {
+    type_id: { operator: "=", values: [objective_type.id.to_s] },
+    org_unit_cf.column_name.to_sym => { operator: "=", values: [company.id.to_s] },
+    version_id: { operator: "=", values: [version.id.to_s] }
+  },
+  columns: [safe_col.call(org_unit_cf), :subject, :id, :status, ACCOUNTABLE_COLUMN,
+            safe_col.call(confidence_cf), safe_col.call(okr_health_cf)]
+)
 
-# --- Department Objectives (one view per top-level department) -----------
+# --- Department Objectives & Team Objectives (one pair of views per department) ----
+# Department Objectives: exact match on that department - items owned directly by
+# e.g. Marketing rather than by one of its teams.
+# Team Objectives: "is (any of)" match across the department's direct children - every
+# team under it, without hardcoding team ids or falling back to unreliable manual tagging.
 if departments.none?
-  puts "No top-level departments found (Group.organizational_units.where_detail(parent_id: nil)) - skipping Department Objectives views"
+  puts "No departments found under Company - skipping Department/Team Objectives views"
 end
 
 departments.each do |department|
@@ -155,6 +154,24 @@ departments.each do |department|
     filters: {
       type_id: { operator: "=", values: [objective_type.id.to_s] },
       org_unit_cf.column_name.to_sym => { operator: "=", values: [department.id.to_s] },
+      version_id: { operator: "=", values: [version.id.to_s] }
+    },
+    columns: [safe_col.call(org_unit_cf), :subject, :id, :status, ACCOUNTABLE_COLUMN,
+              safe_col.call(confidence_cf), safe_col.call(okr_health_cf)]
+  )
+
+  team_ids = department.children.order(:lastname).pluck(:id)
+  if team_ids.empty?
+    puts "Skipped 'Team Objectives - #{department.name}': no teams found under this department"
+    next
+  end
+
+  create_public_view!(
+    project:,
+    name: "Team Objectives - #{department.name}",
+    filters: {
+      type_id: { operator: "=", values: [objective_type.id.to_s] },
+      org_unit_cf.column_name.to_sym => { operator: "=", values: team_ids.map(&:to_s) },
       version_id: { operator: "=", values: [version.id.to_s] }
     },
     columns: [safe_col.call(org_unit_cf), :subject, :id, :status, ACCOUNTABLE_COLUMN,

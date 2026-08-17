@@ -351,15 +351,17 @@ Recommended views:
 
 ### Company Objectives
 
+Items owned directly by Company rather than delegated to a department:
+
 ```text
 Type = Objective
-OKR Level = Company
+Organizational Unit = Company
 Version = Current Quarter
 ```
 
 ### Department Objectives
 
-Example:
+Items owned directly by a department (not by one of its teams). One view per department directly under Company:
 
 ```text
 Type = Objective
@@ -378,6 +380,18 @@ Type = Objective
 Organizational Unit = Technology
 Version = Current Quarter
 ```
+
+### Team Objectives
+
+Items owned by a team, one view per department, matching any of that department's direct child teams. Example for Marketing's teams (Audience Development, Retention, Growth):
+
+```text
+Type = Objective
+Organizational Unit = Audience Development OR Retention OR Growth
+Version = Current Quarter
+```
+
+There is no separate "level" to assign by hand - a department's position in the Organizational Unit tree (Company / department / team) is what determines which of these three views it shows up in, so it can't drift out of sync the way a manually-set field could.
 
 ### At-Risk OKRs
 
@@ -407,6 +421,8 @@ Confidence
 OKR Health
 Last Check-in
 ```
+
+The "OKR Level" custom field is no longer used by any of these views and can be deleted via **Administration → Custom fields**.
 
 # End-of-Quarter Process
 
