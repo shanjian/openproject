@@ -33,6 +33,7 @@ group :opf_plugins do
   gem 'grids',                                 path: 'modules/grids'
   gem 'my_page',                               path: 'modules/my_page'
   gem 'openproject-boards',                    path: 'modules/boards'
+  gem 'openproject-okr_board',                 path: 'modules/okr_board'
   gem 'overviews',                             path: 'modules/overviews'
   gem 'budgets',                               path: 'modules/budgets'
   gem 'openproject-meeting',                   path: 'modules/meeting'

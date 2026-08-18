@@ -1,0 +1,9 @@
+en:
+  project_module_okr_board: "OKR Board"
+  permission_show_okr_board: "View OKR Board"
+  okr_board:
+    label_okr_board: "OKR Board"
+    empty_state:
+      title: "OKR Board isn't set up yet"
+      missing_custom_field: "This project needs exactly one custom field with format \"Department\" enabled on an active work package type."
+      missing_version: "This project needs at least one Version."
