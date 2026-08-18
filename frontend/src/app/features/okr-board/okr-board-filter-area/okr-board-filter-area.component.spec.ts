@@ -19,4 +19,14 @@ describe('OkrBoardFilterAreaComponent', () => {
     expect(el.querySelector('okr-board-filter')).not.toBeNull();
     expect(el.querySelector('op-filter-container')).not.toBeNull();
   });
+
+  it('enables the native filter container\'s own toggle button', () => {
+    // WorkPackageFilterContainerComponent's `showFilterButton` input defaults to false,
+    // and its filter panel only ever becomes visible via that button's click handler
+    // (WorkPackageFiltersService#toggleVisibility()) -- without this binding there is no
+    // way for a user to ever open the native filter panel this component wraps.
+    const el:HTMLElement = fixture.nativeElement as HTMLElement;
+    const container = el.querySelector('op-filter-container') as unknown as { showFilterButton:boolean };
+    expect(container.showFilterButton).toBe(true);
+  });
 });

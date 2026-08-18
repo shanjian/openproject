@@ -22,11 +22,20 @@ RSpec.describe "OKR Board page", :js do
     expect(page).to have_css(".work-package-table--container", wait: 10)
   end
 
-  it "keeps the native filter panel visible alongside the quick filters" do
+  it "keeps the native filter panel reachable alongside the quick filters" do
     visit project_okr_board_path(project_id: project.id)
 
     expect(page).to have_css("op-filter-container", wait: 10)
     expect(page).to have_css("okr-board-filter")
+
+    # WorkPackageFilterContainerComponent's own filter panel is hidden until its toggle
+    # button is clicked (WorkPackageFiltersService#visible defaults to false) - asserting
+    # the container element exists is not enough to prove a user can actually reach the
+    # native filters, so open it and confirm the real filter list appears.
+    expect(page).to have_css(".advanced-filters--toggle", wait: 10)
+    find(".advanced-filters--toggle").click
+
+    expect(page).to have_css("#query_form_content op-query-filters")
   end
 
   it "restores the selected unit and version after a reload" do
