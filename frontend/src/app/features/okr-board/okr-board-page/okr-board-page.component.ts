@@ -68,7 +68,7 @@ export class OkrBoardPageComponent extends PartitionedQuerySpacePageComponent {
       });
     }
 
-    items.push({ href: '', text: this.I18nOwn.t('okr_board.label_okr_board') });
+    items.push({ href: '', text: this.I18nOwn.t('js.okr_board.label_okr_board') });
 
     return items;
   }

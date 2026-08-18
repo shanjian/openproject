@@ -82,6 +82,7 @@ export const OPENPROJECT_ROUTES:Ng2StateDeclaration[] = [
   },
   {
     name: 'okr-board.**',
+    parent: 'optional_project',
     url: '/okr_board',
     loadChildren: () => import('../../features/okr-board/openproject-okr-board.module').then((m) => m.OpenprojectOkrBoardModule),
   },

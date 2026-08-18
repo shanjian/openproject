@@ -17,6 +17,6 @@ RSpec.describe "OKR Board page", js: true do
   it "renders the work package table" do
     visit project_okr_board_path(project_id: project.id)
 
-    expect(page).to have_selector(".wp-table--container", wait: 10)
+    expect(page).to have_selector(".work-package-table--container", wait: 10)
   end
 end

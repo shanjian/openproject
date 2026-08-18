@@ -39,8 +39,9 @@ export const OKR_BOARD_ROUTES:Ng2StateDeclaration[] = [
   {
     name: 'okr-board',
     parent: 'optional_project',
-    url: '/okr_board/?query_props',
+    url: '/okr_board?query_props',
     component: OkrBoardEntryComponent,
+    redirectTo: 'okr-board.partitioned',
     data: {
       bodyClasses: 'router--okr-board-base',
       menuItem: menuItemClass,
