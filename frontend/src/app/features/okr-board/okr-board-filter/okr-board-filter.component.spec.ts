@@ -265,3 +265,44 @@ describe('OkrBoardFilterComponent - version quick filter', () => {
     expect(removeSpy).toHaveBeenCalledWith('version');
   });
 });
+
+describe('OkrBoardFilterComponent - version quick filter error handling', () => {
+  let fixture:ComponentFixture<OkrBoardFilterComponent>;
+  let component:OkrBoardFilterComponent;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      declarations: [OkrBoardFilterComponent],
+      imports: [FormsModule],
+      providers: [
+        {
+          provide: ApiV3Service,
+          useValue: {
+            collectionFromString: () => ({
+              filtered: () => ({
+                get: () => throwError(() => new Error('boom')),
+              }),
+            }),
+          },
+        },
+        {
+          provide: WorkPackageViewFiltersService,
+          useValue: {
+            instantiate: () => ({ currentSchema: { values: { allowedValues: { href: '/api/v3/versions' } } } }),
+          },
+        },
+      ],
+    });
+    fixture = TestBed.createComponent(OkrBoardFilterComponent);
+    component = fixture.componentInstance;
+  });
+
+  it('logs and keeps the empty state when loading the versions fails', async () => {
+    spyOn(console, 'error');
+
+    await expectAsync(component.loadVersions()).toBeResolved();
+
+    expect(component.versions).toEqual([]);
+    expect(console.error).toHaveBeenCalled();
+  });
+});

@@ -163,14 +163,20 @@ export class OkrBoardFilterComponent implements OnInit {
       return;
     }
 
-    this.versions = await firstValueFrom(
-      getPaginatedResults<HalResource>(
-        (params) => (this.apiV3Service.collectionFromString(allowedValues.href) as
-          ApiV3ResourceCollection<HalResource, ApiV3Resource>)
-          .filtered(new ApiV3FilterBuilder(), { pageSize: `${params.pageSize}`, offset: `${params.offset}` })
-          .get(),
-      ),
-    );
+    try {
+      this.versions = await firstValueFrom(
+        getPaginatedResults<HalResource>(
+          (params) => (this.apiV3Service.collectionFromString(allowedValues.href) as
+            ApiV3ResourceCollection<HalResource, ApiV3Resource>)
+            .filtered(new ApiV3FilterBuilder(), { pageSize: `${params.pageSize}`, offset: `${params.offset}` })
+            .get(),
+        ),
+      );
+    } catch (error:unknown) {
+      // Keep the current (empty) state on failure, but surface the error rather
+      // than swallowing it silently.
+      console.error('Failed to load OKR board versions', error);
+    }
   }
 
   onVersionChange(versionId:string|null):void {
