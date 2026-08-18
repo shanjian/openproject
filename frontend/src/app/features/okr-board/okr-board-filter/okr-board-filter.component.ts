@@ -91,10 +91,14 @@ export class OkrBoardFilterComponent implements OnInit {
     // #instantiate() before that resolves throws (see #onReady() usage
     // elsewhere, e.g. filters-tab-inner.component.ts), so wait for it first
     // rather than racing the view's own query bootstrap.
-    void this.wpTableFilters.onReady().then(() => {
-      this.loadOrganizationalUnits();
-      void this.loadVersions();
-    });
+    //
+    // Chained as two independent listeners on the same promise (not sequentially
+    // inside one callback) so that one filter failing to load can never prevent
+    // the other from loading -- see #isFilterAvailable()'s comment for a concrete
+    // case where the department filter is legitimately unavailable.
+    const ready = this.wpTableFilters.onReady();
+    void ready.then(() => this.loadOrganizationalUnits());
+    void ready.then(() => this.loadVersions());
   }
 
   readDepartmentFilterName():string {
@@ -154,7 +158,24 @@ export class OkrBoardFilterComponent implements OnInit {
     // custom_field.column_name). #departmentSchemaName() derives the former from the
     // latter; passing #departmentFilterName directly here would never match any schema
     // and permanently throw at `.getFilter()`.
-    const filter = this.wpTableFilters.instantiate(this.departmentSchemaName());
+    const schemaName = this.departmentSchemaName();
+
+    if (!this.isFilterAvailable(schemaName)) {
+      // #instantiate() below matches only against the view's currently-available filter
+      // schemas; calling it for one that isn't there permanently throws at `.getFilter()`
+      // (no schema would ever match, unlike a temporary/racy absence). Degrade to an
+      // empty picker instead: OkrBoard::Availability#available? only requires a
+      // qualifying department custom field associated with the project, not that its
+      // schema is guaranteed to already be present in #availableFilters by the time this
+      // runs, so this must never be assumed.
+      console.error(
+        `OKR board: department filter schema '${schemaName}' is not among the view's ` +
+        'available filters; leaving the unit picker empty.',
+      );
+      return;
+    }
+
+    const filter = this.wpTableFilters.instantiate(schemaName);
     const allowedValues = filter.currentSchema?.values?.allowedValues as { href:string } | undefined;
 
     // No qualifying department custom field is configured for this project (or its filter
@@ -174,22 +195,34 @@ export class OkrBoardFilterComponent implements OnInit {
         this.topLevelUnits = this.allUnits.filter((unit) => !unit.parent);
         this.childrenIndex = this.buildChildrenIndex(this.allUnits);
         this.syncSelectionFromLiveFilter();
-        // The HTTP response for this HAL collection resolves outside of Angular's zone
-        // (see ApiV3Service's HAL layer), so the assignments above never trigger a
-        // change detection pass on their own -- mirror
-        // WorkPackageFilterContainerComponent#ngOnInit()'s own explicit detectChanges().
-        this.cdRef.detectChanges();
+        // OkrBoardFilterComponent sits inside PartitionedQuerySpacePageComponent, an
+        // OnPush-strategy ancestor. HttpClient callbacks DO run inside Angular's zone (so
+        // a tick() is scheduled), but OnPush makes that tick() skip this whole subtree
+        // unless something has explicitly marked it (or an ancestor) dirty first -- mirror
+        // WorkPackageFilterContainerComponent#ngOnInit()'s own explicit change-detection
+        // call for the same reason.
+        this.cdRef.markForCheck();
       },
       // Keep the current (empty) state on failure, but surface the error rather
       // than swallowing it silently.
       error: (error:unknown) => {
         console.error('Failed to load OKR board organizational units', error);
-        this.cdRef.detectChanges();
+        this.cdRef.markForCheck();
       },
     });
   }
 
   async loadVersions():Promise<void> {
+    if (!this.isFilterAvailable(VERSION_FILTER_NAME)) {
+      // See the comment in #loadOrganizationalUnits() -- guard defensively here too so an
+      // unavailable version filter degrades to an empty picker instead of throwing.
+      console.error(
+        `OKR board: version filter schema '${VERSION_FILTER_NAME}' is not among the ` +
+        'view\'s available filters; leaving the version picker empty.',
+      );
+      return;
+    }
+
     const filter = this.wpTableFilters.instantiate(VERSION_FILTER_NAME);
     const allowedValues = filter.currentSchema?.values?.allowedValues as { href:string } | undefined;
 
@@ -213,10 +246,21 @@ export class OkrBoardFilterComponent implements OnInit {
       // than swallowing it silently.
       console.error('Failed to load OKR board versions', error);
     } finally {
-      // See the comment in #loadOrganizationalUnits() -- the HTTP response resolves
-      // outside Angular's zone, so this needs an explicit change detection pass.
-      this.cdRef.detectChanges();
+      // See the comment in #loadOrganizationalUnits() -- this needs an explicit
+      // change-detection call because of the OnPush ancestor, not a zone escape.
+      this.cdRef.markForCheck();
     }
+  }
+
+  /**
+   * Whether the given filter schema id is currently among the view's available filters.
+   * #instantiate() throws permanently if asked for a schema that isn't -- see the
+   * comment in #loadOrganizationalUnits() -- so it must never be called speculatively;
+   * OkrBoard::Availability#available? guarantees a qualifying department custom field
+   * exists for the project, not that its schema has necessarily reached this list yet.
+   */
+  private isFilterAvailable(schemaId:string):boolean {
+    return this.wpTableFilters.availableFilters.some((filter) => filter.id === schemaId);
   }
 
   onVersionChange(versionId:string|null):void {

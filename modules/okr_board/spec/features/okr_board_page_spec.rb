@@ -9,12 +9,7 @@ RSpec.describe "OKR Board page", js: true do
     project.types << type
     project.enabled_module_names += ["okr_board"]
     project.save!
-    # is_for_all is required: the frontend's first query load has no query id yet, so it
-    # posts to the *global* /api/v3/queries/form (see
-    # spec/requests/api/v3/queries/form_department_filter_spec.rb) -- a project-scoped,
-    # non-is_for_all custom field never reaches that response, so its allowedValues link
-    # (and therefore the quick filter's dropdown options) would silently stay empty.
-    create(:department_wp_custom_field, types: [type], projects: [project], is_for_all: true)
+    create(:department_wp_custom_field, types: [type], projects: [project])
     create(:version, project:)
     login_as(user)
   end
