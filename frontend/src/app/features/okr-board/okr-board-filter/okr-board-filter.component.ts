@@ -145,6 +145,7 @@ export class OkrBoardFilterComponent implements OnInit {
         this.allUnits = allUnits;
         this.topLevelUnits = this.allUnits.filter((unit) => !unit.parent);
         this.childrenIndex = this.buildChildrenIndex(this.allUnits);
+        this.syncSelectionFromLiveFilter();
       },
       // Keep the current (empty) state on failure, but surface the error rather
       // than swallowing it silently.
@@ -193,6 +194,34 @@ export class OkrBoardFilterComponent implements OnInit {
       filter.operator = filter.findOperator('=')!;
       filter.values = [versionId];
     });
+  }
+
+  syncSelectionFromLiveFilter():void {
+    const filter = this.wpTableFilters.find(this.departmentFilterName);
+    const currentValue = filter?.values?.[0] as string | undefined;
+
+    if (!currentValue) {
+      this.selectedUnitId = null;
+      return;
+    }
+
+    const stillExists = this.allUnitIds().has(currentValue);
+    if (stillExists) {
+      this.selectedUnitId = currentValue;
+      return;
+    }
+
+    // The filter references a unit that no longer exists in the loaded set
+    // (e.g. its Group was deleted). Clear the live filter itself, not just
+    // the displayed selection -- board-filter.component.ts's own
+    // selectedQuickFilter only resets the display, leaving the table
+    // filtered by a dead id. We deliberately don't repeat that here.
+    this.selectedUnitId = null;
+    this.wpTableFilters.remove(this.departmentFilterName);
+  }
+
+  private allUnitIds():Set<string> {
+    return new Set(this.allUnits.map((unit) => unit.id as string));
   }
 
   private buildChildrenIndex(units:HalResource[]):Map<string, string[]> {

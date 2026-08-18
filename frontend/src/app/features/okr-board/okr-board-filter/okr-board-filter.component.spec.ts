@@ -37,7 +37,12 @@ describe('OkrBoardFilterComponent - organizational unit loading', () => {
         },
         {
           provide: WorkPackageViewFiltersService,
-          useValue: { instantiate: () => ({ currentSchema: { values: { allowedValues: { href: '/api/v3/x' } } } }) },
+          useValue: {
+            instantiate: () => ({ currentSchema: { values: { allowedValues: { href: '/api/v3/x' } } } }),
+            // loadOrganizationalUnits() now calls syncSelectionFromLiveFilter() once it
+            // resolves, which needs #find; no live filter value is under test here.
+            find: () => undefined,
+          },
         },
       ],
     });
@@ -235,6 +240,11 @@ describe('OkrBoardFilterComponent - version quick filter', () => {
             // #currentSchema (see query-filter-instance-resource.ts), not a plain #schema
             // property - mirror that shape here rather than the non-existent one.
             instantiate: () => ({ currentSchema: { values: { allowedValues: { href: '/api/v3/versions' } } } }),
+            // ngOnInit's own loadOrganizationalUnits() call resolves via this same mocked
+            // collection and then calls syncSelectionFromLiveFilter(), which needs #find;
+            // no live department filter value is under test in this "version quick filter"
+            // suite.
+            find: () => undefined,
             replace: () => undefined,
             remove: () => undefined,
           },
@@ -304,5 +314,55 @@ describe('OkrBoardFilterComponent - version quick filter error handling', () => 
 
     expect(component.versions).toEqual([]);
     expect(console.error).toHaveBeenCalled();
+  });
+});
+
+describe('OkrBoardFilterComponent - stale unit fallback', () => {
+  let fixture:ComponentFixture<OkrBoardFilterComponent>;
+  let component:OkrBoardFilterComponent;
+  let removeSpy:jasmine.Spy;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      declarations: [OkrBoardFilterComponent],
+      providers: [
+        {
+          provide: ApiV3Service,
+          useValue: {
+            collectionFromString: () => ({
+              filtered: () => ({
+                get: () => of({ _embedded: { elements: [group('1', 'Marketing', null)] }, count: 1, total: 1 }),
+              }),
+            }),
+          },
+        },
+        {
+          provide: WorkPackageViewFiltersService,
+          useValue: {
+            // The real QueryFilterInstanceResource exposes the schema's allowedValues via
+            // #currentSchema (see query-filter-instance-resource.ts), not a plain #schema
+            // property - mirror that shape here rather than the non-existent one, so units
+            // actually load and the "999" filter value below is a genuine mismatch against
+            // the loaded set (not a mismatch caused by loading never happening at all).
+            instantiate: () => ({ currentSchema: { values: { allowedValues: { href: '/api/v3/x' } } } }),
+            find: () => ({ values: ['999'] }),
+            remove: () => {},
+            replace: () => {},
+          },
+        },
+      ],
+    });
+    fixture = TestBed.createComponent(OkrBoardFilterComponent);
+    component = fixture.componentInstance;
+    component.departmentFilterName = 'cf_42';
+    removeSpy = spyOn(component.wpTableFilters, 'remove');
+  });
+
+  it('clears the live filter and the displayed selection when the filter value matches no loaded unit', async () => {
+    await component.loadOrganizationalUnits();
+    component.syncSelectionFromLiveFilter();
+
+    expect(component.selectedUnitId).toBeNull();
+    expect(removeSpy).toHaveBeenCalledWith('cf_42');
   });
 });
