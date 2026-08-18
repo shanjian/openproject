@@ -1,8 +1,12 @@
+# frozen_string_literal: true
+
 module OkrBoard
   class PagesController < ApplicationController
     before_action :find_project
     before_action :authorize
     before_action :authorize_work_package_permission, only: %i[index]
+
+    menu_item :okr_board
 
     def index
       if availability.available?

@@ -1,8 +1,10 @@
+# frozen_string_literal: true
+
 require "spec_helper"
 
 RSpec.describe "OKR Board module registration" do
   it "registers the okr_board project module and show_okr_board permission" do
-    expect(OpenProject::AccessControl.modules.map { |m| m[:name] }).to include(:okr_board)
+    expect(OpenProject::AccessControl.modules.pluck(:name)).to include(:okr_board)
     expect(OpenProject::AccessControl.permission(:show_okr_board)).not_to be_nil
     expect(OpenProject::AccessControl.permission(:show_okr_board).project_module).to eq(:okr_board)
   end

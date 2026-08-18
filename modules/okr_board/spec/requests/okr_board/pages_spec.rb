@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "spec_helper"
 
 RSpec.describe "GET /projects/:project_id/okr_board" do
@@ -18,7 +20,7 @@ RSpec.describe "GET /projects/:project_id/okr_board" do
 
       expect(last_response).to have_http_status(:ok)
       expect(last_response.body).to include(ERB::Util.html_escape(I18n.t("okr_board.empty_state.title")))
-      expect(last_response.body).not_to include("angular-app-boot")
+      expect(last_response.body).not_to include("openproject-base")
     end
   end
 
@@ -31,11 +33,12 @@ RSpec.describe "GET /projects/:project_id/okr_board" do
       create(:version, project:)
     end
 
-    it "renders the Angular bootstrap layout" do
+    it "renders the Angular bootstrap layout", :skip_xhr_header do
       get project_okr_board_path(project_id: project.id)
 
       expect(last_response).to have_http_status(:ok)
       expect(last_response.body).not_to include(ERB::Util.html_escape(I18n.t("okr_board.empty_state.title")))
+      expect(last_response.body).to include("openproject-base")
     end
 
     it "exposes the qualifying custom field's filter id to the frontend" do

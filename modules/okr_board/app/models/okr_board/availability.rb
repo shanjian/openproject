@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module OkrBoard
   class Availability
     def initialize(project)
@@ -9,9 +11,10 @@ module OkrBoard
         .all_work_package_custom_fields
         .where(field_format: "department")
         .merge(WorkPackageCustomField.joins(:types).where(types: { id: @project.types }))
+        .merge(WorkPackageCustomField.filter)
         .distinct
 
-      candidates.count == 1 ? candidates.first : nil
+      candidates.one? ? candidates.first : nil
     end
 
     def available?

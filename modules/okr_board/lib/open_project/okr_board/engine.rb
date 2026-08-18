@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module OpenProject::OkrBoard
   class Engine < ::Rails::Engine
     engine_name :openproject_okr_board

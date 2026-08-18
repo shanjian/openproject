@@ -1,6 +1,8 @@
+# frozen_string_literal: true
+
 require "spec_helper"
 
-RSpec.describe "OKR Board page", js: true do
+RSpec.describe "OKR Board page", :js do
   shared_let(:project) { create(:project) }
   shared_let(:type) { create(:type) }
   let(:user) { create(:user, member_with_permissions: { project => %i[show_okr_board view_work_packages] }) }
@@ -17,14 +19,14 @@ RSpec.describe "OKR Board page", js: true do
   it "renders the work package table" do
     visit project_okr_board_path(project_id: project.id)
 
-    expect(page).to have_selector(".work-package-table--container", wait: 10)
+    expect(page).to have_css(".work-package-table--container", wait: 10)
   end
 
   it "keeps the native filter panel visible alongside the quick filters" do
     visit project_okr_board_path(project_id: project.id)
 
-    expect(page).to have_selector("op-filter-container", wait: 10)
-    expect(page).to have_selector("okr-board-filter")
+    expect(page).to have_css("op-filter-container", wait: 10)
+    expect(page).to have_css("okr-board-filter")
   end
 
   it "restores the selected unit and version after a reload" do

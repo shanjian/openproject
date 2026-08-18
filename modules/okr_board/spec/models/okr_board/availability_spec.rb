@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "spec_helper"
 
 RSpec.describe OkrBoard::Availability do
@@ -43,6 +45,20 @@ RSpec.describe OkrBoard::Availability do
     let!(:custom_field) do
       create(:department_wp_custom_field, types: [], projects: [project])
     end
+
+    it "does not count it as qualifying" do
+      expect(availability.qualifying_custom_field).to be_nil
+      expect(availability.available?).to be false
+    end
+  end
+
+  context "with a department-format custom field that is project-associated and type-activated " \
+          "but not usable as a filter" do
+    let!(:custom_field) do
+      create(:department_wp_custom_field, types: [type], projects: [project], is_filter: false)
+    end
+
+    before { create(:version, project:) }
 
     it "does not count it as qualifying" do
       expect(availability.qualifying_custom_field).to be_nil
