@@ -1,0 +1,14 @@
+<%#-- modules/okr_board/app/views/okr_board/pages/empty_state.html.erb --%>
+<% html_title(t("okr_board.label_okr_board")) -%>
+
+<div class="generic-table--container">
+  <h2><%= t("okr_board.empty_state.title") %></h2>
+  <ul>
+    <% unless availability.qualifying_custom_field %>
+      <li><%= t("okr_board.empty_state.missing_custom_field") %></li>
+    <% end %>
+    <% unless @project.shared_versions.exists? %>
+      <li><%= t("okr_board.empty_state.missing_version") %></li>
+    <% end %>
+  </ul>
+</div>
