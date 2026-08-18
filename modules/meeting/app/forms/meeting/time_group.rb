@@ -119,18 +119,23 @@ class Meeting::TimeGroup < ApplicationForm
 
   private
 
+  # The curated list, plus - when the meeting's own zone is not in it - one extra
+  # option for that zone. Without the extra option nothing would be selected and
+  # an unmodified browser submit would silently rewrite the meeting's zone to the
+  # first option, the regression a6d027e300c fixed.
   def available_time_zones
-    @available_time_zones ||= UserPreferences::UpdateContract
-      .assignable_time_zones
-      .group_by { it.tzinfo.canonical_zone }
-      .map { |canonical_zone, included_zones| build_time_zone_entry(canonical_zone, included_zones) }
+    @available_time_zones ||= begin
+      options = Meeting::TimeZones.options
+      extra = uncurated_time_zone_option(options)
+
+      extra.nil? ? options : options + [extra]
+    end
   end
 
-  def build_time_zone_entry(canonical_zone, zones)
-    zone_names = zones.map(&:name).join(", ")
-    offset = ActiveSupport::TimeZone.seconds_to_utc_offset(canonical_zone.base_utc_offset)
+  def uncurated_time_zone_option(options)
+    return if options.any? { |(_label, value)| value == @initial_time_zone }
 
-    ["(UTC#{offset}) #{zone_names}", canonical_zone.identifier]
+    Meeting::TimeZones.uncurated_option(@initial_time_zone)
   end
 
   def initial_time_zone_value(meeting)
@@ -144,7 +149,7 @@ class Meeting::TimeGroup < ApplicationForm
       end
 
     # The select's option values are canonical tzinfo identifiers
-    # (`build_time_zone_entry`), but `ActiveSupport::TimeZone#name` returns
+    # (`Meeting::TimeZones`), but `ActiveSupport::TimeZone#name` returns
     # whichever string was used to look the zone up - e.g. "UTC" for
     # `ActiveSupport::TimeZone["UTC"]`, whose canonical identifier is
     # "Etc/UTC". Comparing on `#name` left no option selected for any zone

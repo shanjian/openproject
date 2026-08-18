@@ -73,7 +73,7 @@ RSpec.describe "Meeting time_zone select field",
 
     expect(response.body).to include('name="meeting[time_zone]"')
     expect(response.body).to include(
-      '<option selected="selected" value="America/New_York">(UTC-05:00) Eastern Time (US &amp; Canada)</option>'
+      '<option selected="selected" value="America/New_York">(UTC-05:00) New York (US East)</option>'
     )
     expect(response.body).to include(I18n.t("recurring_meeting.time_zone_difference_banner.title"))
   end
@@ -191,6 +191,39 @@ RSpec.describe "Meeting time_zone select field",
 
       expect(response).to have_http_status(:ok)
       expect(response.body).to include("EDT")
+    end
+  end
+
+  describe "curated time zone list (WP 83777 R1)" do
+    it "labels US East by its city, so typing \"New York\" finds it - the full " \
+       "ActiveSupport list only ever called it \"Eastern Time (US & Canada)\"" do
+      get new_dialog_project_meetings_path(project), as: :turbo_stream
+
+      expect(response.body).to include('<option value="America/New_York">(UTC-05:00) New York (US East)</option>')
+      expect(response.body).not_to include("Eastern Time (US &amp; Canada)")
+    end
+
+    it "offers Toronto, which ActiveSupport::TimeZone.all does not carry at all" do
+      get new_dialog_project_meetings_path(project), as: :turbo_stream
+
+      expect(response.body).to include('<option value="America/Toronto">(UTC-05:00) Toronto</option>')
+    end
+
+    it "no longer renders the zones the curated list drops" do
+      get new_dialog_project_meetings_path(project), as: :turbo_stream
+
+      expect(response.body).not_to include('value="Asia/Kolkata"')
+      expect(response.body).not_to include('value="Africa/Cairo"')
+    end
+
+    it "keeps a meeting stored in an uncurated zone selected by appending an option for it " \
+       "(without this, nothing would match and an unmodified submit would silently rewrite " \
+       "the meeting to the first option - the a6d027e300c regression)" do
+      meeting = create(:meeting, project:, author: user, time_zone: "Asia/Kolkata")
+
+      get details_dialog_project_meeting_path(project, meeting), as: :turbo_stream
+
+      expect(response.body).to include('<option selected="selected" value="Asia/Kolkata">(UTC+05:30) Asia/Kolkata</option>')
     end
   end
 end
