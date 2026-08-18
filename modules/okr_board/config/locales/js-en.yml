@@ -3,3 +3,8 @@ en:
   js:
     okr_board:
       label_okr_board: "OKR Board"
+      quick_filters:
+        unit_all: "All units"
+        scope_self: "Just this unit"
+        scope_ancestors: "This and everything above"
+        scope_children: "This and one level down"

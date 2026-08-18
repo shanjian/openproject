@@ -1,1 +1,33 @@
-<div class="okr-board-filter"></div>
+<div class="okr-board-filter">
+  <select
+    [ngModel]="selectedUnitId"
+    (ngModelChange)="onUnitChange($event)">
+    <option [ngValue]="null">{{ text.unit_all }}</option>
+    @for (unit of topLevelUnits; track unit.id) {
+      <option [ngValue]="unit.id">{{ unit.name }}</option>
+    }
+  </select>
+
+  @if (selectedUnitId) {
+    <fieldset>
+      <label>
+        <input type="radio" name="okr-board-scope" value="self"
+          [checked]="selectedScope === 'self'"
+          (change)="onScopeChange('self')" />
+        {{ text.scope_self }}
+      </label>
+      <label>
+        <input type="radio" name="okr-board-scope" value="ancestors"
+          [checked]="selectedScope === 'ancestors'"
+          (change)="onScopeChange('ancestors')" />
+        {{ text.scope_ancestors }}
+      </label>
+      <label>
+        <input type="radio" name="okr-board-scope" value="children"
+          [checked]="selectedScope === 'children'"
+          (change)="onScopeChange('children')" />
+        {{ text.scope_children }}
+      </label>
+    </fieldset>
+  }
+</div>

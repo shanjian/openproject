@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { FormsModule } from '@angular/forms';
 import { of, throwError } from 'rxjs';
 import { OkrBoardFilterComponent } from './okr-board-filter.component';
 import { ApiV3Service } from 'core-app/core/apiv3/api-v3.service';
@@ -22,6 +23,7 @@ describe('OkrBoardFilterComponent - organizational unit loading', () => {
   function configure(elements:HalResource[]) {
     TestBed.configureTestingModule({
       declarations: [OkrBoardFilterComponent],
+      imports: [FormsModule],
       providers: [
         {
           provide: ApiV3Service,
@@ -46,6 +48,7 @@ describe('OkrBoardFilterComponent - organizational unit loading', () => {
   function configureWithError() {
     TestBed.configureTestingModule({
       declarations: [OkrBoardFilterComponent],
+      imports: [FormsModule],
       providers: [
         {
           provide: ApiV3Service,
@@ -127,6 +130,7 @@ describe('OkrBoardFilterComponent - department filter id from bootstrap data', (
 
     TestBed.configureTestingModule({
       declarations: [OkrBoardFilterComponent],
+      imports: [FormsModule],
       providers: [
         { provide: ApiV3Service, useValue: {} },
         { provide: WorkPackageViewFiltersService, useValue: { instantiate: () => ({}) } },
@@ -142,5 +146,63 @@ describe('OkrBoardFilterComponent - department filter id from bootstrap data', (
 
   it('reads the qualifying custom field\'s filter id from the bootstrap element', () => {
     expect(component.readDepartmentFilterName()).toBe('cf_42');
+  });
+});
+
+describe('OkrBoardFilterComponent - scope computation', () => {
+  let fixture:ComponentFixture<OkrBoardFilterComponent>;
+  let component:OkrBoardFilterComponent;
+  let replaceSpy:jasmine.Spy;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      declarations: [OkrBoardFilterComponent],
+      imports: [FormsModule],
+      providers: [
+        { provide: ApiV3Service, useValue: {} },
+        {
+          provide: WorkPackageViewFiltersService,
+          useValue: { replace: () => undefined, remove: () => undefined, instantiate: () => ({}) },
+        },
+      ],
+    });
+    fixture = TestBed.createComponent(OkrBoardFilterComponent);
+    component = fixture.componentInstance;
+    component.departmentFilterName = 'cf_42';
+    replaceSpy = spyOn(component.wpTableFilters, 'replace');
+  });
+
+  it('computes "just this unit" as [unit.id]', () => {
+    component.selectedUnitId = '1';
+    component.selectedScope = 'self';
+
+    expect(component.scopeValues('1', 'self')).toEqual(['1']);
+  });
+
+  it('computes "everything above" as a no-op for a top-level unit', () => {
+    expect(component.scopeValues('1', 'ancestors')).toEqual(['1']);
+  });
+
+  it('computes "one level down" from the children index', () => {
+    spyOn(component, 'childrenOf').and.returnValue(['2', '3']);
+
+    expect(component.scopeValues('1', 'children').sort()).toEqual(['1', '2', '3']);
+  });
+
+  it('writes the computed values into the department filter on unit change', () => {
+    component.onUnitChange('1');
+
+    expect(replaceSpy).toHaveBeenCalled();
+    const [id, modifier] = replaceSpy.calls.mostRecent().args as [
+      string,
+      (f:{ operator:string, values:string[], findOperator:(id:string) => string }) => void,
+    ];
+
+    expect(id).toBe('cf_42');
+    const filter = { operator: '', values: [] as string[], findOperator: (operatorId:string) => operatorId };
+    modifier(filter);
+
+    expect(filter.operator).toBe('=');
+    expect(filter.values).toEqual(['1']);
   });
 });

@@ -36,6 +36,9 @@ import { ApiV3Resource } from 'core-app/core/apiv3/cache/cachable-apiv3-resource
 import { HalResource } from 'core-app/features/hal/resources/hal-resource';
 import { ApiV3FilterBuilder } from 'core-app/shared/helpers/api-v3/api-v3-filter-builder';
 import { getPaginatedResults } from 'core-app/core/apiv3/helpers/get-paginated-results';
+import { I18nService } from 'core-app/core/i18n/i18n.service';
+
+export type OkrBoardScope = 'self'|'ancestors'|'children';
 
 @Component({
   selector: 'okr-board-filter',
@@ -48,6 +51,17 @@ export class OkrBoardFilterComponent implements OnInit {
   /** cf_<id> of the project's one qualifying department-format custom field. */
   departmentFilterName = '';
 
+  selectedUnitId:string|null = null;
+
+  selectedScope:OkrBoardScope = 'self';
+
+  text = {
+    unit_all: this.I18n.t('js.okr_board.quick_filters.unit_all'),
+    scope_self: this.I18n.t('js.okr_board.quick_filters.scope_self'),
+    scope_ancestors: this.I18n.t('js.okr_board.quick_filters.scope_ancestors'),
+    scope_children: this.I18n.t('js.okr_board.quick_filters.scope_children'),
+  };
+
   private allUnits:HalResource[] = [];
 
   private childrenIndex:Map<string, string[]> = new Map();
@@ -55,6 +69,7 @@ export class OkrBoardFilterComponent implements OnInit {
   constructor(
     readonly wpTableFilters:WorkPackageViewFiltersService,
     readonly apiV3Service:ApiV3Service,
+    readonly I18n:I18nService,
   ) {
   }
 
@@ -70,6 +85,35 @@ export class OkrBoardFilterComponent implements OnInit {
 
   childrenOf(unitId:string):string[] {
     return this.childrenIndex.get(unitId) || [];
+  }
+
+  scopeValues(unitId:string, scope:OkrBoardScope):string[] {
+    if (scope === 'children') {
+      return [unitId, ...this.childrenOf(unitId)];
+    }
+
+    // 'self' and 'ancestors' are identical for a top-level-only picker —
+    // there is nothing above a top-level unit to add.
+    return [unitId];
+  }
+
+  onUnitChange(unitId:string|null):void {
+    this.selectedUnitId = unitId;
+
+    if (!unitId) {
+      this.wpTableFilters.remove(this.departmentFilterName);
+      return;
+    }
+
+    this.applyUnitFilter(unitId, this.selectedScope);
+  }
+
+  onScopeChange(scope:OkrBoardScope):void {
+    this.selectedScope = scope;
+
+    if (this.selectedUnitId) {
+      this.applyUnitFilter(this.selectedUnitId, scope);
+    }
   }
 
   loadOrganizationalUnits():void {
@@ -116,5 +160,16 @@ export class OkrBoardFilterComponent implements OnInit {
     });
 
     return index;
+  }
+
+  private applyUnitFilter(unitId:string, scope:OkrBoardScope):void {
+    const values = this.scopeValues(unitId, scope);
+
+    this.wpTableFilters.replace(this.departmentFilterName, (filter) => {
+      // QueryFilterInstanceResource#operator is a QueryOperatorResource, not a plain
+      // string — mirror the pattern used by quick-filter-by-text-input.component.ts.
+      filter.operator = filter.findOperator('=')!;
+      filter.values = values;
+    });
   }
 }
