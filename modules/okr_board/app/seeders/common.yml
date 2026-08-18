@@ -1,11 +1,11 @@
 modules_permissions:
   okr_board:
-  - role: default_role_non_member
+  - role: :default_role_non_member
     add:
-    - show_okr_board
-  - role: default_role_member
+    - :show_okr_board
+  - role: :default_role_member
     add:
-    - show_okr_board
-  - role: default_role_reader
+    - :show_okr_board
+  - role: :default_role_reader
     add:
-    - show_okr_board
+    - :show_okr_board

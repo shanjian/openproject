@@ -12,8 +12,8 @@ RSpec.describe "OKR Board module registration" do
       role_permissions = YAML.load_file(
         Rails.root.join("modules/okr_board/app/seeders/common.yml")
       )["modules_permissions"]["okr_board"]
-      entry = role_permissions.find { |e| e["role"] == role.to_s }
-      expect(entry["add"]).to include("show_okr_board")
+      entry = role_permissions.find { |e| e["role"] == role }
+      expect(entry["add"]).to include(:show_okr_board)
     end
   end
 end
