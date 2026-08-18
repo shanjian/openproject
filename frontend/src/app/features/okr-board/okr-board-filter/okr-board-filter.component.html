@@ -1,5 +1,6 @@
 <div class="okr-board-filter">
   <select
+    id="okr-board-unit-select"
     [ngModel]="selectedUnitId"
     (ngModelChange)="onUnitChange($event)">
     <option [ngValue]="null">{{ text.unit_all }}</option>
@@ -9,6 +10,7 @@
   </select>
 
   <select
+    id="okr-board-version-select"
     [ngModel]="selectedVersionId"
     (ngModelChange)="onVersionChange($event)">
     <option [ngValue]="null">{{ text.version_all }}</option>

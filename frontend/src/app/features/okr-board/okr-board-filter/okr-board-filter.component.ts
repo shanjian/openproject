@@ -26,7 +26,7 @@
 // See COPYRIGHT and LICENSE files for more details.
 //++
 
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import {
   WorkPackageViewFiltersService,
 } from 'core-app/features/work-packages/routing/wp-view-base/view-services/wp-view-filters.service';
@@ -78,18 +78,38 @@ export class OkrBoardFilterComponent implements OnInit {
     readonly wpTableFilters:WorkPackageViewFiltersService,
     readonly apiV3Service:ApiV3Service,
     readonly I18n:I18nService,
+    readonly cdRef:ChangeDetectorRef,
   ) {
   }
 
   ngOnInit():void {
     this.departmentFilterName = this.readDepartmentFilterName();
-    this.loadOrganizationalUnits();
-    void this.loadVersions();
+
+    // The department and version filter schemas are only available once the
+    // surrounding work package view has loaded its query and populated
+    // WorkPackageViewFiltersService's available-filters state. Calling
+    // #instantiate() before that resolves throws (see #onReady() usage
+    // elsewhere, e.g. filters-tab-inner.component.ts), so wait for it first
+    // rather than racing the view's own query bootstrap.
+    void this.wpTableFilters.onReady().then(() => {
+      this.loadOrganizationalUnits();
+      void this.loadVersions();
+    });
   }
 
   readDepartmentFilterName():string {
     const bootstrapEl = document.getElementById('okr-board-bootstrap');
     return bootstrapEl?.dataset.departmentFilter || '';
+  }
+
+  /**
+   * Derives the work package custom field *schema*'s id ("customField<id>") from
+   * #departmentFilterName's filter-instance id ("cf_<id>"). See the comment in
+   * #loadOrganizationalUnits() for why these two different ids both matter here.
+   */
+  departmentSchemaName():string {
+    const match = /^cf_(\d+)$/.exec(this.departmentFilterName);
+    return match ? `customField${match[1]}` : this.departmentFilterName;
   }
 
   childrenOf(unitId:string):string[] {
@@ -110,7 +130,7 @@ export class OkrBoardFilterComponent implements OnInit {
     this.selectedUnitId = unitId;
 
     if (!unitId) {
-      this.wpTableFilters.remove(this.departmentFilterName);
+      this.wpTableFilters.remove(this.departmentSchemaName());
       return;
     }
 
@@ -126,7 +146,15 @@ export class OkrBoardFilterComponent implements OnInit {
   }
 
   loadOrganizationalUnits():void {
-    const filter = this.wpTableFilters.instantiate(this.departmentFilterName);
+    // WorkPackageViewFiltersService#instantiate()/#replace()/#remove()/#find() all key off
+    // a work package custom field's *schema* id, "customField<id>" -- a different naming
+    // convention than the backend's own filter accessor, "cf_<id>" (matching
+    // Queries::Filters::Shared::CustomFieldFilter's `cf_(\d+)` regex and what the bootstrap
+    // element's data-department-filter attribute sends, since that's built from
+    // custom_field.column_name). #departmentSchemaName() derives the former from the
+    // latter; passing #departmentFilterName directly here would never match any schema
+    // and permanently throw at `.getFilter()`.
+    const filter = this.wpTableFilters.instantiate(this.departmentSchemaName());
     const allowedValues = filter.currentSchema?.values?.allowedValues as { href:string } | undefined;
 
     // No qualifying department custom field is configured for this project (or its filter
@@ -146,11 +174,17 @@ export class OkrBoardFilterComponent implements OnInit {
         this.topLevelUnits = this.allUnits.filter((unit) => !unit.parent);
         this.childrenIndex = this.buildChildrenIndex(this.allUnits);
         this.syncSelectionFromLiveFilter();
+        // The HTTP response for this HAL collection resolves outside of Angular's zone
+        // (see ApiV3Service's HAL layer), so the assignments above never trigger a
+        // change detection pass on their own -- mirror
+        // WorkPackageFilterContainerComponent#ngOnInit()'s own explicit detectChanges().
+        this.cdRef.detectChanges();
       },
       // Keep the current (empty) state on failure, but surface the error rather
       // than swallowing it silently.
       error: (error:unknown) => {
         console.error('Failed to load OKR board organizational units', error);
+        this.cdRef.detectChanges();
       },
     });
   }
@@ -173,10 +207,15 @@ export class OkrBoardFilterComponent implements OnInit {
             .get(),
         ),
       );
+      this.syncVersionSelectionFromLiveFilter();
     } catch (error:unknown) {
       // Keep the current (empty) state on failure, but surface the error rather
       // than swallowing it silently.
       console.error('Failed to load OKR board versions', error);
+    } finally {
+      // See the comment in #loadOrganizationalUnits() -- the HTTP response resolves
+      // outside Angular's zone, so this needs an explicit change detection pass.
+      this.cdRef.detectChanges();
     }
   }
 
@@ -188,17 +227,27 @@ export class OkrBoardFilterComponent implements OnInit {
       return;
     }
 
+    // See the comment in #applyUnitFilter() -- the version filter is resource-typed too,
+    // so this needs the actual linked Version resource, not its plain id.
+    const version = this.versions.find((v) => v.id === versionId);
+    if (!version) {
+      return;
+    }
+
     this.wpTableFilters.replace(VERSION_FILTER_NAME, (filter) => {
       // QueryFilterInstanceResource#operator is a QueryOperatorResource, not a plain
       // string — mirror the pattern used by quick-filter-by-text-input.component.ts.
       filter.operator = filter.findOperator('=')!;
-      filter.values = [versionId];
+      filter.values = [version];
     });
   }
 
   syncSelectionFromLiveFilter():void {
-    const filter = this.wpTableFilters.find(this.departmentFilterName);
-    const currentValue = filter?.values?.[0] as string | undefined;
+    const filter = this.wpTableFilters.find(this.departmentSchemaName());
+    // A live filter restored from query_props (e.g. after a bookmark reload) carries its
+    // value as the linked HalResource, not a plain id -- see #applyUnitFilter().
+    const rawValue = filter?.values?.[0];
+    const currentValue = typeof rawValue === 'string' ? rawValue : rawValue?.id as string | undefined;
 
     if (!currentValue) {
       this.selectedUnitId = null;
@@ -217,7 +266,25 @@ export class OkrBoardFilterComponent implements OnInit {
     // selectedQuickFilter only resets the display, leaving the table
     // filtered by a dead id. We deliberately don't repeat that here.
     this.selectedUnitId = null;
-    this.wpTableFilters.remove(this.departmentFilterName);
+    this.wpTableFilters.remove(this.departmentSchemaName());
+  }
+
+  /**
+   * Mirrors #syncSelectionFromLiveFilter() for the version quick filter, so a version
+   * selected before a bookmark reload is reflected back in the dropdown afterwards.
+   */
+  syncVersionSelectionFromLiveFilter():void {
+    const filter = this.wpTableFilters.find(VERSION_FILTER_NAME);
+    const rawValue = filter?.values?.[0];
+    const currentValue = typeof rawValue === 'string' ? rawValue : rawValue?.id as string | undefined;
+
+    if (!currentValue) {
+      this.selectedVersionId = null;
+      return;
+    }
+
+    const stillExists = this.versions.some((version) => version.id === currentValue);
+    this.selectedVersionId = stillExists ? currentValue : null;
   }
 
   private allUnitIds():Set<string> {
@@ -242,13 +309,26 @@ export class OkrBoardFilterComponent implements OnInit {
   }
 
   private applyUnitFilter(unitId:string, scope:OkrBoardScope):void {
-    const values = this.scopeValues(unitId, scope);
+    const ids = this.scopeValues(unitId, scope);
+    // A department/organizational-unit filter is resource-typed (its schema defines
+    // allowedValues), so QueryFilterInstanceResource#values must be the actual linked
+    // HalResources, not their plain ids: the HAL layer's setter (hal-resource-builder.ts)
+    // rebuilds _links.values from each element's #href, so a plain id string there
+    // silently becomes {href: undefined} once the filter is cloned for the URL/query_props
+    // (see WorkPackageViewFiltersService#applyToQuery -> #cloneFilters()) -- it reads back
+    // fine in-memory before that clone, which is what makes this easy to miss.
+    const values = this.resolveUnitResources(ids);
 
-    this.wpTableFilters.replace(this.departmentFilterName, (filter) => {
+    this.wpTableFilters.replace(this.departmentSchemaName(), (filter) => {
       // QueryFilterInstanceResource#operator is a QueryOperatorResource, not a plain
       // string — mirror the pattern used by quick-filter-by-text-input.component.ts.
       filter.operator = filter.findOperator('=')!;
       filter.values = values;
     });
+  }
+
+  private resolveUnitResources(ids:string[]):HalResource[] {
+    const byId = new Map(this.allUnits.map((unit) => [unit.id!, unit]));
+    return ids.map((id) => byId.get(id)).filter((unit):unit is HalResource => !!unit);
   }
 }
