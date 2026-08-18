@@ -109,8 +109,9 @@ useful.
 | Module registration | New project module `okr_board`, `dependencies: :work_package_tracking`, togglable in Project Settings → Modules | `project_module :board_view, dependencies: :work_package_tracking` (`modules/boards/lib/open_project/boards/engine.rb:29`) |
 | Permission | New `show_okr_board` permission, `permissible_on: :project`, `dependencies: :view_work_packages` | `show_board_views`'s own `dependencies: :view_work_packages` declaration (`engine.rb:30-35`) |
 | Controller authorization | Explicit `before_action :authorize_work_package_permission` on the show action, in addition to the module/permission check above | `Boards::BoardsController`'s `before_action :authorize_work_package_permission, only: %i[show]` with its comment "the boards permission alone does not suffice to view work packages" (`boards_controller.rb:12`) |
-| Availability gate | The **module** is what's admin-toggled (Project Settings → Modules) and gates the menu item; once enabled, the menu item always shows. **Page content** is separately gated: if the project has 0 or >1 `department`-format `WorkPackageCustomField` enabled on an active type, or no `Version`, the page renders an empty-state pointing at setup steps instead of the table. These are two different gates — module-enablement is binary and controls visibility, field/version-availability is a content-level empty-state, never a hidden menu item. | Tone of the "Before you start" section in `docs/use-cases/okr-management/README.md` |
-| Controller/route | New controller, route `/projects/:project_id/okr_board` | Existing `boards` controller/routing pattern |
+| Availability gate | The **module** is what's admin-toggled (Project Settings → Modules) and gates the menu item; once enabled, the menu item always shows. **Page content** is separately gated: if the project has 0 or >1 qualifying `department`-format CFs (see "Availability gate predicate, precisely" below), or no `Version`, the page renders an empty-state pointing at setup steps instead of the table. These are two different gates — module-enablement is binary and controls visibility, field/version-availability is a content-level empty-state, never a hidden menu item. | Tone of the "Before you start" section in `docs/use-cases/okr-management/README.md` |
+| Rails controller/route | New controller, route `/projects/:project_id/okr_board`. Its `index` action renders the bootstrap view that mounts the Angular SPA at this URL — it does not itself assemble the page; see "Angular routing" below for what actually renders | Existing `boards` controller/routing pattern (`Boards::BoardsController#index` similarly bootstraps `BoardsRootComponent`) |
+| Angular routing | New `openproject-okr-board.routes.ts` registering a ui-router state `okr-board`, `parent: 'optional_project'`, `url: '/okr_board/?query_props'`, `params: { query_props: { type: 'opQueryString', dynamic: true } }`, `component: OkrBoardRootComponent` — see "Angular routing, precisely" below | `openproject-boards.routes.ts`'s `boards` state (`parent: 'optional_project'`, `url: '/boards/?query_props'`, same `opQueryString` param type) |
 | Hierarchy scope math | None — reuses `Group#self_and_ancestors`, `Group#children` (`app/models/groups/hierarchy.rb`) as-is | `Groups::Hierarchy` |
 | Filter application | None — reuses the existing `department`-format CF filter (`Queries::Filters::Shared::CustomFields::Department`, `CfListOptional` strategy), which already supports an OR-of-many-IDs `values` array | Existing department CF filter |
 | Frontend quick-filter bar | New Angular component, e.g. `OkrBoardFilterComponent`, built on the same live query-space mechanism Boards uses (`WorkPackageViewFiltersService` / `IsolatedQuerySpace`) rather than a one-shot `queryProps` input | `frontend/src/app/features/boards/board/board-filter/board-filter.component.ts` (assignee/version quick filter pattern) |
@@ -126,18 +127,75 @@ so it has no contract for "update my filters after the user picks a
 quick filter." It also defaults `withFilters: false` and
 `showFilterButton: false` (`wp-table-configuration.ts:69,75`), and its
 own template only renders the filter container
-`@if (configuration.withFilters)` — so the "native filter/column panel
-stays available underneath" requirement from this design's Requirements
-section does **not** hold with this component's defaults. Boards
-doesn't use this macro either — it uses the full table-view
+`@if (configuration.withFilters)`. **Those two flags are configuration
+for this specific macro component** — they don't apply once we move to
+the full table-view infrastructure below, so setting them is not the
+fix. Boards doesn't use this macro — it uses the full table-view
 infrastructure with a live, mutable query held in `IsolatedQuerySpace`,
 which is what actually gives `board-filter.component.ts` a working
 "change a filter, table updates" contract via
 `WorkPackageViewFiltersService`. The OKR Board page adopts the same
-infrastructure for the same reason, with `withFilters: true` and
-`showFilterButton: true` set explicitly so the native panel is visible
-by default (not relying on a default that currently points the other
-way).
+infrastructure for the same reason. In that infrastructure, the filter
+area isn't a boolean flag at all: `PartitionedQuerySpacePageComponent`
+renders it as a dynamically-resolved component slot —
+`work-packages-partitioned-query-space--filter-area` contains an
+`<ndc-dynamic [ndcDynamicComponent]="filterContainerDefinition.component">`
+(`partitioned-query-space-page.component.html:35-41`) wired up by
+whatever page component supplies `filterContainerDefinition`. The OKR
+Board's own root/page component needs to supply this the same way the
+work-packages full view does, so the native filter/column panel is
+part of the page by construction rather than a configuration flag to
+remember to set.
+
+### Angular routing, precisely
+
+A Rails route alone doesn't give the SPA anything to render against —
+`query_props` and `$state.go('.', { query_props })` are ui-router
+concepts belonging to whichever state is active, and there is no
+existing state for `/projects/:id/okr_board`. Modeled directly on
+`openproject-boards.routes.ts`'s `boards` state:
+
+```text
+name: 'okr-board'
+parent: 'optional_project'
+url: '/okr_board/?query_props'
+params: { query_props: { type: 'opQueryString', dynamic: true } }
+component: OkrBoardRootComponent
+```
+
+`OkrBoardRootComponent` (new) plays the role `BoardsRootComponent` plays
+for Boards: it owns the `IsolatedQuerySpace` for this page, initializes
+the query from `query_props` (or a fresh default query filtered to
+nothing selected) on load, and composes `OkrBoardFilterComponent`
+alongside the full-view table/filter-area machinery described above.
+The Rails controller's `index` action only needs to render the generic
+SPA bootstrap view at this route (same role `Boards::BoardsController#index`
+plays for `/boards`) — the actual page composition happens client-side
+once this state activates.
+
+### Availability gate predicate, precisely
+
+`Project#all_work_package_custom_fields` (`app/models/projects/work_package_custom_fields.rb:43-47`)
+returns CFs that are either global (`for_all`) or explicitly associated
+with the project via `custom_fields_projects` — but that table has
+nothing to do with work package **types**. A CF can be associated with
+a project yet not be activated on any of that project's active types,
+and this method wouldn't catch it. Type-activation is a separate
+many-to-many through `custom_fields_types`, which is exactly what the
+query filter system itself joins through when deciding whether a CF is
+actually filterable
+(`Queries::WorkPackages::Filter::CustomFieldContext#where_subselect_joins`,
+`app/models/queries/work_packages/filter/custom_field_context.rb:56-77`,
+joining `custom_fields_types` on `type_id` = the work package's
+`type_id`). The availability gate needs the same two-part predicate the
+query filter effectively relies on: CF is enabled for the project
+(`all_work_package_custom_fields`) **and** CF is associated with at
+least one of the project's active types (join through
+`custom_fields_types` filtered to `project.types`), not just the
+first half. This should be a small explicit query/service (e.g.
+`project.all_work_package_custom_fields.merge(WorkPackageCustomField.joins(:custom_fields_types).where(custom_fields_types: { type_id: project.types }))`-shaped,
+exact form to be finalized during planning), not an assumption that
+`all_work_package_custom_fields` alone is sufficient.
 
 ### Hierarchy scope semantics, precisely
 
@@ -166,17 +224,29 @@ definition aren't in that list. The mechanism: `CustomField#possible_department_
 is `Group.organizational_units.in_tree_order` — **every** organizational
 unit at every depth, not just top-level ones (confirmed by reading
 `app/models/custom_field.rb:232-234`). The frontend loads this full set
-once (the same set the CF's own value picker already loads elsewhere in
-the app), each entry carrying its `parent` link per `GroupRepresenter`,
-and builds a client-side `parent_id → [child ids]` index from it. The
+once, each entry carrying its `parent` link per `GroupRepresenter`, and
+builds a client-side `parent_id → [child ids]` index from it. The
 top-level dropdown then filters this same set down to entries with no
 parent; "one level down" looks up the selected unit's id in the index.
-No new backend endpoint is needed **if** this full-collection load is
-confirmed reusable as a standalone call from `OkrBoardFilterComponent`
-(as opposed to being embedded only inside a specific widget's internal
-autocompleter logic) — this is the one item to confirm by reading the
-relevant Angular loading code during planning/implementation, not a
-design uncertainty about whether the data exists on the backend.
+
+This load must **not** go through the generic CF-value autocomplete
+path a filter's value picker normally uses
+(`FilterSearchableMultiselectValueComponent#loadCollection`,
+`filter-searchable-multiselect-value.component.ts:105`), which requests
+`pageSize: MAGIC_FILTER_AUTOCOMPLETE_PAGE_SIZE` — **100** — and only
+loads further pages on-demand as the user types a search term
+(`filter-searchable-multiselect-value.component.ts:155`, the
+`autocomplete()` method's fallback branch). That path is built for "show
+100 options, then search-as-you-type the rest" — it does not
+transparently assemble a complete collection, so it cannot be used to
+build a correct hierarchy index once a project has more than 100
+organizational units (a level-down lookup for a unit whose children
+happen to load past page 1 would silently see zero children). Instead,
+`OkrBoardFilterComponent` must fetch the full collection explicitly via
+`getPaginatedResults`/`getPaginatedCollections`
+(`core-app/core/apiv3/helpers/get-paginated-results.ts`) with
+`pageSize: MAGIC_PAGE_NUMBER` (`-1`, "resolve to the maximum value"),
+which follows every page rather than stopping at the first 100.
 
 ## Data flow
 
@@ -190,11 +260,13 @@ design uncertainty about whether the data exists on the backend.
    the table — the menu item stayed visible in step 1 regardless.
 3. Otherwise, `OkrBoardFilterComponent` loads the full set of
    organizational units (`Group.organizational_units.in_tree_order`,
-   every depth, via whatever standalone call reuses the CF's existing
-   allowed-values loading — see "Where the frontend gets the data"
-   above), builds a client-side `parent_id → children` index from the
-   `parent` link each entry carries, and populates the Organization
-   Unit dropdown with just the entries that have no parent.
+   every depth) via `getPaginatedResults`/`getPaginatedCollections`
+   with `pageSize: MAGIC_PAGE_NUMBER` — **not** the CF's normal
+   100-row autocomplete path, which would silently truncate the
+   hierarchy index (see "Where the frontend gets the data" above) —
+   builds a client-side `parent_id → children` index from the `parent`
+   link each entry carries, and populates the Organization Unit
+   dropdown with just the entries that have no parent.
 4. It loads the project's Versions using `project.shared_versions`
    (the same scope the backend `VersionFilter` itself uses — see
    "Version scope" in Error handling below), not the boards-style
@@ -216,12 +288,23 @@ design uncertainty about whether the data exists on the backend.
    with the filter hash JSON-encoded, so reloading or bookmarking the
    page restores the selection. If a bookmarked/stale `query_props`
    references a unit id no longer in the loaded organizational-units
-   set (e.g. the Group was deleted), the quick filter falls back to "no
-   unit selected" rather than erroring — the underlying query filter's
-   own value objects already degrade the same way (see Error handling).
+   set (e.g. the Group was deleted), `OkrBoardFilterComponent`
+   **actively clears the department-CF filter from the live query**
+   (`WorkPackageViewFiltersService`, same call path as a normal quick
+   filter change) and rewrites `query_props` to drop it, then shows the
+   quick filter as "no unit selected" — the display and the live
+   filter change together. This is a deliberate departure from
+   `board-filter.component.ts`'s own `selectedQuickFilter`: that method
+   only recomputes what the dropdown *displays* from the current
+   filter and never calls `boardFilters.setTemporary` itself, so an
+   unrecognized filter value there leaves the underlying live filter
+   untouched while the dropdown shows "All" — i.e. Boards' own
+   assignee/version quick filters have this exact latent mismatch
+   today. The OKR Board's stale-unit handling intentionally does not
+   copy that pattern.
 8. The full native filter/column panel remains visible on the same
-   table underneath the quick-filter bar (`withFilters: true`,
-   `showFilterButton: true` set explicitly — see "Why not the
+   table underneath the quick-filter bar (via the page's own
+   `filterContainerDefinition`, not a boolean flag — see "Why not the
    embedded-table macro"), for anything beyond the two quick filters
    (type, status, etc.). The quick filter bar and the native panel
    read/write the same underlying query filters — there are not two
@@ -240,15 +323,20 @@ design uncertainty about whether the data exists on the backend.
   picking one could point the quick filter at a field the project
   doesn't actually intend to slice OKRs by.
 - **Selected unit deleted while the page is open / bookmarked with
-  stale state:** falls back to "no unit selected" (same graceful
-  degradation the department CF filter itself already has for a
-  deleted referenced Group — see
-  `2026-08-10-department-custom-field-design.md`'s error handling
-  section). The bookmarked `query_props` filter hash itself is left
-  alone (not rewritten) — only the quick-filter UI's displayed
-  selection resets, consistent with how `board-filter.component.ts`'s
-  `selectedQuickFilter` already falls back to `QUICK_FILTER_ALL` when
-  it can't match the current filter value to a known option.
+  stale state:** clears the department-CF filter from the **live**
+  query (not just the displayed dropdown value) and rewrites
+  `query_props` accordingly, then shows "no unit selected" — see Data
+  flow step 7. Copying `board-filter.component.ts`'s own
+  `selectedQuickFilter` fallback verbatim was considered and rejected:
+  that method only resets what the dropdown displays and never touches
+  the live filter, so on Boards today a stale assignee/version filter
+  value would leave the table filtered by a dead id while the dropdown
+  shows "All" — usually a silently-empty result set. The department CF
+  filter's own value-object degradation
+  (`2026-08-10-department-custom-field-design.md`'s error handling
+  section) is a separate, unrelated concern: it's about how a *stored
+  work package's* dangling custom value renders (e.g. "not found"
+  label), not about clearing a stale *filter* value from a live query.
 - **Version scope:** the quick filter's Version options and the
   underlying `version_id` filter's accepted values must be the same
   set, to avoid a quick filter that offers versions the filter would
@@ -266,27 +354,40 @@ design uncertainty about whether the data exists on the backend.
 
 - Backend request/feature specs: module gating (menu item always shows
   once enabled, independent of field configuration), empty-state when
-  0 or >1 department-format CFs are enabled, empty-state when no
+  0 or >1 *qualifying* department-format CFs are enabled — including
+  the case where a CF is associated with the project but not activated
+  on any of its active types, which must count as "0 qualifying", not
+  "1" (this is the specific gap the availability-gate predicate closes,
+  see "Availability gate predicate, precisely") — empty-state when no
   Versions exist, and authorization (a user without `view_work_packages`
   in the project is denied even with the module enabled — mirroring
   `Boards::BoardsController`'s explicit `authorize_work_package_permission`
   check, not just the module permission).
-- Backend unit specs for the three scope computations against a seeded
-  department tree: a root with no parent (verifies option 2 is a
-  no-op), a root with children (verifies option 3), a root with no
-  children (verifies option 3 degrades to just `[U.id]`).
+- Backend integration spec seeding a department tree (a root with
+  children, a root with no children) and Objective/Key Result work
+  packages tagged across those units, asserting that applying each of
+  the three scopes' resulting `cf_<id>` value lists as a `"="` filter
+  returns exactly the intended rows — the scope *computation* itself is
+  client-side (see below), so this is about confirming the backend
+  filter behaves correctly given those IDs, not about re-testing the ID
+  computation in Ruby.
 - Backend spec confirming the Version quick filter's option set and the
   `VersionFilter`'s accepted values agree (same `project.shared_versions`
   scope, including a version shared in from another project).
-- Frontend Jasmine specs for `OkrBoardFilterComponent`: scope-to-values
-  computation (including building the `parent_id → children` index from
-  a full organizational-units collection), and stale/deleted-unit
-  fallback to "no unit selected".
+- Frontend Jasmine specs for `OkrBoardFilterComponent`: fetching the
+  full organizational-units collection via `getPaginatedResults`
+  (including a case with >100 units, to catch a regression back to the
+  100-row autocomplete path), building the `parent_id → children` index
+  from it, scope-to-values computation from that index (root with no
+  parent, root with children, root with none), writing the computed
+  values into the live query via `WorkPackageViewFiltersService`, and
+  stale/deleted-unit handling clearing both the live filter and
+  `query_props` (not just the displayed selection).
 - Capybara feature spec for the whole page, in the style of
   `modules/boards/spec/features/action_boards/version_board_spec.rb`,
   including reload-restores-selection via `query_props` and confirming
-  the native filter/column panel is visible (not hidden by the
-  embedded-table macro's defaults).
+  the native filter/column panel is visible via the page's
+  `filterContainerDefinition`.
 
 ## Non-goals (this iteration)
 
