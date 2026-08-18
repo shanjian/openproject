@@ -37,8 +37,11 @@ import { HalResource } from 'core-app/features/hal/resources/hal-resource';
 import { ApiV3FilterBuilder } from 'core-app/shared/helpers/api-v3/api-v3-filter-builder';
 import { getPaginatedResults } from 'core-app/core/apiv3/helpers/get-paginated-results';
 import { I18nService } from 'core-app/core/i18n/i18n.service';
+import { firstValueFrom } from 'rxjs';
 
 export type OkrBoardScope = 'self'|'ancestors'|'children';
+
+export const VERSION_FILTER_NAME = 'version';
 
 @Component({
   selector: 'okr-board-filter',
@@ -55,11 +58,16 @@ export class OkrBoardFilterComponent implements OnInit {
 
   selectedScope:OkrBoardScope = 'self';
 
+  versions:HalResource[] = [];
+
+  selectedVersionId:string|null = null;
+
   text = {
     unit_all: this.I18n.t('js.okr_board.quick_filters.unit_all'),
     scope_self: this.I18n.t('js.okr_board.quick_filters.scope_self'),
     scope_ancestors: this.I18n.t('js.okr_board.quick_filters.scope_ancestors'),
     scope_children: this.I18n.t('js.okr_board.quick_filters.scope_children'),
+    version_all: this.I18n.t('js.okr_board.quick_filters.version_all'),
   };
 
   private allUnits:HalResource[] = [];
@@ -76,6 +84,7 @@ export class OkrBoardFilterComponent implements OnInit {
   ngOnInit():void {
     this.departmentFilterName = this.readDepartmentFilterName();
     this.loadOrganizationalUnits();
+    void this.loadVersions();
   }
 
   readDepartmentFilterName():string {
@@ -142,6 +151,41 @@ export class OkrBoardFilterComponent implements OnInit {
       error: (error:unknown) => {
         console.error('Failed to load OKR board organizational units', error);
       },
+    });
+  }
+
+  async loadVersions():Promise<void> {
+    const filter = this.wpTableFilters.instantiate(VERSION_FILTER_NAME);
+    const allowedValues = filter.currentSchema?.values?.allowedValues as { href:string } | undefined;
+
+    // No version filter available (e.g. its schema could not be resolved) - nothing to load.
+    if (!allowedValues) {
+      return;
+    }
+
+    this.versions = await firstValueFrom(
+      getPaginatedResults<HalResource>(
+        (params) => (this.apiV3Service.collectionFromString(allowedValues.href) as
+          ApiV3ResourceCollection<HalResource, ApiV3Resource>)
+          .filtered(new ApiV3FilterBuilder(), { pageSize: `${params.pageSize}`, offset: `${params.offset}` })
+          .get(),
+      ),
+    );
+  }
+
+  onVersionChange(versionId:string|null):void {
+    this.selectedVersionId = versionId;
+
+    if (!versionId) {
+      this.wpTableFilters.remove(VERSION_FILTER_NAME);
+      return;
+    }
+
+    this.wpTableFilters.replace(VERSION_FILTER_NAME, (filter) => {
+      // QueryFilterInstanceResource#operator is a QueryOperatorResource, not a plain
+      // string — mirror the pattern used by quick-filter-by-text-input.component.ts.
+      filter.operator = filter.findOperator('=')!;
+      filter.values = [versionId];
     });
   }
 

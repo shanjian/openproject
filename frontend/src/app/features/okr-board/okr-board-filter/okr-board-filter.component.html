@@ -8,6 +8,15 @@
     }
   </select>
 
+  <select
+    [ngModel]="selectedVersionId"
+    (ngModelChange)="onVersionChange($event)">
+    <option [ngValue]="null">{{ text.version_all }}</option>
+    @for (version of versions; track version.id) {
+      <option [ngValue]="version.id">{{ version.name }}</option>
+    }
+  </select>
+
   @if (selectedUnitId) {
     <fieldset>
       <label>

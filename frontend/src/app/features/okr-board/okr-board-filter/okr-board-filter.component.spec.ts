@@ -206,3 +206,62 @@ describe('OkrBoardFilterComponent - scope computation', () => {
     expect(filter.values).toEqual(['1']);
   });
 });
+
+describe('OkrBoardFilterComponent - version quick filter', () => {
+  let fixture:ComponentFixture<OkrBoardFilterComponent>;
+  let component:OkrBoardFilterComponent;
+  let replaceSpy:jasmine.Spy;
+  let removeSpy:jasmine.Spy;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      declarations: [OkrBoardFilterComponent],
+      imports: [FormsModule],
+      providers: [
+        {
+          provide: ApiV3Service,
+          useValue: {
+            collectionFromString: () => ({
+              filtered: () => ({
+                get: () => of({ _embedded: { elements: [{ id: '5', name: '2026 Q3' }] }, count: 1, total: 1 }),
+              }),
+            }),
+          },
+        },
+        {
+          provide: WorkPackageViewFiltersService,
+          useValue: {
+            // The real QueryFilterInstanceResource exposes the schema's allowedValues via
+            // #currentSchema (see query-filter-instance-resource.ts), not a plain #schema
+            // property - mirror that shape here rather than the non-existent one.
+            instantiate: () => ({ currentSchema: { values: { allowedValues: { href: '/api/v3/versions' } } } }),
+            replace: () => undefined,
+            remove: () => undefined,
+          },
+        },
+      ],
+    });
+    fixture = TestBed.createComponent(OkrBoardFilterComponent);
+    component = fixture.componentInstance;
+    replaceSpy = spyOn(component.wpTableFilters, 'replace');
+    removeSpy = spyOn(component.wpTableFilters, 'remove');
+  });
+
+  it('loads versions from the version filter\'s own allowedValues link', async () => {
+    await component.loadVersions();
+
+    expect(component.versions.map((v) => v.id)).toEqual(['5']);
+  });
+
+  it('writes the selected version into the version_id filter', () => {
+    component.onVersionChange('5');
+
+    expect(replaceSpy).toHaveBeenCalledWith('version', jasmine.any(Function));
+  });
+
+  it('clears the version filter when "all versions" is selected', () => {
+    component.onVersionChange(null);
+
+    expect(removeSpy).toHaveBeenCalledWith('version');
+  });
+});
