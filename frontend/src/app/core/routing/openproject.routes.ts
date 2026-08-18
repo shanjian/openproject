@@ -80,6 +80,11 @@ export const OPENPROJECT_ROUTES:Ng2StateDeclaration[] = [
     url: '/bcf',
     loadChildren: () => import('../../features/bim/ifc_models/openproject-ifc-models.module').then((m) => m.OpenprojectIFCModelsModule),
   },
+  {
+    name: 'okr-board.**',
+    url: '/okr_board',
+    loadChildren: () => import('../../features/okr-board/openproject-okr-board.module').then((m) => m.OpenprojectOkrBoardModule),
+  },
   ...TEAM_PLANNER_LAZY_ROUTES,
   ...CALENDAR_LAZY_ROUTES,
 ];
