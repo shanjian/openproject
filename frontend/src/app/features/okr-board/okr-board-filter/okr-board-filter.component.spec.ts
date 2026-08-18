@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormsModule } from '@angular/forms';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { OkrBoardFilterComponent } from './okr-board-filter.component';
 import { ApiV3Service } from 'core-app/core/apiv3/api-v3.service';
 import {
@@ -51,6 +51,10 @@ describe('OkrBoardFilterComponent - organizational unit loading', () => {
             // loadOrganizationalUnits() now calls syncSelectionFromLiveFilter() once it
             // resolves, which needs #find; no live filter value is under test here.
             find: () => undefined,
+            // ngOnInit() now also subscribes to updates$() to re-sync on external filter
+            // changes (see okr-board-filter.component.ts) -- no emissions are under test
+            // here, just a well-formed Observable so the subscription doesn't throw.
+            updates$: () => of(),
           },
         },
       ],
@@ -80,6 +84,7 @@ describe('OkrBoardFilterComponent - organizational unit loading', () => {
             onReady: () => Promise.resolve(null),
             availableFilters: [{ id: '' }, { id: 'version' }],
             instantiate: () => ({ currentSchema: { values: { allowedValues: { href: '/api/v3/x' } } } }),
+            updates$: () => of(),
           },
         },
       ],
@@ -184,6 +189,7 @@ describe('OkrBoardFilterComponent - unavailable department filter schema', () =>
             // filters, alongside a normal version filter.
             availableFilters: [{ id: 'version' }],
             instantiate: () => ({ currentSchema: { values: { allowedValues: { href: '/api/v3/versions' } } } }),
+            updates$: () => of(),
           },
         },
       ],
@@ -245,6 +251,11 @@ describe('OkrBoardFilterComponent - department filter id from bootstrap data', (
             // reach into the empty ApiV3Service mock above.
             availableFilters: [],
             instantiate: () => ({}),
+            // Angular's test runner can run change detection (and so ngOnInit()) on any
+            // fixture created via TestBed.createComponent() even when a test never calls
+            // it explicitly (e.g. during teardown) -- every fixture in this file needs a
+            // well-formed updates$() so that never throws.
+            updates$: () => of(),
           },
         },
       ],
@@ -285,6 +296,7 @@ describe('OkrBoardFilterComponent - scope computation', () => {
             replace: () => undefined,
             remove: () => undefined,
             instantiate: () => ({}),
+            updates$: () => of(),
           },
         },
       ],
@@ -378,6 +390,7 @@ describe('OkrBoardFilterComponent - version quick filter', () => {
             find: () => undefined,
             replace: () => undefined,
             remove: () => undefined,
+            updates$: () => of(),
           },
         },
       ],
@@ -428,6 +441,7 @@ describe('OkrBoardFilterComponent - version quick filter', () => {
 describe('OkrBoardFilterComponent - version selection restored from the live filter', () => {
   let fixture:ComponentFixture<OkrBoardFilterComponent>;
   let component:OkrBoardFilterComponent;
+  let removeSpy:jasmine.Spy;
 
   function configure(findReturnValue:{ values:unknown[] }|undefined) {
     TestBed.configureTestingModule({
@@ -441,6 +455,8 @@ describe('OkrBoardFilterComponent - version selection restored from the live fil
             availableFilters: [],
             instantiate: () => ({}),
             find: () => findReturnValue,
+            remove: () => undefined,
+            updates$: () => of(),
           },
         },
       ],
@@ -448,6 +464,7 @@ describe('OkrBoardFilterComponent - version selection restored from the live fil
     fixture = TestBed.createComponent(OkrBoardFilterComponent);
     component = fixture.componentInstance;
     component.versions = [{ id: '5', name: '2026 Q3' } as unknown as HalResource];
+    removeSpy = spyOn(component.wpTableFilters, 'remove');
   }
 
   it('restores the selection when the live filter\'s version is still loaded', () => {
@@ -456,6 +473,7 @@ describe('OkrBoardFilterComponent - version selection restored from the live fil
     component.syncVersionSelectionFromLiveFilter();
 
     expect(component.selectedVersionId).toBe('5');
+    expect(removeSpy).not.toHaveBeenCalled();
   });
 
   it('restores the selection from a plain id value too', () => {
@@ -474,12 +492,17 @@ describe('OkrBoardFilterComponent - version selection restored from the live fil
     expect(component.selectedVersionId).toBeNull();
   });
 
-  it('clears the selection when the live filter references a version that is no longer loaded', () => {
+  it('clears the selection and the live filter itself when it references a version that is no longer loaded', () => {
     configure({ values: [{ id: '999', name: 'Deleted Version' } as unknown as HalResource] });
 
     component.syncVersionSelectionFromLiveFilter();
 
     expect(component.selectedVersionId).toBeNull();
+    // Mirrors the department-side stale-unit assertion in the "stale unit fallback" suite
+    // below -- a dead version id must be cleared from the live filter itself, not just the
+    // displayed selection, or the table stays filtered by it while the dropdown shows "All
+    // versions".
+    expect(removeSpy).toHaveBeenCalledWith('version');
   });
 });
 
@@ -513,6 +536,7 @@ describe('OkrBoardFilterComponent - version quick filter error handling', () => 
             // same mock.
             availableFilters: [{ id: 'version' }],
             instantiate: () => ({ currentSchema: { values: { allowedValues: { href: '/api/v3/versions' } } } }),
+            updates$: () => of(),
           },
         },
       ],
@@ -567,6 +591,7 @@ describe('OkrBoardFilterComponent - stale unit fallback', () => {
             find: () => ({ values: ['999'] }),
             remove: () => {},
             replace: () => {},
+            updates$: () => of(),
           },
         },
       ],
@@ -585,5 +610,159 @@ describe('OkrBoardFilterComponent - stale unit fallback', () => {
     // departmentFilterName ("cf_42") is the backend's filter *instance* accessor;
     // remove() needs the schema id ("customField42") -- see departmentSchemaName().
     expect(removeSpy).toHaveBeenCalledWith('customField42');
+  });
+});
+
+describe('OkrBoardFilterComponent - scope restored from the live filter', () => {
+  let fixture:ComponentFixture<OkrBoardFilterComponent>;
+  let component:OkrBoardFilterComponent;
+
+  // Marketing (id '1') has one direct child, Growth (id '2') -- enough to distinguish
+  // the "children" scope (values [1, 2]) from "self"/"ancestors" (values [1]).
+  function configure(liveFilterValues:unknown[]) {
+    TestBed.configureTestingModule({
+      declarations: [OkrBoardFilterComponent],
+      providers: [
+        {
+          provide: ApiV3Service,
+          useValue: {
+            collectionFromString: () => ({
+              filtered: () => ({
+                get: () => of({
+                  _embedded: {
+                    elements: [
+                      group('1', 'Marketing', null),
+                      group('2', 'Growth', '1'),
+                    ],
+                  },
+                  count: 2,
+                  total: 2,
+                }),
+              }),
+            }),
+          },
+        },
+        {
+          provide: WorkPackageViewFiltersService,
+          useValue: {
+            onReady: () => Promise.resolve(null),
+            availableFilters: [{ id: 'customField42' }],
+            instantiate: () => ({ currentSchema: { values: { allowedValues: { href: '/api/v3/x' } } } }),
+            find: () => ({ values: liveFilterValues }),
+            remove: () => undefined,
+            replace: () => undefined,
+            updates$: () => of(),
+          },
+        },
+      ],
+    });
+    fixture = TestBed.createComponent(OkrBoardFilterComponent);
+    component = fixture.componentInstance;
+    component.departmentFilterName = 'cf_42';
+  }
+
+  it('restores selectedScope as "children" when the live filter carries the unit plus its children', async () => {
+    configure([{ id: '1' }, { id: '2' }]);
+
+    await component.loadOrganizationalUnits();
+    component.syncSelectionFromLiveFilter();
+
+    expect(component.selectedUnitId).toBe('1');
+    expect(component.selectedScope).toBe('children');
+  });
+
+  it('restores selectedScope as "self" when the live filter carries just the unit', async () => {
+    configure([{ id: '1' }]);
+
+    await component.loadOrganizationalUnits();
+    component.syncSelectionFromLiveFilter();
+
+    expect(component.selectedUnitId).toBe('1');
+    expect(component.selectedScope).toBe('self');
+  });
+});
+
+describe('OkrBoardFilterComponent - resync when the live filter changes externally', () => {
+  let fixture:ComponentFixture<OkrBoardFilterComponent>;
+  let component:OkrBoardFilterComponent;
+  let bootstrapEl:HTMLDivElement;
+  let updates$:Subject<unknown>;
+  let departmentFilterValues:{ values:unknown[] } | undefined;
+  let removeSpy:jasmine.Spy;
+
+  beforeEach(async () => {
+    // The native filter panel (<op-filter-container>) writes into the same
+    // WorkPackageViewFiltersService instance this component reads from -- this suite
+    // verifies that an external change made through it (simulated here via updates$())
+    // is reflected back into the quick-filter dropdowns, not just changes this component
+    // makes itself.
+    bootstrapEl = document.createElement('div');
+    bootstrapEl.id = 'okr-board-bootstrap';
+    bootstrapEl.dataset.departmentFilter = 'cf_42';
+    document.body.appendChild(bootstrapEl);
+
+    updates$ = new Subject();
+    departmentFilterValues = { values: [{ id: '1' }] };
+
+    TestBed.configureTestingModule({
+      declarations: [OkrBoardFilterComponent],
+      providers: [
+        { provide: ApiV3Service, useValue: {} },
+        {
+          provide: WorkPackageViewFiltersService,
+          useValue: {
+            onReady: () => Promise.resolve(null),
+            // Neither schema is "available" here -- ngOnInit()'s own initial loads (see
+            // its comment) both no-op via #isFilterAvailable(), which still settles
+            // #unitsLoaded/#versionsLoaded (see their comment) without touching
+            // #allUnits, which this suite sets directly below instead.
+            availableFilters: [],
+            instantiate: () => ({}),
+            find: (id:string) => (id === 'customField42' ? departmentFilterValues : undefined),
+            remove: () => undefined,
+            replace: () => undefined,
+            updates$: () => updates$.asObservable(),
+          },
+        },
+      ],
+    });
+    fixture = TestBed.createComponent(OkrBoardFilterComponent);
+    component = fixture.componentInstance;
+    (component as unknown as { allUnits:HalResource[] }).allUnits = [group('1', 'Marketing', null)];
+    removeSpy = spyOn(component.wpTableFilters, 'remove');
+
+    component.ngOnInit();
+    // Settles the #unitsLoaded/#versionsLoaded flags ngOnInit()'s own (no-op, per the
+    // mock above) initial loads set asynchronously, so the updates$() subscription below
+    // is guaranteed to be armed before each test fires an emission on it.
+    await fixture.whenStable();
+  });
+
+  afterEach(() => {
+    bootstrapEl.remove();
+  });
+
+  it('re-syncs the displayed unit selection when an external change removes the live filter', () => {
+    component.selectedUnitId = '1';
+
+    // Simulate the native filter panel removing the department filter.
+    departmentFilterValues = undefined;
+    updates$.next([]);
+
+    expect(component.selectedUnitId).toBeNull();
+  });
+
+  it('does not re-trigger a write when the live filter already matches the displayed selection', () => {
+    component.selectedUnitId = '1';
+    const replaceSpy = spyOn(component.wpTableFilters, 'replace');
+
+    // departmentFilterValues is unchanged ([{ id: '1' }]) -- this simulates updates$()
+    // firing for an unrelated reason (e.g. this component's own write elsewhere), not an
+    // actual external change to the department filter.
+    updates$.next([]);
+
+    expect(component.selectedUnitId).toBe('1');
+    expect(replaceSpy).not.toHaveBeenCalled();
+    expect(removeSpy).not.toHaveBeenCalled();
   });
 });

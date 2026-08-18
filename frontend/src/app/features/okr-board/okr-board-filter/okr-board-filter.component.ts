@@ -38,6 +38,7 @@ import { ApiV3FilterBuilder } from 'core-app/shared/helpers/api-v3/api-v3-filter
 import { getPaginatedResults } from 'core-app/core/apiv3/helpers/get-paginated-results';
 import { I18nService } from 'core-app/core/i18n/i18n.service';
 import { firstValueFrom } from 'rxjs';
+import { UntilDestroyedMixin } from 'core-app/shared/helpers/angular/until-destroyed.mixin';
 
 export type OkrBoardScope = 'self'|'ancestors'|'children';
 
@@ -48,7 +49,7 @@ export const VERSION_FILTER_NAME = 'version';
   templateUrl: './okr-board-filter.component.html',
   standalone: false,
 })
-export class OkrBoardFilterComponent implements OnInit {
+export class OkrBoardFilterComponent extends UntilDestroyedMixin implements OnInit {
   topLevelUnits:HalResource[] = [];
 
   /** cf_<id> of the project's one qualifying department-format custom field. */
@@ -74,12 +75,22 @@ export class OkrBoardFilterComponent implements OnInit {
 
   private childrenIndex:Map<string, string[]> = new Map();
 
+  // Guards the wpTableFilters.updates$() resync (see #ngOnInit()) against running before
+  // the corresponding initial load has settled -- #syncSelectionFromLiveFilter() and
+  // #syncVersionSelectionFromLiveFilter() both treat an empty #allUnits/#versions as "no
+  // options loaded yet" and would otherwise misread any live filter value as stale and
+  // remove it.
+  private unitsLoaded = false;
+
+  private versionsLoaded = false;
+
   constructor(
     readonly wpTableFilters:WorkPackageViewFiltersService,
     readonly apiV3Service:ApiV3Service,
     readonly I18n:I18nService,
     readonly cdRef:ChangeDetectorRef,
   ) {
+    super();
   }
 
   ngOnInit():void {
@@ -99,6 +110,35 @@ export class OkrBoardFilterComponent implements OnInit {
     const ready = this.wpTableFilters.onReady();
     void ready.then(() => this.loadOrganizationalUnits());
     void ready.then(() => this.loadVersions());
+
+    // The native filter panel (<op-filter-container>) writes into the same
+    // WorkPackageViewFiltersService instance. Without this, removing the department or
+    // version filter there (or any other external change to them) would leave these
+    // quick-filter dropdowns showing a stale selection while the table itself changed
+    // underneath them, and the next scope-radio click would silently re-add a filter the
+    // user thought they'd removed.
+    //
+    // updates$() also fires for this component's own #applyUnitFilter()/#onVersionChange()
+    // writes; that's intentional and safe -- #syncSelectionFromLiveFilter() and
+    // #syncVersionSelectionFromLiveFilter() are idempotent no-ops when the live filter
+    // already matches what's displayed (see #inferScope()'s comment for the one subtlety,
+    // around preserving "ancestors").
+    this.wpTableFilters
+      .updates$()
+      .pipe(this.untilDestroyed())
+      .subscribe(() => {
+        if (this.unitsLoaded) {
+          this.syncSelectionFromLiveFilter();
+        }
+
+        if (this.versionsLoaded) {
+          this.syncVersionSelectionFromLiveFilter();
+        }
+
+        // See the comment in #loadOrganizationalUnits() -- this runs under the same
+        // OnPush ancestor and needs an explicit change-detection call.
+        this.cdRef.markForCheck();
+      });
   }
 
   readDepartmentFilterName():string {
@@ -172,6 +212,7 @@ export class OkrBoardFilterComponent implements OnInit {
         `OKR board: department filter schema '${schemaName}' is not among the view's ` +
         'available filters; leaving the unit picker empty.',
       );
+      this.unitsLoaded = true;
       return;
     }
 
@@ -181,6 +222,7 @@ export class OkrBoardFilterComponent implements OnInit {
     // No qualifying department custom field is configured for this project (or its filter
     // schema could not be resolved) - nothing to load.
     if (!allowedValues) {
+      this.unitsLoaded = true;
       return;
     }
 
@@ -194,6 +236,7 @@ export class OkrBoardFilterComponent implements OnInit {
         this.allUnits = allUnits;
         this.topLevelUnits = this.allUnits.filter((unit) => !unit.parent);
         this.childrenIndex = this.buildChildrenIndex(this.allUnits);
+        this.unitsLoaded = true;
         this.syncSelectionFromLiveFilter();
         // OkrBoardFilterComponent sits inside PartitionedQuerySpacePageComponent, an
         // OnPush-strategy ancestor. HttpClient callbacks DO run inside Angular's zone (so
@@ -207,6 +250,7 @@ export class OkrBoardFilterComponent implements OnInit {
       // than swallowing it silently.
       error: (error:unknown) => {
         console.error('Failed to load OKR board organizational units', error);
+        this.unitsLoaded = true;
         this.cdRef.markForCheck();
       },
     });
@@ -220,6 +264,7 @@ export class OkrBoardFilterComponent implements OnInit {
         `OKR board: version filter schema '${VERSION_FILTER_NAME}' is not among the ` +
         'view\'s available filters; leaving the version picker empty.',
       );
+      this.versionsLoaded = true;
       return;
     }
 
@@ -228,6 +273,7 @@ export class OkrBoardFilterComponent implements OnInit {
 
     // No version filter available (e.g. its schema could not be resolved) - nothing to load.
     if (!allowedValues) {
+      this.versionsLoaded = true;
       return;
     }
 
@@ -240,11 +286,13 @@ export class OkrBoardFilterComponent implements OnInit {
             .get(),
         ),
       );
+      this.versionsLoaded = true;
       this.syncVersionSelectionFromLiveFilter();
     } catch (error:unknown) {
       // Keep the current (empty) state on failure, but surface the error rather
       // than swallowing it silently.
       console.error('Failed to load OKR board versions', error);
+      this.versionsLoaded = true;
     } finally {
       // See the comment in #loadOrganizationalUnits() -- this needs an explicit
       // change-detection call because of the OnPush ancestor, not a zone escape.
@@ -289,28 +337,71 @@ export class OkrBoardFilterComponent implements OnInit {
   syncSelectionFromLiveFilter():void {
     const filter = this.wpTableFilters.find(this.departmentSchemaName());
     // A live filter restored from query_props (e.g. after a bookmark reload) carries its
-    // value as the linked HalResource, not a plain id -- see #applyUnitFilter().
-    const rawValue = filter?.values?.[0];
-    const currentValue = typeof rawValue === 'string' ? rawValue : rawValue?.id as string | undefined;
+    // values as the linked HalResources, not plain ids -- see #applyUnitFilter().
+    const values = this.resolveFilterValueIds(filter?.values);
 
-    if (!currentValue) {
+    if (values.length === 0) {
       this.selectedUnitId = null;
       return;
     }
 
-    const stillExists = this.allUnitIds().has(currentValue);
-    if (stillExists) {
-      this.selectedUnitId = currentValue;
+    // scopeValues() always puts the anchor unit id first, whatever the scope (see its
+    // implementation), so the first value is always the unit to match against.
+    const matchedUnitId = values[0];
+    const stillExists = this.allUnitIds().has(matchedUnitId);
+    if (!stillExists) {
+      // The filter references a unit that no longer exists in the loaded set
+      // (e.g. its Group was deleted). Clear the live filter itself, not just
+      // the displayed selection -- board-filter.component.ts's own
+      // selectedQuickFilter only resets the display, leaving the table
+      // filtered by a dead id. We deliberately don't repeat that here.
+      this.selectedUnitId = null;
+      this.wpTableFilters.remove(this.departmentSchemaName());
       return;
     }
 
-    // The filter references a unit that no longer exists in the loaded set
-    // (e.g. its Group was deleted). Clear the live filter itself, not just
-    // the displayed selection -- board-filter.component.ts's own
-    // selectedQuickFilter only resets the display, leaving the table
-    // filtered by a dead id. We deliberately don't repeat that here.
-    this.selectedUnitId = null;
-    this.wpTableFilters.remove(this.departmentSchemaName());
+    this.selectedUnitId = matchedUnitId;
+    this.selectedScope = this.inferScope(matchedUnitId, values);
+  }
+
+  /**
+   * Infers #selectedScope from the live filter's full value list.
+   *
+   * "self" and "ancestors" produce the identical single-value filter ([unitId]) for a
+   * top-level-only picker (see #scopeValues()), so they can never be told apart from the
+   * values alone -- restoring from a bookmark (or any other resync) always displays such a
+   * selection as "self". That's the documented, accepted behavior (see #scopeValues()'s own
+   * comment).
+   *
+   * Preserves the currently-selected scope when it already explains the observed values.
+   * This matters because this method also runs on every wpTableFilters.updates$() emission
+   * (see ngOnInit()), including the ones this component's own #applyUnitFilter() call
+   * triggers -- e.g. selecting "ancestors" (whose values are identical to "self"'s) would
+   * otherwise be immediately clobbered back to "self" by the resync its own filter write
+   * causes.
+   */
+  private inferScope(unitId:string, values:string[]):OkrBoardScope {
+    const valueSet = new Set(values);
+
+    if (this.setsEqual(valueSet, new Set(this.scopeValues(unitId, this.selectedScope)))) {
+      return this.selectedScope;
+    }
+
+    if (values.length > 1 && this.setsEqual(valueSet, new Set(this.scopeValues(unitId, 'children')))) {
+      return 'children';
+    }
+
+    return 'self';
+  }
+
+  private setsEqual(a:Set<string>, b:Set<string>):boolean {
+    return a.size === b.size && [...a].every((value) => b.has(value));
+  }
+
+  private resolveFilterValueIds(values:HalResource[]|string[]|undefined):string[] {
+    return (values ?? [])
+      .map((value) => (typeof value === 'string' ? value : value?.id))
+      .filter((id):id is string => !!id);
   }
 
   /**
@@ -328,7 +419,16 @@ export class OkrBoardFilterComponent implements OnInit {
     }
 
     const stillExists = this.versions.some((version) => version.id === currentValue);
-    this.selectedVersionId = stillExists ? currentValue : null;
+    if (stillExists) {
+      this.selectedVersionId = currentValue;
+      return;
+    }
+
+    // Mirror the department-side stale-unit branch in #syncSelectionFromLiveFilter() --
+    // clear the live filter itself, not just the displayed selection, so the table isn't
+    // left filtered by a dead version id while the dropdown shows "All versions".
+    this.selectedVersionId = null;
+    this.wpTableFilters.remove(VERSION_FILTER_NAME);
   }
 
   private allUnitIds():Set<string> {
