@@ -28,6 +28,7 @@
 
 import { ChangeDetectionStrategy, Component, Injector } from '@angular/core';
 import {
+  DynamicComponentDefinition,
   PartitionedQuerySpacePageComponent,
 } from 'core-app/features/work-packages/routing/partitioned-query-space-page/partitioned-query-space-page.component';
 import { HalResourceNotificationService } from 'core-app/features/hal/services/hal-resource-notification.service';
@@ -35,6 +36,7 @@ import { WorkPackageNotificationService } from 'core-app/features/work-packages/
 import { QueryParamListenerService } from 'core-app/features/work-packages/components/wp-query/query-param-listener.service';
 import { BreadcrumbItem } from 'core-app/shared/components/breadcrumbs/op-breadcrumbs.component';
 import { I18nService } from 'core-app/core/i18n/i18n.service';
+import { OkrBoardFilterAreaComponent } from 'core-app/features/okr-board/okr-board-filter-area/okr-board-filter-area.component';
 
 @Component({
   selector: 'okr-board-page',
@@ -57,6 +59,10 @@ export class OkrBoardPageComponent extends PartitionedQuerySpacePageComponent {
   ) {
     super(injector);
   }
+
+  filterContainerDefinition:DynamicComponentDefinition = {
+    component: OkrBoardFilterAreaComponent,
+  };
 
   breadcrumbItems():BreadcrumbItem[] {
     const items:BreadcrumbItem[] = [];

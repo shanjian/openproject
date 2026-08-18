@@ -26,30 +26,12 @@
 // See COPYRIGHT and LICENSE files for more details.
 //++
 
-import { NgModule } from '@angular/core';
-import { OpSharedModule } from 'core-app/shared/shared.module';
-import { OpenprojectWorkPackagesModule } from 'core-app/features/work-packages/openproject-work-packages.module';
-import { UIRouterModule } from '@uirouter/angular';
-import { OkrBoardEntryComponent } from 'core-app/features/okr-board/okr-board-entry/okr-board-entry.component';
-import { OkrBoardPageComponent } from 'core-app/features/okr-board/okr-board-page/okr-board-page.component';
-import { OkrBoardFilterAreaComponent } from 'core-app/features/okr-board/okr-board-filter-area/okr-board-filter-area.component';
-import { OkrBoardFilterComponent } from 'core-app/features/okr-board/okr-board-filter/okr-board-filter.component';
-import { OKR_BOARD_ROUTES } from 'core-app/features/okr-board/openproject-okr-board.routes';
+import { Component } from '@angular/core';
 
-@NgModule({
-  imports: [
-    OpSharedModule,
-    OpenprojectWorkPackagesModule,
-    UIRouterModule.forChild({
-      states: OKR_BOARD_ROUTES,
-    }),
-  ],
-  declarations: [
-    OkrBoardEntryComponent,
-    OkrBoardPageComponent,
-    OkrBoardFilterAreaComponent,
-    OkrBoardFilterComponent,
-  ],
+@Component({
+  selector: 'okr-board-filter-area',
+  templateUrl: './okr-board-filter-area.component.html',
+  standalone: false,
 })
-export class OpenprojectOkrBoardModule {
+export class OkrBoardFilterAreaComponent {
 }
