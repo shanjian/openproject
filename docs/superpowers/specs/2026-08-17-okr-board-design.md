@@ -73,8 +73,16 @@ need for weekly check-ins vs. monthly reviews.
   least one `department`-format custom field enabled on its active
   types and at least one Version. Not hardcoded to one project or one
   set of work package type names.
-- No new permission — reuses `view_work_packages`; this only narrows
-  what a user can already see.
+- **New module-scoped permission, `show_okr_board`**, `dependencies:
+  :view_work_packages` (see Architecture below) — this superseded an
+  earlier "no new permission" assumption once the module/authorization
+  chain was specified; keeping both statements was a leftover
+  contradiction from an earlier revision. Same shape as Boards'
+  `show_board_views`: the permission gates the module/menu, the
+  `view_work_packages` dependency is what actually determines whether
+  a user can see any rows, so this still only narrows what a user with
+  `view_work_packages` can already see — it does not grant new access
+  to work package data.
 - Explicitly **not in this iteration**: OKR Health quick filter,
   staleness indicators, "My OKRs" personal filter, auto-defaulting
   Version to the current quarter, saved-view auto-seeding. See
@@ -107,16 +115,47 @@ useful.
 | Layer | New code | Mirrors / reuses |
 |---|---|---|
 | Module registration | New project module `okr_board`, `dependencies: :work_package_tracking`, togglable in Project Settings → Modules | `project_module :board_view, dependencies: :work_package_tracking` (`modules/boards/lib/open_project/boards/engine.rb:29`) |
-| Permission | New `show_okr_board` permission, `permissible_on: :project`, `dependencies: :view_work_packages` | `show_board_views`'s own `dependencies: :view_work_packages` declaration (`engine.rb:30-35`) |
-| Controller authorization | Explicit `before_action :authorize_work_package_permission` on the show action, in addition to the module/permission check above | `Boards::BoardsController`'s `before_action :authorize_work_package_permission, only: %i[show]` with its comment "the boards permission alone does not suffice to view work packages" (`boards_controller.rb:12`) |
-| Availability gate | The **module** is what's admin-toggled (Project Settings → Modules) and gates the menu item; once enabled, the menu item always shows. **Page content** is separately gated: if the project has 0 or >1 qualifying `department`-format CFs (see "Availability gate predicate, precisely" below), or no `Version`, the page renders an empty-state pointing at setup steps instead of the table. These are two different gates — module-enablement is binary and controls visibility, field/version-availability is a content-level empty-state, never a hidden menu item. | Tone of the "Before you start" section in `docs/use-cases/okr-management/README.md` |
-| Rails controller/route | New controller, route `/projects/:project_id/okr_board`. Its `index` action renders the bootstrap view that mounts the Angular SPA at this URL — it does not itself assemble the page; see "Angular routing" below for what actually renders | Existing `boards` controller/routing pattern (`Boards::BoardsController#index` similarly bootstraps `BoardsRootComponent`) |
-| Angular routing | New `openproject-okr-board.routes.ts` registering a ui-router state `okr-board`, `parent: 'optional_project'`, `url: '/okr_board/?query_props'`, `params: { query_props: { type: 'opQueryString', dynamic: true } }`, `component: OkrBoardRootComponent` — see "Angular routing, precisely" below | `openproject-boards.routes.ts`'s `boards` state (`parent: 'optional_project'`, `url: '/boards/?query_props'`, same `opQueryString` param type) |
+| Permission | New `show_okr_board` permission, `permissible_on: :project`, `dependencies: :view_work_packages` — see "Permission default-role seeding and locale, precisely" below | `show_board_views`'s own `dependencies: :view_work_packages` declaration (`engine.rb:30-35`) |
+| Controller action & authorization | Single `index` action (there is no per-record resource to enumerate/show separately — see "Controller action and bootstrap, precisely" below) with `before_action :authorize_work_package_permission, only: %i[index]` in addition to the module/permission check above | `Boards::BoardsController`'s `authorize_work_package_permission` and its comment "the boards permission alone does not suffice to view work packages" (`boards_controller.rb:12`) — reused for the same reason, attached to the action this design actually routes to |
+| Availability gate | The **module** is what's admin-toggled (Project Settings → Modules) and gates the menu item; once enabled, the menu item always shows. **Page content** is gated separately, resolved server-side inside the `index` action itself (not client-side, not a separate API check) — see "Controller action and bootstrap, precisely" below for exactly what that action renders in each case. | Tone of the "Before you start" section in `docs/use-cases/okr-management/README.md` |
+| Rails controller/route | New controller, route `/projects/:project_id/okr_board`, single `index` action — see "Controller action and bootstrap, precisely" below for what it renders | Existing `boards` controller/routing pattern, specifically `Boards::BoardsController#show` (not `#index` — see that section for why) |
+| Angular routing | New `openproject-okr-board.routes.ts` registering a ui-router state `okr-board`, `parent: 'optional_project'`, `url: '/okr_board/?query_props'`, `params: { query_props: { type: 'opQueryString', dynamic: true } }`, `component: OkrBoardRootComponent` — mounted only once the `index` action has already decided to render the Angular layout (see below) | `openproject-boards.routes.ts`'s `boards` state (`parent: 'optional_project'`, `url: '/boards/?query_props'`, same `opQueryString` param type) |
 | Hierarchy scope math | None — reuses `Group#self_and_ancestors`, `Group#children` (`app/models/groups/hierarchy.rb`) as-is | `Groups::Hierarchy` |
 | Filter application | None — reuses the existing `department`-format CF filter (`Queries::Filters::Shared::CustomFields::Department`, `CfListOptional` strategy), which already supports an OR-of-many-IDs `values` array | Existing department CF filter |
 | Frontend quick-filter bar | New Angular component, e.g. `OkrBoardFilterComponent`, built on the same live query-space mechanism Boards uses (`WorkPackageViewFiltersService` / `IsolatedQuerySpace`) rather than a one-shot `queryProps` input | `frontend/src/app/features/boards/board/board-filter/board-filter.component.ts` (assignee/version quick filter pattern) |
 | Frontend table | The full work-package table view infrastructure (`wp-view-base`, the same one Boards embeds), **not** the `wp-embedded-table` macro component — see "Why not the embedded-table macro" below | Boards' own table view, not Project Overview's embedded-table widgets |
 | Locale | New strings for the module name, page title, scope toggle labels | Existing `js.boards.quick_filters.*` |
+
+### Permission default-role seeding and locale, precisely
+
+A new permission with no default-role grants would leave the module
+enableable but invisible to anyone until an admin manually edits every
+role, which isn't how Boards ships. Mirror `modules/boards/app/seeders/common.yml`'s
+`modules_permissions.boards` entry:
+
+```yaml
+modules_permissions:
+  okr_board:
+  - role: :default_role_non_member
+    add:
+    - :show_okr_board
+  - role: :default_role_member
+    add:
+    - :show_okr_board
+  - role: :default_role_reader
+    add:
+    - :show_okr_board
+```
+
+`show_okr_board` is purely a view permission (like `show_board_views`,
+not `manage_board_views`), so it's granted to the same three default
+roles Boards grants its own view permission to — no `manage_*`
+counterpart is needed since this design has no create/edit/destroy
+actions of its own. Locale keys mirror `modules/boards/config/locales/en.yml`
+(`permission_show_board_views: "View boards"`,
+`project_module_board_view: "Boards"`): add
+`permission_show_okr_board` and `project_module_okr_board` (exact
+English copy TBD during planning, e.g. "View OKR Board" / "OKR Board").
 
 ### Why not the embedded-table macro
 
@@ -147,12 +186,49 @@ work-packages full view does, so the native filter/column panel is
 part of the page by construction rather than a configuration flag to
 remember to set.
 
+### Controller action and bootstrap, precisely
+
+Correcting an inaccurate comparison from the previous revision:
+`Boards::BoardsController#index` (`boards_controller.rb:19-21`) renders
+a plain, **server-rendered** board list (`render "index"`) — no
+Angular at all. It's `#show` (`boards_controller.rb:23-25`,
+`render layout: "angular/angular"`) that bootstraps the Angular SPA,
+for one specific board `id`. Boards has this split because there are
+many boards per project; the OKR Board has no equivalent per-record
+resource — there is exactly one page per project, not a collection of
+them — so there's no natural index/show pair to mirror. The design
+uses a single `index` action for `/projects/:project_id/okr_board`
+(matching the route, since there's no `:id`), whose *behavior* is
+modeled on Boards' `#show` (Angular-bootstrapping), not Boards'
+`#index` (server-rendered list).
+
+This single action is also where the availability gate resolves,
+**server-side, synchronously, before choosing what to render** —
+resolving the earlier contradiction between "the controller checks
+configuration" and "the controller only renders a generic bootstrap":
+
+- Gate fails (0 or >1 qualifying department-format CFs, or no
+  Versions — see "Availability gate predicate, precisely" below): the
+  action renders a plain server-rendered empty-state view. No Angular
+  layout, no ui-router state activation, nothing shipped to the client
+  about *why* — the empty-state copy itself, rendered server-side,
+  says what to configure.
+- Gate passes: the action renders `layout: "angular/angular"`, which
+  boots the SPA and activates the `okr-board` ui-router state below.
+
+Angular therefore never re-checks availability itself via a separate
+API call — by the time it boots at all, the gate has already passed.
+This also settles what data needs to reach Angular for the gate: none:
+the CF id/version-existence check is consumed entirely server-side and
+does not need to cross into the client at all.
+
 ### Angular routing, precisely
 
-A Rails route alone doesn't give the SPA anything to render against —
-`query_props` and `$state.go('.', { query_props })` are ui-router
-concepts belonging to whichever state is active, and there is no
-existing state for `/projects/:id/okr_board`. Modeled directly on
+Once the gate above has passed and the Angular layout is rendered, a
+Rails route alone still doesn't give the SPA anything to activate
+against — `query_props` and `$state.go('.', { query_props })` are
+ui-router concepts belonging to whichever state is active, and there is
+no existing state for `/projects/:id/okr_board`. Modeled directly on
 `openproject-boards.routes.ts`'s `boards` state:
 
 ```text
@@ -168,10 +244,11 @@ for Boards: it owns the `IsolatedQuerySpace` for this page, initializes
 the query from `query_props` (or a fresh default query filtered to
 nothing selected) on load, and composes `OkrBoardFilterComponent`
 alongside the full-view table/filter-area machinery described above.
-The Rails controller's `index` action only needs to render the generic
-SPA bootstrap view at this route (same role `Boards::BoardsController#index`
-plays for `/boards`) — the actual page composition happens client-side
-once this state activates.
+It discovers the project's one qualifying department-format CF's id
+via the normal schema/query-form loading path (the same way any query
+form already reports which custom fields are available) — it does not
+need the server to hand it that id out-of-band, since the gate above
+already guarantees exactly one exists.
 
 ### Availability gate predicate, precisely
 
@@ -180,22 +257,29 @@ returns CFs that are either global (`for_all`) or explicitly associated
 with the project via `custom_fields_projects` — but that table has
 nothing to do with work package **types**. A CF can be associated with
 a project yet not be activated on any of that project's active types,
-and this method wouldn't catch it. Type-activation is a separate
-many-to-many through `custom_fields_types`, which is exactly what the
-query filter system itself joins through when deciding whether a CF is
-actually filterable
+and this method wouldn't catch it. Type-activation is `WorkPackageCustomField`'s
+own `has_and_belongs_to_many :types` association (`app/models/work_package_custom_field.rb:35-37`,
+join table `custom_fields_types`) — the association name is `:types`,
+not `:custom_fields_types` (that's the join table, not a Rails
+association on the model; a literal `.joins(:custom_fields_types)`
+would fail). This is the same association the query filter system
+itself joins through when deciding whether a CF is actually filterable
 (`Queries::WorkPackages::Filter::CustomFieldContext#where_subselect_joins`,
 `app/models/queries/work_packages/filter/custom_field_context.rb:56-77`,
-joining `custom_fields_types` on `type_id` = the work package's
-`type_id`). The availability gate needs the same two-part predicate the
-query filter effectively relies on: CF is enabled for the project
-(`all_work_package_custom_fields`) **and** CF is associated with at
-least one of the project's active types (join through
-`custom_fields_types` filtered to `project.types`), not just the
-first half. This should be a small explicit query/service (e.g.
-`project.all_work_package_custom_fields.merge(WorkPackageCustomField.joins(:custom_fields_types).where(custom_fields_types: { type_id: project.types }))`-shaped,
-exact form to be finalized during planning), not an assumption that
-`all_work_package_custom_fields` alone is sufficient.
+joining the `custom_fields_types` table on `type_id`). The availability
+gate needs the same two-part predicate the query filter effectively
+relies on: CF is enabled for the project (`all_work_package_custom_fields`)
+**and** CF is associated with at least one of the project's active
+types, not just the first half:
+
+```ruby
+project
+  .all_work_package_custom_fields
+  .merge(WorkPackageCustomField.joins(:types).where(types: { id: project.types }))
+```
+
+(exact form to be finalized during planning; the point is `joins(:types)`,
+not a bare join-table reference).
 
 ### Hierarchy scope semantics, precisely
 
@@ -253,11 +337,15 @@ which follows every page rather than stopping at the first 100.
 1. Admin enables the "OKR Board" module on a project (Project Settings
    → Modules), same as any other module. This always makes the menu
    item appear (module on/off is the only gate on the menu item).
-2. Loading the page, the controller checks whether the project has
-   **exactly one** `department`-format CF enabled on an active type,
-   and at least one Version. If not (0 or >1 CFs, or no Versions), the
-   page renders an empty-state explaining what to configure, instead of
-   the table — the menu item stayed visible in step 1 regardless.
+2. Loading the page, the controller's single `index` action checks
+   server-side whether the project has **exactly one** `department`-format
+   CF enabled on an active type, and at least one Version (see
+   "Controller action and bootstrap, precisely"). If not (0 or >1 CFs,
+   or no Versions), it renders a plain server-rendered empty-state
+   explaining what to configure — no Angular layout, no ui-router state
+   activated — the menu item stayed visible in step 1 regardless. If
+   the gate passes, it renders `layout: "angular/angular"` instead,
+   which is what actually boots the SPA and reaches step 3.
 3. Otherwise, `OkrBoardFilterComponent` loads the full set of
    organizational units (`Group.organizational_units.in_tree_order`,
    every depth) via `getPaginatedResults`/`getPaginatedCollections`
