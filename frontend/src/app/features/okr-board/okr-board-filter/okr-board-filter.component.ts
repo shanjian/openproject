@@ -87,10 +87,17 @@ export class OkrBoardFilterComponent implements OnInit {
         ApiV3ResourceCollection<HalResource, ApiV3Resource>)
         .filtered(new ApiV3FilterBuilder(), { pageSize: `${params.pageSize}`, offset: `${params.offset}` })
         .get(),
-    ).subscribe((allUnits) => {
-      this.allUnits = allUnits;
-      this.topLevelUnits = this.allUnits.filter((unit) => !unit.parent);
-      this.childrenIndex = this.buildChildrenIndex(this.allUnits);
+    ).subscribe({
+      next: (allUnits) => {
+        this.allUnits = allUnits;
+        this.topLevelUnits = this.allUnits.filter((unit) => !unit.parent);
+        this.childrenIndex = this.buildChildrenIndex(this.allUnits);
+      },
+      // Keep the current (empty) state on failure, but surface the error rather
+      // than swallowing it silently.
+      error: (error:unknown) => {
+        console.error('Failed to load OKR board organizational units', error);
+      },
     });
   }
 

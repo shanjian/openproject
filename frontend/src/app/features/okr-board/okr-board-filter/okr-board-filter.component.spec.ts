@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { OkrBoardFilterComponent } from './okr-board-filter.component';
 import { ApiV3Service } from 'core-app/core/apiv3/api-v3.service';
 import {
@@ -29,6 +29,30 @@ describe('OkrBoardFilterComponent - organizational unit loading', () => {
             collectionFromString: () => ({
               filtered: () => ({
                 get: () => of({ _embedded: { elements }, count: elements.length, total: elements.length }),
+              }),
+            }),
+          },
+        },
+        {
+          provide: WorkPackageViewFiltersService,
+          useValue: { instantiate: () => ({ currentSchema: { values: { allowedValues: { href: '/api/v3/x' } } } }) },
+        },
+      ],
+    });
+    fixture = TestBed.createComponent(OkrBoardFilterComponent);
+    component = fixture.componentInstance;
+  }
+
+  function configureWithError() {
+    TestBed.configureTestingModule({
+      declarations: [OkrBoardFilterComponent],
+      providers: [
+        {
+          provide: ApiV3Service,
+          useValue: {
+            collectionFromString: () => ({
+              filtered: () => ({
+                get: () => throwError(() => new Error('boom')),
               }),
             }),
           },
@@ -76,6 +100,17 @@ describe('OkrBoardFilterComponent - organizational unit loading', () => {
     component.ngOnInit();
 
     expect(component.childrenOf('0').length).toBe(149);
+  });
+
+  it('logs and keeps the empty state when loading the units fails', () => {
+    configureWithError();
+    spyOn(console, 'error');
+
+    expect(() => component.ngOnInit()).not.toThrow();
+
+    expect(component.topLevelUnits).toEqual([]);
+    expect(component.childrenOf('1')).toEqual([]);
+    expect(console.error).toHaveBeenCalled();
   });
 });
 
