@@ -257,14 +257,12 @@ FactoryBot.define do
 
       transient do
         projects { [] }
-        types { [] }
       end
 
       after(:create) do |custom_field, evaluator|
         evaluator.projects.each do |project|
           project.work_package_custom_fields << custom_field
         end
-        custom_field.types = evaluator.types
       end
 
       %w[
