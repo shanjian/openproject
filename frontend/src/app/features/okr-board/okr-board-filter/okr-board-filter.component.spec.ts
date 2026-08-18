@@ -148,6 +148,7 @@ describe('OkrBoardFilterComponent - unavailable department filter schema', () =>
   let fixture:ComponentFixture<OkrBoardFilterComponent>;
   let component:OkrBoardFilterComponent;
   let bootstrapEl:HTMLDivElement;
+  let updates$:Subject<unknown>;
 
   beforeEach(() => {
     // #instantiate() below matches only against the view's currently-available filter
@@ -160,6 +161,7 @@ describe('OkrBoardFilterComponent - unavailable department filter schema', () =>
     bootstrapEl.id = 'okr-board-bootstrap';
     bootstrapEl.dataset.departmentFilter = 'cf_99';
     document.body.appendChild(bootstrapEl);
+    updates$ = new Subject();
 
     TestBed.configureTestingModule({
       declarations: [OkrBoardFilterComponent],
@@ -189,7 +191,9 @@ describe('OkrBoardFilterComponent - unavailable department filter schema', () =>
             // filters, alongside a normal version filter.
             availableFilters: [{ id: 'version' }],
             instantiate: () => ({ currentSchema: { values: { allowedValues: { href: '/api/v3/versions' } } } }),
-            updates$: () => of(),
+            find: (id:string) => (id === 'customField99' ? { values: [{ id: '1' }] } : undefined),
+            remove: () => undefined,
+            updates$: () => updates$.asObservable(),
           },
         },
       ],
@@ -223,6 +227,26 @@ describe('OkrBoardFilterComponent - unavailable department filter schema', () =>
     await fixture.whenStable();
 
     expect(instantiateSpy).not.toHaveBeenCalledWith('customField99');
+  });
+
+  it('does not let a later external filter change remove a filter it never had data to judge', async () => {
+    // Regression test: #unitsLoaded must stay false when the department schema was never
+    // available, so a later updates$() emission (e.g. from the native filter panel setting
+    // some other filter) must not read the live "cf_99" filter's value against an empty
+    // #allUnits and wrongly conclude it's stale.
+    spyOn(console, 'error');
+    const removeSpy = spyOn(component.wpTableFilters, 'remove');
+
+    component.ngOnInit();
+    await fixture.whenStable();
+
+    // An external change to some other filter fires updates$() - the mocked #find()
+    // above still returns a live value for the department filter (`{ values: [{ id: '1' }] }`),
+    // which #topLevelUnits (empty, since the load never ran) would make look "stale" if
+    // the resync were wrongly armed.
+    updates$.next([]);
+
+    expect(removeSpy).not.toHaveBeenCalled();
   });
 });
 
@@ -713,9 +737,11 @@ describe('OkrBoardFilterComponent - resync when the live filter changes external
           useValue: {
             onReady: () => Promise.resolve(null),
             // Neither schema is "available" here -- ngOnInit()'s own initial loads (see
-            // its comment) both no-op via #isFilterAvailable(), which still settles
-            // #unitsLoaded/#versionsLoaded (see their comment) without touching
-            // #allUnits, which this suite sets directly below instead.
+            // its comment) both no-op via #isFilterAvailable() and deliberately leave
+            // #unitsLoaded/#versionsLoaded false in that branch (a failed/unavailable
+            // load must never arm the updates$() resync against incomplete data -- see
+            // their comments). This suite sets #allUnits and both flags directly below
+            // instead, to test the resync in isolation from the initial-load path.
             availableFilters: [],
             instantiate: () => ({}),
             find: (id:string) => (id === 'customField42' ? departmentFilterValues : undefined),
@@ -729,12 +755,15 @@ describe('OkrBoardFilterComponent - resync when the live filter changes external
     fixture = TestBed.createComponent(OkrBoardFilterComponent);
     component = fixture.componentInstance;
     (component as unknown as { allUnits:HalResource[] }).allUnits = [group('1', 'Marketing', null)];
+    // Simulates a settled, successful initial load (see the mock comment above) so the
+    // updates$() subscription is armed before each test fires an emission on it --
+    // exactly the state #loadOrganizationalUnits()/#loadVersions() reach on their own
+    // success path in real use.
+    (component as unknown as { unitsLoaded:boolean }).unitsLoaded = true;
+    (component as unknown as { versionsLoaded:boolean }).versionsLoaded = true;
     removeSpy = spyOn(component.wpTableFilters, 'remove');
 
     component.ngOnInit();
-    // Settles the #unitsLoaded/#versionsLoaded flags ngOnInit()'s own (no-op, per the
-    // mock above) initial loads set asynchronously, so the updates$() subscription below
-    // is guaranteed to be armed before each test fires an emission on it.
     await fixture.whenStable();
   });
 

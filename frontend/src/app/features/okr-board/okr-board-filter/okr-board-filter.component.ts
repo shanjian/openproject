@@ -212,7 +212,12 @@ export class OkrBoardFilterComponent extends UntilDestroyedMixin implements OnIn
         `OKR board: department filter schema '${schemaName}' is not among the view's ` +
         'available filters; leaving the unit picker empty.',
       );
-      this.unitsLoaded = true;
+      // Deliberately NOT setting #unitsLoaded here: it means "we have authoritative
+      // data about which units exist", which isn't true in this branch. Leaving it
+      // false keeps the updates$() resync (see #ngOnInit()) from later reading a live
+      // filter value against an empty #allUnits and wrongly concluding it references a
+      // deleted unit -- that would call #remove() on a filter this component simply
+      // never had data to judge (e.g. one set via the native filter panel).
       return;
     }
 
@@ -220,9 +225,9 @@ export class OkrBoardFilterComponent extends UntilDestroyedMixin implements OnIn
     const allowedValues = filter.currentSchema?.values?.allowedValues as { href:string } | undefined;
 
     // No qualifying department custom field is configured for this project (or its filter
-    // schema could not be resolved) - nothing to load.
+    // schema could not be resolved) - nothing to load. See the comment above: #unitsLoaded
+    // stays false so the updates$() resync doesn't misread the live filter as stale.
     if (!allowedValues) {
-      this.unitsLoaded = true;
       return;
     }
 
@@ -247,10 +252,11 @@ export class OkrBoardFilterComponent extends UntilDestroyedMixin implements OnIn
         this.cdRef.markForCheck();
       },
       // Keep the current (empty) state on failure, but surface the error rather
-      // than swallowing it silently.
+      // than swallowing it silently. #unitsLoaded stays false -- see the comments
+      // earlier in this method for why a failed load must not enable the
+      // updates$() resync against an #allUnits set we know is incomplete.
       error: (error:unknown) => {
         console.error('Failed to load OKR board organizational units', error);
-        this.unitsLoaded = true;
         this.cdRef.markForCheck();
       },
     });
@@ -264,16 +270,19 @@ export class OkrBoardFilterComponent extends UntilDestroyedMixin implements OnIn
         `OKR board: version filter schema '${VERSION_FILTER_NAME}' is not among the ` +
         'view\'s available filters; leaving the version picker empty.',
       );
-      this.versionsLoaded = true;
+      // Deliberately NOT setting #versionsLoaded here -- see the equivalent comment in
+      // #loadOrganizationalUnits(): it means "we have authoritative data", which isn't
+      // true in this branch, and setting it would let the updates$() resync wrongly
+      // treat a live version filter as stale and remove it.
       return;
     }
 
     const filter = this.wpTableFilters.instantiate(VERSION_FILTER_NAME);
     const allowedValues = filter.currentSchema?.values?.allowedValues as { href:string } | undefined;
 
-    // No version filter available (e.g. its schema could not be resolved) - nothing to load.
+    // No version filter available (e.g. its schema could not be resolved) - nothing to
+    // load. #versionsLoaded stays false; see the comment above.
     if (!allowedValues) {
-      this.versionsLoaded = true;
       return;
     }
 
@@ -290,9 +299,10 @@ export class OkrBoardFilterComponent extends UntilDestroyedMixin implements OnIn
       this.syncVersionSelectionFromLiveFilter();
     } catch (error:unknown) {
       // Keep the current (empty) state on failure, but surface the error rather
-      // than swallowing it silently.
+      // than swallowing it silently. #versionsLoaded stays false -- a failed load
+      // must not enable the updates$() resync against a #versions set we know is
+      // incomplete (see the comments earlier in this method).
       console.error('Failed to load OKR board versions', error);
-      this.versionsLoaded = true;
     } finally {
       // See the comment in #loadOrganizationalUnits() -- this needs an explicit
       // change-detection call because of the OnPush ancestor, not a zone escape.
