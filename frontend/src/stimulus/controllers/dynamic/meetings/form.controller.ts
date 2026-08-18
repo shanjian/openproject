@@ -33,6 +33,11 @@ import { TurboRequestsService } from 'core-app/core/turbo/turbo-requests.service
 import { PathHelperService } from 'core-app/core/path-helper/path-helper.service';
 
 export default class extends ApplicationController {
+  static targets = ['timeZoneSelect'];
+
+  declare timeZoneSelectTarget:HTMLSelectElement;
+  declare hasTimeZoneSelectTarget:boolean;
+
   protected turboRequests:TurboRequestsService;
   protected pathHelper:PathHelperService;
 
@@ -40,6 +45,35 @@ export default class extends ApplicationController {
     const context = await window.OpenProject.getPluginContext();
     this.turboRequests = context.services.turboRequests;
     this.pathHelper = context.services.pathHelperService;
+
+    this.applyBrowserTimezoneDefault();
+  }
+
+  // The server marks the select when creating a meeting as a user who has no
+  // profile time zone of their own, in which case it renders UTC. Prefer the
+  // browser's own zone there, leaving the select editable. Zones outside the
+  // curated list have no option to select, so the server default stands.
+  private applyBrowserTimezoneDefault():void {
+    if (!this.hasTimeZoneSelectTarget) {
+      return;
+    }
+
+    const select = this.timeZoneSelectTarget;
+    if (select.dataset.browserTimeZoneDefault !== 'true') {
+      return;
+    }
+
+    const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (!browserTimezone || select.value === browserTimezone) {
+      return;
+    }
+
+    if (!Array.from(select.options).some((option) => option.value === browserTimezone)) {
+      return;
+    }
+
+    select.value = browserTimezone;
+    select.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
   updateTimezoneText():void {

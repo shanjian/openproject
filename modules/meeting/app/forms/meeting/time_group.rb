@@ -95,9 +95,7 @@ class Meeting::TimeGroup < ApplicationForm
       include_blank: false,
       input_width: :large,
       disabled: series_occurrence?,
-      data: {
-        action: "input->meetings--form#updateTimezoneText"
-      }
+      data: time_zone_select_data
     ) do |list|
       available_time_zones.each do |zone_label, value|
         list.option(label: zone_label, value:, selected: value == @initial_time_zone)
@@ -130,6 +128,30 @@ class Meeting::TimeGroup < ApplicationForm
 
       extra.nil? ? options : options + [extra]
     end
+  end
+
+  def time_zone_select_data
+    data = {
+      action: "input->meetings--form#updateTimezoneText",
+      "meetings--form-target": "timeZoneSelect"
+    }
+    data[:"browser-time-zone-default"] = true if browser_time_zone_default?
+
+    data
+  end
+
+  # Whether the form controller should preselect the browser's own zone.
+  #
+  # Only when creating, and only when the user has no profile zone of their own -
+  # that is the case where User#time_zone silently falls back to Etc/UTC and the
+  # create dialog therefore opens in UTC. A user who did set a zone in My account
+  # keeps it, and the select stays manually editable in both cases.
+  def browser_time_zone_default?
+    return false if series_occurrence?
+    return false if @meeting.persisted?
+    return false if @meeting.is_a?(RecurringMeeting) && @meeting.template&.persisted?
+
+    !User.current.pref.time_zone?
   end
 
   def uncurated_time_zone_option(options)

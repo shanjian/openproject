@@ -226,4 +226,41 @@ RSpec.describe "Meeting time_zone select field",
       expect(response.body).to include('<option selected="selected" value="Asia/Kolkata">(UTC+05:30) Asia/Kolkata</option>')
     end
   end
+
+  describe "browser time zone default (WP 83777 R2)" do
+    shared_let(:user_without_profile_zone) do
+      create(:user, member_with_permissions: { project => %i[view_meetings create_meetings edit_meetings] })
+    end
+
+    it "marks the select for the creator who has no profile zone of their own, " \
+       "which is the case the server renders as UTC" do
+      login_as user_without_profile_zone
+
+      get new_dialog_project_meetings_path(project), as: :turbo_stream
+
+      expect(user_without_profile_zone.pref.time_zone?).to be(false)
+      select_tag = response.body[/<select[^>]*name="meeting\[time_zone\]"[^>]*>/]
+      expect(select_tag).to include('data-browser-time-zone-default="true"')
+      expect(select_tag).to include('data-meetings--form-target="timeZoneSelect"')
+    end
+
+    it "does not mark it for a creator who did set a profile zone - their preference wins" do
+      get new_dialog_project_meetings_path(project), as: :turbo_stream
+
+      select_tag = response.body[/<select[^>]*name="meeting\[time_zone\]"[^>]*>/]
+      expect(select_tag).to be_present
+      expect(select_tag).not_to include("data-browser-time-zone-default")
+    end
+
+    it "does not mark it when editing an existing meeting, whose stored zone must stand" do
+      login_as user_without_profile_zone
+      meeting = create(:meeting, project:, author: user_without_profile_zone, time_zone: "Europe/Paris")
+
+      get details_dialog_project_meeting_path(project, meeting), as: :turbo_stream
+
+      select_tag = response.body[/<select[^>]*name="meeting\[time_zone\]"[^>]*>/]
+      expect(select_tag).to be_present
+      expect(select_tag).not_to include("data-browser-time-zone-default")
+    end
+  end
 end
