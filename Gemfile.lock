@@ -164,6 +164,11 @@ PATH
       grids
 
 PATH
+  remote: modules/okr_board
+  specs:
+    openproject-okr_board (1.0.0)
+
+PATH
   remote: modules/openid_connect
   specs:
     openproject-openid_connect (1.0.0)
@@ -1678,6 +1683,7 @@ DEPENDENCIES
   openproject-meeting!
   openproject-octicons (~> 19.32.0)
   openproject-octicons_helper (~> 19.32.0)
+  openproject-okr_board!
   openproject-openid_connect!
   openproject-primer_view_components (~> 0.82.0)
   openproject-recaptcha!
@@ -2058,6 +2064,7 @@ CHECKSUMS
   openproject-meeting (1.0.0)
   openproject-octicons (19.32.1) sha256=32253f3256ad4e1aec36442558ce140623c01e5241d9b90f6eb6d317f462781e
   openproject-octicons_helper (19.32.1) sha256=7676059927ae940170fb13d62f88b885985a3f0d483e1bb246475afcffd90f8f
+  openproject-okr_board (1.0.0)
   openproject-openid_connect (1.0.0)
   openproject-primer_view_components (0.82.0) sha256=c3d61578d26e6fa6e4bfaf520345de01cc09b487c9841de78494017aadd65ae2
   openproject-recaptcha (1.0.0)
