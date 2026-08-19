@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Creates the public saved views recommended by
 # docs/customization/Department and Team OKR Process.md ("Executive Review" section)
 # in the Company OKRs project.
@@ -138,17 +140,15 @@ def find_system_query(project:, name:)
   nil
 end
 
-def create_public_view!(project:, name:, filters:, columns:, failures:, expected:, sort_criteria: nil, group_by: nil)
-  # Recorded unconditionally, even if creation fails below: a transient failure to
-  # regenerate a view must not make reconciliation treat the last-known-good version
-  # of that same view as stale and delete it.
-  expected << name
-
+# Split out of create_public_view! so that method's own Assignment/Branch/Condition
+# tally stays under Metrics/AbcSize's threshold - this half is pure attribute-building,
+# with no query/view side effects of its own.
+def view_attrs(filters:, columns:, sort_criteria:, group_by:)
   # Filter hash keys must be symbols (Queries::WorkPackages::FilterSerializer /
   # the filter registry look them up as symbols; string keys are silently ignored).
   symbolized_filters = filters.transform_keys { |k| k.to_s.to_sym }
 
-  attrs = {
+  {
     public: true,
     include_subprojects: false,
     filters: [symbolized_filters],
@@ -160,6 +160,15 @@ def create_public_view!(project:, name:, filters:, columns:, failures:, expected
     # turn it on when this view isn't grouped.
     show_hierarchies: group_by.nil?
   }
+end
+
+def create_public_view!(project:, name:, filters:, columns:, failures:, expected:, sort_criteria: nil, group_by: nil)
+  # Recorded unconditionally, even if creation fails below: a transient failure to
+  # regenerate a view must not make reconciliation treat the last-known-good version
+  # of that same view as stale and delete it.
+  expected << name
+
+  attrs = view_attrs(filters:, columns:, sort_criteria:, group_by:)
 
   query = find_system_query(project:, name:)
   if query
