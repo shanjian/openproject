@@ -50,8 +50,12 @@ key_result_type = Type.find_by!(name: "Key Result")
 # Editorial/Technology as its direct children and teams as their direct children in turn.
 # Looked up by name, same as the cf() custom-field lookups below, since these Groups are
 # all created by hand in the Admin UI - there's no seeder/migration guaranteeing an id.
-company = Group.organizational_units.find_by(name: "Company") or
-  raise "Department 'Company' not found - it must be the root of the Department hierarchy"
+#
+# Scoped to parent_id: nil (root groups): Group#uniqueness_of_name only enforces
+# uniqueness among siblings, so a nested group could also be named "Company" - without
+# this scope, find_by could nondeterministically return that one instead of the root.
+company = Group.organizational_units.where_detail(parent_id: nil).find_by(name: "Company") or
+  raise "Root department 'Company' not found - it must be a top-level (no parent) department"
 departments = company.children.order(:lastname)
 
 # Custom fields are looked up by name, scoped to WorkPackageCustomField so a
@@ -63,8 +67,14 @@ def cf(name)
   WorkPackageCustomField.find_by(name:)
 end
 
-org_unit_cf     = cf("Organization Unit")   or raise "Custom field 'Organization Unit' not found"
-okr_health_cf   = cf("OKR Health")          or raise "Custom field 'OKR Health' not found"
+org_unit_cf = cf("Organization Unit") or raise "Custom field 'Organization Unit' not found"
+# A same-named field of some other format (e.g. plain "list") would accept the Group ids
+# used as filter values below without error, but match no real values - every generated
+# view would silently come back empty instead of failing loudly at setup time.
+org_unit_cf.department? or
+  raise "Custom field 'Organization Unit' is a '#{org_unit_cf.field_format}' field, not 'department'"
+
+okr_health_cf = cf("OKR Health") or raise "Custom field 'OKR Health' not found"
 confidence_cf   = cf("Confidence")
 baseline_cf     = cf("Baseline")
 # "Target Metric" is a fallback for older setups; the docs (Required Fields, Executive
