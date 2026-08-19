@@ -31,7 +31,18 @@
 module Groups
   class RowComponent < OpPrimer::BorderBoxRowComponent
     def name
-      render(Primer::Beta::Link.new(href: edit_group_path(model), font_weight: :bold)) { model.name }
+      safe_join(
+        [
+          render(Primer::Beta::Link.new(href: edit_group_path(model), font_weight: :bold)) { model.name },
+          department_label
+        ].compact
+      )
+    end
+
+    def department_label
+      return unless model.organizational_unit?
+
+      render(Primer::Beta::Label.new(scheme: :primary, ml: 2)) { t(:label_department) }
     end
 
     def user_count

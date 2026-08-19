@@ -40,7 +40,7 @@ class GroupsController < ApplicationController
                                       edit_membership add_users]
 
   def index
-    @groups = Group.order(Arel.sql("lastname ASC"))
+    @groups = Group.with_detail.order(Arel.sql("lastname ASC"))
   end
 
   def show

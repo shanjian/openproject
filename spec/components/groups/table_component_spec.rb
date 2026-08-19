@@ -60,5 +60,17 @@ RSpec.describe Groups::TableComponent, type: :component do
     it_behaves_like "rendering Box", row_count: 2
     it_behaves_like "rendering Border Box Grid headings"
     it_behaves_like "rendering Border Box Grid rows", row_count: 2, col_count: 3
+
+    it "does not render a Department label" do
+      expect(rendered_component).to have_no_text("Department")
+    end
+  end
+
+  context "with an organizational unit (department) among the groups" do
+    let(:groups) { [create(:group), create(:department)] }
+
+    it "renders a Department label only for the organizational unit row" do
+      expect(rendered_component).to have_css(".Label", text: "Department", count: 1)
+    end
   end
 end
