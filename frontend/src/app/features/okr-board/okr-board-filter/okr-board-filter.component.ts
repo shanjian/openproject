@@ -50,7 +50,13 @@ export const VERSION_FILTER_NAME = 'version';
   standalone: false,
 })
 export class OkrBoardFilterComponent extends UntilDestroyedMixin implements OnInit {
-  topLevelUnits:HalResource[] = [];
+  /**
+   * Every organizational unit at every depth, in the backend's tree order
+   * (`Group.organizational_units.in_tree_order` -- parents always precede their
+   * children), each carrying a display `label` indented per its depth so the flat
+   * `<select>` still conveys the hierarchy.
+   */
+  unitOptions:{ id:string, label:string }[] = [];
 
   /** cf_<id> of the project's one qualifying department-format custom field. */
   departmentFilterName = '';
@@ -74,6 +80,8 @@ export class OkrBoardFilterComponent extends UntilDestroyedMixin implements OnIn
   private allUnits:HalResource[] = [];
 
   private childrenIndex:Map<string, string[]> = new Map();
+
+  private parentIndex:Map<string, string> = new Map();
 
   // Guards the wpTableFilters.updates$() resync (see #ngOnInit()) against running before
   // the corresponding initial load has settled -- #syncSelectionFromLiveFilter() and
@@ -160,13 +168,27 @@ export class OkrBoardFilterComponent extends UntilDestroyedMixin implements OnIn
     return this.childrenIndex.get(unitId) || [];
   }
 
+  ancestorsOf(unitId:string):string[] {
+    const ancestors:string[] = [];
+    let current = this.parentIndex.get(unitId);
+
+    while (current) {
+      ancestors.push(current);
+      current = this.parentIndex.get(current);
+    }
+
+    return ancestors;
+  }
+
   scopeValues(unitId:string, scope:OkrBoardScope):string[] {
     if (scope === 'children') {
       return [unitId, ...this.childrenOf(unitId)];
     }
 
-    // 'self' and 'ancestors' are identical for a top-level-only picker —
-    // there is nothing above a top-level unit to add.
+    if (scope === 'ancestors') {
+      return [unitId, ...this.ancestorsOf(unitId)];
+    }
+
     return [unitId];
   }
 
@@ -239,8 +261,10 @@ export class OkrBoardFilterComponent extends UntilDestroyedMixin implements OnIn
     ).subscribe({
       next: (allUnits) => {
         this.allUnits = allUnits;
-        this.topLevelUnits = this.allUnits.filter((unit) => !unit.parent);
-        this.childrenIndex = this.buildChildrenIndex(this.allUnits);
+        const { childrenIndex, parentIndex } = this.buildHierarchyIndexes(this.allUnits);
+        this.childrenIndex = childrenIndex;
+        this.parentIndex = parentIndex;
+        this.unitOptions = this.buildUnitOptions(this.allUnits);
         this.unitsLoaded = true;
         this.syncSelectionFromLiveFilter();
         // OkrBoardFilterComponent sits inside PartitionedQuerySpacePageComponent, an
@@ -377,18 +401,20 @@ export class OkrBoardFilterComponent extends UntilDestroyedMixin implements OnIn
   /**
    * Infers #selectedScope from the live filter's full value list.
    *
-   * "self" and "ancestors" produce the identical single-value filter ([unitId]) for a
-   * top-level-only picker (see #scopeValues()), so they can never be told apart from the
-   * values alone -- restoring from a bookmark (or any other resync) always displays such a
-   * selection as "self". That's the documented, accepted behavior (see #scopeValues()'s own
-   * comment).
+   * For a top-level unit, "self" and "ancestors" still produce the identical
+   * single-value filter ([unitId]) -- there is nothing above a top-level unit to add
+   * (see #ancestorsOf()) -- so they can never be told apart from the values alone in
+   * that case; restoring from a bookmark then displays such a selection as "self".
+   * That's accepted, unavoidable behavior for a top-level unit specifically, not a
+   * general limitation: for any unit with actual ancestors, the explicit "ancestors"
+   * check below tells it apart from "self" correctly.
    *
    * Preserves the currently-selected scope when it already explains the observed values.
    * This matters because this method also runs on every wpTableFilters.updates$() emission
    * (see ngOnInit()), including the ones this component's own #applyUnitFilter() call
-   * triggers -- e.g. selecting "ancestors" (whose values are identical to "self"'s) would
-   * otherwise be immediately clobbered back to "self" by the resync its own filter write
-   * causes.
+   * triggers -- e.g. selecting "ancestors" for a top-level unit (whose values are
+   * identical to "self"'s) would otherwise be immediately clobbered back to "self" by the
+   * resync its own filter write causes.
    */
   private inferScope(unitId:string, values:string[]):OkrBoardScope {
     const valueSet = new Set(values);
@@ -399,6 +425,10 @@ export class OkrBoardFilterComponent extends UntilDestroyedMixin implements OnIn
 
     if (values.length > 1 && this.setsEqual(valueSet, new Set(this.scopeValues(unitId, 'children')))) {
       return 'children';
+    }
+
+    if (values.length > 1 && this.setsEqual(valueSet, new Set(this.scopeValues(unitId, 'ancestors')))) {
+      return 'ancestors';
     }
 
     return 'self';
@@ -445,8 +475,9 @@ export class OkrBoardFilterComponent extends UntilDestroyedMixin implements OnIn
     return new Set(this.allUnits.map((unit) => unit.id as string));
   }
 
-  private buildChildrenIndex(units:HalResource[]):Map<string, string[]> {
-    const index = new Map<string, string[]>();
+  private buildHierarchyIndexes(units:HalResource[]):{ childrenIndex:Map<string, string[]>, parentIndex:Map<string, string> } {
+    const childrenIndex = new Map<string, string[]>();
+    const parentIndex = new Map<string, string>();
 
     units.forEach((unit) => {
       const parentId = (unit.parent as HalResource | null)?.id as string | undefined;
@@ -454,12 +485,32 @@ export class OkrBoardFilterComponent extends UntilDestroyedMixin implements OnIn
         return;
       }
 
-      const siblings = index.get(parentId) || [];
+      parentIndex.set(unit.id as string, parentId);
+
+      const siblings = childrenIndex.get(parentId) || [];
       siblings.push(unit.id as string);
-      index.set(parentId, siblings);
+      childrenIndex.set(parentId, siblings);
     });
 
-    return index;
+    return { childrenIndex, parentIndex };
+  }
+
+  /**
+   * Builds the flat dropdown option list, indenting each unit's display label by its
+   * depth (number of ancestor hops via #parentIndex) so the hierarchy stays legible in a
+   * plain `<select>`. Relies on #parentIndex already being populated (see the caller in
+   * #loadOrganizationalUnits()) and on the backend returning units in tree order
+   * (`Group.organizational_units.in_tree_order`, `CustomField#possible_department_values`)
+   * so parents always precede their children here.
+   */
+  private buildUnitOptions(units:HalResource[]):{ id:string, label:string }[] {
+    return units.map((unit) => {
+      const depth = this.ancestorsOf(unit.id as string).length;
+      return {
+        id: unit.id as string,
+        label: `${'— '.repeat(depth)}${unit.name as string}`,
+      };
+    });
   }
 
   private applyUnitFilter(unitId:string, scope:OkrBoardScope):void {

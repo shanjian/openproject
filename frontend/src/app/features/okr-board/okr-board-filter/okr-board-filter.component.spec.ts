@@ -93,7 +93,7 @@ describe('OkrBoardFilterComponent - organizational unit loading', () => {
     component = fixture.componentInstance;
   }
 
-  it('lists only top-level units in the dropdown', async () => {
+  it('lists every unit at every depth, indented to show the hierarchy', async () => {
     configure([
       group('1', 'Marketing', null),
       group('2', 'Growth', '1'),
@@ -103,7 +103,11 @@ describe('OkrBoardFilterComponent - organizational unit loading', () => {
     component.ngOnInit();
     await fixture.whenStable();
 
-    expect(component.topLevelUnits.map((u) => u.id)).toEqual(['1', '3']);
+    expect(component.unitOptions).toEqual([
+      { id: '1', label: 'Marketing' },
+      { id: '2', label: '— Growth' },
+      { id: '3', label: 'Product' },
+    ]);
   });
 
   it('builds a parent -> children index for "one level down"', async () => {
@@ -119,6 +123,27 @@ describe('OkrBoardFilterComponent - organizational unit loading', () => {
 
     expect(component.childrenOf('1').sort()).toEqual(['2', '3']);
     expect(component.childrenOf('4')).toEqual([]);
+  });
+
+  it('builds a child -> ancestors chain for "everything above", for a unit at any depth', async () => {
+    configure([
+      group('1', 'Marketing', null),
+      group('2', 'Growth', '1'),
+      group('3', 'Digital Growth', '2'),
+      group('4', 'Product', null),
+    ]);
+
+    component.ngOnInit();
+    await fixture.whenStable();
+
+    expect(component.ancestorsOf('3')).toEqual(['2', '1']);
+    expect(component.ancestorsOf('1')).toEqual([]);
+    expect(component.unitOptions).toEqual([
+      { id: '1', label: 'Marketing' },
+      { id: '2', label: '— Growth' },
+      { id: '3', label: '— — Digital Growth' },
+      { id: '4', label: 'Product' },
+    ]);
   });
 
   it('handles more than 100 units without truncating the index', async () => {
@@ -138,7 +163,7 @@ describe('OkrBoardFilterComponent - organizational unit loading', () => {
     expect(() => component.ngOnInit()).not.toThrow();
     await fixture.whenStable();
 
-    expect(component.topLevelUnits).toEqual([]);
+    expect(component.unitOptions).toEqual([]);
     expect(component.childrenOf('1')).toEqual([]);
     expect(console.error).toHaveBeenCalled();
   });
@@ -212,7 +237,7 @@ describe('OkrBoardFilterComponent - unavailable department filter schema', () =>
     expect(() => component.ngOnInit()).not.toThrow();
     await fixture.whenStable();
 
-    expect(component.topLevelUnits).toEqual([]);
+    expect(component.unitOptions).toEqual([]);
     expect(console.error).toHaveBeenCalled();
     // The version load is a fully independent promise chain (see ngOnInit()'s comment),
     // so the department filter being unavailable must not prevent it from succeeding.
@@ -242,7 +267,7 @@ describe('OkrBoardFilterComponent - unavailable department filter schema', () =>
 
     // An external change to some other filter fires updates$() - the mocked #find()
     // above still returns a live value for the department filter (`{ values: [{ id: '1' }] }`),
-    // which #topLevelUnits (empty, since the load never ran) would make look "stale" if
+    // which #unitOptions (empty, since the load never ran) would make look "stale" if
     // the resync were wrongly armed.
     updates$.next([]);
 
@@ -340,6 +365,12 @@ describe('OkrBoardFilterComponent - scope computation', () => {
 
   it('computes "everything above" as a no-op for a top-level unit', () => {
     expect(component.scopeValues('1', 'ancestors')).toEqual(['1']);
+  });
+
+  it('computes "everything above" from the parent chain for a non-top-level unit', () => {
+    spyOn(component, 'ancestorsOf').and.returnValue(['2', '1']);
+
+    expect(component.scopeValues('3', 'ancestors')).toEqual(['3', '2', '1']);
   });
 
   it('computes "one level down" from the children index', () => {
@@ -703,6 +734,22 @@ describe('OkrBoardFilterComponent - scope restored from the live filter', () => 
 
     expect(component.selectedUnitId).toBe('1');
     expect(component.selectedScope).toBe('self');
+  });
+
+  it('restores selectedScope as "ancestors" on a fresh load, for a non-top-level unit', async () => {
+    // Regression test for lifting the top-level-only restriction: before #ancestorsOf()
+    // existed, "self" and "ancestors" were indistinguishable except by preserving
+    // whatever #selectedScope already held -- which defaults to "self" on a fresh page
+    // load, so a bookmarked "ancestors" selection for a non-top-level unit would have
+    // silently been misread as "self" here. #inferScope()'s explicit "ancestors" check
+    // (mirroring its existing "children" check) is what fixes this.
+    configure([{ id: '2' }, { id: '1' }]);
+
+    await component.loadOrganizationalUnits();
+    component.syncSelectionFromLiveFilter();
+
+    expect(component.selectedUnitId).toBe('2');
+    expect(component.selectedScope).toBe('ancestors');
   });
 });
 

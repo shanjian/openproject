@@ -4,8 +4,8 @@
     [ngModel]="selectedUnitId"
     (ngModelChange)="onUnitChange($event)">
     <option [ngValue]="null">{{ text.unit_all }}</option>
-    @for (unit of topLevelUnits; track unit.id) {
-      <option [ngValue]="unit.id">{{ unit.name }}</option>
+    @for (unit of unitOptions; track unit.id) {
+      <option [ngValue]="unit.id">{{ unit.label }}</option>
     }
   </select>
 
