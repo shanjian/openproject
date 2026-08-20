@@ -35,23 +35,27 @@ need for weekly check-ins vs. monthly reviews.
   native filter/column panel still available underneath — the quick
   filters are a convenience layer, not a replacement.
 - Two quick filters: **Organization Unit** and **Version**.
-- Organization Unit quick filter lists **top-level departments only**
+- Organization Unit quick filter lists **every organizational unit at
+  every depth** (`Group.organizational_units.in_tree_order`), not just
+  top-level departments — a flat `<select>`, ordered depth-first per
+  the backend's tree order, with each option's label indented per its
+  depth (e.g. "— Sub-team") so the hierarchy stays legible in a plain
+  dropdown. This supersedes the original "top-level departments only"
+  scoping decision below, once it became clear the full unit set (and
+  a parent/child index) was already loaded client-side for the
+  scope-toggle math — the only missing piece was the dropdown's own
+  filter, not new data.
+  **Original scoping decision (superseded):** the first iteration
+  listed top-level departments only
   (`Group.organizational_units.where_detail(parent_id: nil)`), matching
-  `create_okr_saved_views.rb`'s existing scope. Sub-unit selection is
-  out of scope for this iteration.
-  **Known limitation, accepted for this iteration:** the department
-  hierarchy allows OKRs to be tagged at any depth, including leaf/team
-  nodes (`2026-08-10-department-custom-field-design.md`: "any node in
-  the tree is selectable... no leaf-only restriction"). A team whose
-  own node sits *below* a top-level department cannot select just its
-  own node here — it can only be reached via its top-level ancestor +
-  "this and one level down", which only surfaces it if the team is
-  exactly one level below that ancestor. Teams nested two or more
-  levels down are not directly reachable at all in this iteration. This
-  is a real gap against the "weekly team check-in" use case for such
-  teams, not just an "ancestors is a no-op" cosmetic detail — accepted
-  as a scoping tradeoff, revisit if deeper org trees turn out to be
-  common.
+  `create_okr_saved_views.rb`'s existing scope, with sub-unit selection
+  declared out of scope. That iteration accepted a known gap: a team
+  whose node sits below a top-level department could only be reached
+  via its top-level ancestor + "this and one level down", which only
+  surfaced it if it was exactly one level below that ancestor — teams
+  nested two or more levels down were not reachable at all. Lifting the
+  top-level-only restriction closes this gap directly: any unit at any
+  depth can now be selected on its own.
 - **Exactly one `department`-format custom field must be enabled** on
   the project's active types for the board to activate. Custom field
   filter keys are per-field-instance (`cf_<id>`, see
@@ -61,14 +65,13 @@ need for weekly check-ins vs. monthly reviews.
 - A 3-way scope toggle, enabled once a unit is selected:
   1. **Just this unit** — `[unit.id]`
   2. **This and everything above** — `unit.self_and_ancestors.ids`. For
-     a top-level unit this is a **no-op**, identical to option 1, since
-     nothing sits above a top-level department today. Kept visible
-     rather than hidden: it becomes meaningful for free if the picker
-     is ever widened to sub-units, at no extra cost now. This is a
-     deliberate, documented tradeoff, not an oversight.
+     a top-level unit this is still a **no-op**, identical to option 1,
+     since nothing sits above a top-level department. For any
+     non-top-level unit (now selectable directly — see above) this
+     does real work, walking up the client-side parent index built
+     from the full unit set.
   3. **This and one level down** — `[unit.id] + unit.children.ids`
-     (direct children only, not full descendants). The option that
-     does real work today, given the top-level-only picker.
+     (direct children only, not full descendants).
 - **Generic across any project** — usable wherever a project has at
   least one `department`-format custom field enabled on its active
   types and at least one Version. Not hardcoded to one project or one
@@ -283,11 +286,11 @@ not a bare join-table reference).
 
 ### Hierarchy scope semantics, precisely
 
-Given a selected top-level unit `U`:
+Given a selected unit `U` at any depth:
 
 ```text
 Just this unit            → [U.id]
-This and everything above → U.self_and_ancestors.ids   (== [U.id] today; U is top-level)
+This and everything above → U.self_and_ancestors.ids   (== [U.id] when U is top-level)
 This and one level down   → [U.id] + U.children.ids
 ```
 
@@ -302,16 +305,20 @@ already treats its value as an arbitrary list of Group ids.
 **Where the frontend gets the data to compute this.** `GroupRepresenter`
 (`lib/api/v3/groups/group_representer.rb:42-48`) exposes a `parent`
 link per Group but no `children` — so "one level down" cannot be
-computed from a single Group resource alone. It also cannot be computed
-from a list of *only* top-level departments, since children by
-definition aren't in that list. The mechanism: `CustomField#possible_department_values`
-is `Group.organizational_units.in_tree_order` — **every** organizational
-unit at every depth, not just top-level ones (confirmed by reading
-`app/models/custom_field.rb:232-234`). The frontend loads this full set
-once, each entry carrying its `parent` link per `GroupRepresenter`, and
-builds a client-side `parent_id → [child ids]` index from it. The
-top-level dropdown then filters this same set down to entries with no
-parent; "one level down" looks up the selected unit's id in the index.
+computed from a single Group resource alone, and nor can "everything
+above" be computed from a list of only top-level departments (children
+by definition aren't in that list, and neither are a unit's own
+ancestors unless the full set is loaded). The mechanism:
+`CustomField#possible_department_values` is
+`Group.organizational_units.in_tree_order` — **every** organizational
+unit at every depth (confirmed by reading `app/models/custom_field.rb:232-234`).
+The frontend loads this full set once, each entry carrying its `parent`
+link per `GroupRepresenter`, and builds client-side `parent_id → [child
+ids]` and `child_id → parent_id` indexes from it in a single pass. The
+dropdown lists every entry in this same set (in the backend's tree
+order, indented per depth via the parent index); "one level down"
+looks up the selected unit's id in the children index, and "everything
+above" walks the parent index up to the root.
 
 This load must **not** go through the generic CF-value autocomplete
 path a filter's value picker normally uses
@@ -352,9 +359,12 @@ which follows every page rather than stopping at the first 100.
    with `pageSize: MAGIC_PAGE_NUMBER` — **not** the CF's normal
    100-row autocomplete path, which would silently truncate the
    hierarchy index (see "Where the frontend gets the data" above) —
-   builds a client-side `parent_id → children` index from the `parent`
-   link each entry carries, and populates the Organization Unit
-   dropdown with just the entries that have no parent.
+   builds client-side `parent_id → children` and `child_id → parent_id`
+   indexes from the `parent` link each entry carries, and populates the
+   Organization Unit dropdown with every entry in that same set, in the
+   backend's tree order, each option's label indented per its depth
+   (walked from the parent index) so the hierarchy stays legible in a
+   flat `<select>`.
 4. It loads the project's Versions using `project.shared_versions`
    (the same scope the backend `VersionFilter` itself uses — see
    "Version scope" in Error handling below), not the boards-style
@@ -363,9 +373,10 @@ which follows every page rather than stopping at the first 100.
 5. User picks an Organization Unit → the scope toggle becomes enabled,
    defaulting to "Just this unit".
 6. Selecting a scope computes the id array per the table above (using
-   the client-side index from step 3 for "one level down"; "everything
-   above" needs no traversal since the picker is top-level-only) and
-   writes it into the live query held in `IsolatedQuerySpace` via
+   the client-side indexes from step 3: the children index for "one
+   level down", the parent index for "everything above" — a no-op walk
+   for a top-level unit, real traversal otherwise) and writes it into
+   the live query held in `IsolatedQuerySpace` via
    `WorkPackageViewFiltersService`, the same way `board-filter.component.ts`
    updates the `assignee`/`version` filters today — **not** a
    one-shot `queryProps` input, since that path only takes effect at
@@ -479,10 +490,6 @@ which follows every page rather than stopping at the first 100.
 
 ## Non-goals (this iteration)
 
-- Sub-unit selection in the Organization Unit picker (top-level only —
-  see the "Known limitation, accepted for this iteration" note under
-  Requirements for the resulting gap against teams nested below a
-  top-level department).
 - OKR Health quick filter, staleness indicators, "My OKRs" personal
   filter, current-quarter auto-defaulting, saved-view auto-seeding —
   see "Recommendations for later" below.
