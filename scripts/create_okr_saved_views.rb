@@ -1,16 +1,19 @@
+# frozen_string_literal: true
+
 # Creates the public saved views recommended by
 # docs/customization/Department and Team OKR Process.md ("Executive Review" section)
 # in the Company OKRs project.
 #
 # Usage (RPM/packaged install, no Docker):
-#   sudo openproject run bundle exec rails runner scripts/create_okr_saved_views.rb
+#   OKR_VERSION="2026 Q3" sudo -E openproject run bundle exec rails runner scripts/create_okr_saved_views.rb
 #
-# Or paste the body into an interactive console:
+# Or paste the body into an interactive console (after setting ENV["OKR_VERSION"]):
 #   sudo openproject run bundle exec rails console
 #
-# Safe to re-run: an existing public view with the same name has its filters/columns
-# updated in place rather than being skipped, so column/filter edits here take effect
-# on a re-run.
+# Safe to re-run for the SAME quarter: an existing public view with the same name has its
+# filters/columns updated in place rather than being skipped, so column/filter edits here
+# take effect on a re-run. Re-running for a NEW quarter requires only a new OKR_VERSION -
+# the same view names are reused and repointed at the new Version.
 #
 # Runs as the System user throughout. Query.available_columns / custom-field visibility
 # checks (on_visible_type_and_project) filter through Project.visible(User.current), and
@@ -19,7 +22,9 @@
 # account, so Project.visible takes admins' fast-path (sees everything).
 
 PROJECT_IDENTIFIER = "company-okrs"
-VERSION_NAME = "2026 Q3"
+VERSION_NAME = ENV.fetch("OKR_VERSION") do
+  raise "Set OKR_VERSION to the target Version name, e.g. OKR_VERSION=\"2026 Q3\""
+end
 
 User.current = User.system
 
@@ -87,12 +92,14 @@ safe_col = lambda do |field|
   field.column_name
 end
 
-def create_public_view!(project:, name:, filters:, columns:, sort_criteria: nil, group_by: nil)
+FAILURES = [] # rubocop:disable Style/MutableConstant -- accumulator, appended to below
+
+def query_attrs(filters:, columns:, sort_criteria:, group_by:)
   # Filter hash keys must be symbols (Queries::WorkPackages::FilterSerializer /
   # the filter registry look them up as symbols; string keys are silently ignored).
   symbolized_filters = filters.transform_keys { |k| k.to_s.to_sym }
 
-  attrs = {
+  {
     public: true,
     include_subprojects: false,
     filters: [symbolized_filters],
@@ -104,20 +111,27 @@ def create_public_view!(project:, name:, filters:, columns:, sort_criteria: nil,
     # turn it on when this view isn't grouped.
     show_hierarchies: group_by.nil?
   }
+end
 
-  query = Query.find_by(project:, name:, public: true)
+def upsert_query(project:, name:, attrs:)
+  query = Query.find_by(project:, name:, public: true, user: User.system)
   if query
     query.update!(attrs)
-    action = "Updated"
+    [query, "Updated"]
   else
-    query = Query.create!(attrs.merge(project:, name:, user: User.system))
-    action = "Created"
+    [Query.create!(attrs.merge(project:, name:, user: User.system)), "Created"]
   end
+end
+
+def create_public_view!(project:, name:, filters:, columns:, sort_criteria: nil, group_by: nil)
+  attrs = query_attrs(filters:, columns:, sort_criteria:, group_by:)
+  query, action = upsert_query(project:, name:, attrs:)
 
   View.find_or_create_by!(type: "work_packages_table", query:)
   puts "#{action}: #{name}"
 rescue StandardError => e
   puts "FAILED: #{name} (#{e.class}: #{e.message})"
+  FAILURES << name
 end
 
 # --- Company Objectives ---------------------------------------------------
@@ -145,7 +159,8 @@ end
 
 # --- Department Objectives (one view per top-level department) -----------
 if departments.none?
-  puts "No top-level departments found (Group.organizational_units.where_detail(parent_id: nil)) - skipping Department Objectives views"
+  puts "No top-level departments found (Group.organizational_units.where_detail(parent_id: nil)) - " \
+       "skipping Department Objectives views"
 end
 
 departments.each do |department|
@@ -192,6 +207,11 @@ if at_risk_option_ids.size == 2
 else
   found = okr_health_cf.custom_options.where(value: ["At Risk", "Off Track"]).pluck(:value)
   puts "Skipped 'At-Risk OKRs': expected OKR Health options 'At Risk' and 'Off Track', found #{found.inspect}"
+end
+
+if FAILURES.any?
+  puts "FAILED (#{FAILURES.size}): #{FAILURES.join(', ')}"
+  exit 1
 end
 
 puts "Done."
