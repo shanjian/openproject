@@ -670,6 +670,8 @@ en:
           work_package_processed: "All status changes"
           work_package_prioritized: "All priority changes"
           work_package_scheduled: "All date changes"
+          meeting_updated: "Meeting updated or closed"
+          meeting_responses: "Participant responses to my meetings"
         global:
           immediately:
             title: "Participating"

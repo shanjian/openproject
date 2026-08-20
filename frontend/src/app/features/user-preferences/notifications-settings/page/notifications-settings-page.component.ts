@@ -25,6 +25,11 @@ interface IToastSettingsValue {
   workPackageCommented:boolean;
 }
 
+interface IGlobalOnlySettingsValue {
+  meetingUpdated:boolean;
+  meetingResponses:boolean;
+}
+
 interface IProjectNotificationSettingsValue extends IToastSettingsValue {
   project:{
     title:string;
@@ -35,7 +40,7 @@ interface IProjectNotificationSettingsValue extends IToastSettingsValue {
   overdue:string|null;
 }
 
-interface IFullNotificationSettingsValue extends IToastSettingsValue {
+interface IFullNotificationSettingsValue extends IToastSettingsValue, IGlobalOnlySettingsValue {
   projectSettings:IProjectNotificationSettingsValue[];
   startDate:{ active:boolean, time:string };
   dueDate:{ active:boolean, time:string };
@@ -66,6 +71,8 @@ export class NotificationsSettingsPageComponent extends UntilDestroyedMixin impl
     workPackageScheduled: new UntypedFormControl(false),
     workPackagePrioritized: new UntypedFormControl(false),
     workPackageCommented: new UntypedFormControl(false),
+    meetingUpdated: new UntypedFormControl(false),
+    meetingResponses: new UntypedFormControl(false),
     startDate: new UntypedFormGroup({
       active: new UntypedFormControl(false),
       time: new UntypedFormControl(this.availableTimes[1]),
@@ -104,6 +111,8 @@ export class NotificationsSettingsPageComponent extends UntilDestroyedMixin impl
     work_package_processed: this.I18n.t('js.notifications.settings.reasons.work_package_processed'),
     work_package_prioritized: this.I18n.t('js.notifications.settings.reasons.work_package_prioritized'),
     work_package_scheduled: this.I18n.t('js.notifications.settings.reasons.work_package_scheduled'),
+    meeting_updated: this.I18n.t('js.notifications.settings.reasons.meeting_updated'),
+    meeting_responses: this.I18n.t('js.notifications.settings.reasons.meeting_responses'),
     save: this.I18n.t('js.button_save'),
     projectSpecific: {
       title: this.I18n.t('js.notifications.settings.project_specific.title'),
@@ -176,6 +185,8 @@ export class NotificationsSettingsPageComponent extends UntilDestroyedMixin impl
         this.form.get('workPackageScheduled')?.setValue(settings.workPackageScheduled);
         this.form.get('workPackagePrioritized')?.setValue(settings.workPackagePrioritized);
         this.form.get('workPackageCommented')?.setValue(settings.workPackageCommented);
+        this.form.get('meetingUpdated')?.setValue(settings.meetingUpdated);
+        this.form.get('meetingResponses')?.setValue(settings.meetingResponses);
 
         this.form.get('startDate.active')?.setValue(!!settings.startDate);
         this.form.get('startDate.time')?.setValue(settings.startDate || this.availableTimes[1].value);
@@ -239,6 +250,8 @@ export class NotificationsSettingsPageComponent extends UntilDestroyedMixin impl
       workPackageScheduled: notificationSettings.workPackageScheduled,
       workPackagePrioritized: notificationSettings.workPackagePrioritized,
       workPackageCommented: notificationSettings.workPackageCommented,
+      meetingUpdated: notificationSettings.meetingUpdated,
+      meetingResponses: notificationSettings.meetingResponses,
       startDate: notificationSettings.startDate.active ? notificationSettings.startDate.time : null,
       dueDate: notificationSettings.dueDate.active ? notificationSettings.dueDate.time : null,
       overdue: notificationSettings.overdue.active ? notificationSettings.overdue.time : null,

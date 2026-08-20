@@ -146,6 +146,36 @@ RSpec.describe WorkPackages::Import::PreviewComponent, type: :component do
     end
   end
 
+  describe "description" do
+    # The description pipeline (parser -> resolver -> created work package) has always carried
+    # free text under a heading through to the created work package; the preview just never
+    # displayed it, which read as "descriptions are not supported". It must be visible here.
+    it "renders a node's free-text description, preserving line breaks" do
+      node_with_description = WorkPackages::Import::OutlineParser::Node.new(
+        level: 1, type_name: "Objective", subject: "Increase retention",
+        attributes: {}, description: "Reduce friction for new customers.\nSecond line.",
+        source_line: 1, parent_index: nil
+      )
+      row = WorkPackages::Import::Resolver::ResolvedRow.new(node: node_with_description,
+                                                            work_package: build(:work_package),
+                                                            attribute_matches: [], errors: [])
+      render_inline(described_class.new(rows: [row]))
+
+      description = page.find("p.work-package-import-preview--description")
+      expect(description).to have_text("Reduce friction for new customers.")
+      expect(description).to have_text("Second line.")
+      expect(description[:style]).to include("pre-line")
+    end
+
+    it "renders no description element when the node has none" do
+      row = WorkPackages::Import::Resolver::ResolvedRow.new(node:, work_package: build(:work_package),
+                                                            attribute_matches: [], errors: [])
+      render_inline(described_class.new(rows: [row]))
+
+      expect(page).to have_no_css("p.work-package-import-preview--description")
+    end
+  end
+
   it "renders an attribute match" do
     match = { label: "Accountable", formatted: "Jane Doe (jane.doe@example.com)" }
     row = WorkPackages::Import::Resolver::ResolvedRow.new(node:, work_package: build(:work_package),

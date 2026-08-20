@@ -75,6 +75,20 @@ class MeetingMailer < UserMailer
     mail(to: user, subject: "[#{@meeting.project.name}] #{subject}")
   end
 
+  # Informational mail when a closed meeting is reopened. No .ics attachment:
+  # open vs. closed carries no distinct calendar status.
+  def reopened(meeting, user, actor)
+    @actor = actor
+    @user = user
+    @meeting = meeting
+
+    open_project_headers "Project" => @meeting.project.identifier,
+                         "Meeting-Id" => @meeting.id
+
+    subject = I18n.t("meeting.email.reopened.header", title: @meeting.title)
+    mail(to: user, subject: "[#{@meeting.project.name}] #{subject}")
+  end
+
   # Organizer digest of participant responses (Meetings::SendParticipationDigestJob).
   # target is the Meeting for one-offs or the RecurringMeeting for a series;
   # responses is an array of MeetingParticipant rows.
