@@ -30,22 +30,22 @@
 
 module McpTools
   class << self
-    def all
-      [
-        McpTools::CurrentUser,
-        McpTools::ListStatuses,
-        McpTools::ListTypes,
-        McpTools::SearchPortfolios,
-        McpTools::SearchPrograms,
-        McpTools::SearchProjects,
-        McpTools::SearchUsers,
-        McpTools::SearchVersions,
-        McpTools::SearchWorkPackages
-      ]
+    # Idempotent on purpose. Registration happens from a to_prepare block, which fires more than once
+    # per reload cycle in development, so re-registering an already-known tool must be a no-op.
+    # Upstream appends unconditionally, which duplicates every entry on the first reload.
+    def register(*tools)
+      all.replace(all | tools)
+      @tools_by_name = nil
     end
 
-    def enabled
-      McpConfiguration.where(enabled: true).pluck(:identifier).filter_map { |name| tools_by_name[name] }
+    def all
+      @all ||= []
+    end
+
+    def enabled_mcp_tools
+      McpConfiguration.where(enabled: true).filter_map do |config|
+        tools_by_name[config.identifier]&.tool(title: config.title, description: config.description)
+      end
     end
 
     def tools_by_name

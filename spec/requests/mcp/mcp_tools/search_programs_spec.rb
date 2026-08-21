@@ -130,12 +130,22 @@ RSpec.describe McpTools::SearchPrograms, with_flag: { mcp_server: true } do
         expect(parsed_results.dig("structuredContent", "items").count).to eq(page_size)
       end
 
+      it "reports the total number of matches" do
+        subject
+        expect(parsed_results.dig("structuredContent", "total")).to eq(program_count)
+      end
+
       context "if another page is requested" do
         let(:call_args) { { name: "Death Star", page: 2 } }
 
         it "returns the requested page" do
           subject
           expect(parsed_results.dig("structuredContent", "items").count).to eq(overspilling_programs)
+        end
+
+        it "still reports the total number of matches, not the size of the page" do
+          subject
+          expect(parsed_results.dig("structuredContent", "total")).to eq(program_count)
         end
       end
     end
