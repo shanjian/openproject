@@ -209,6 +209,18 @@ pieces needed:
 - **`HierarchicalItemService#hashed_subtree`** needed upstream's `depth: -1` default. The
   MCP tool omits `depth:`; ours required it, so every call raised
   `missing keyword: :depth`. Backward compatible — both existing callers pass it.
+- **The APIv3 custom field show endpoint** — absent. `CustomFieldRepresenter`'s `self_link`
+  advertises `/api/v3/custom_fields/{id}`, and upstream mounts a one-line
+  `Endpoints::Show` for it that we did not have, so every custom field the MCP tools
+  returned pointed at a 404. Mounting it makes `custom_fields_api.rb` identical to
+  upstream. Upstream also ships `paths/custom_field.yml` but never referenced it from
+  `openapi-spec.yml`; ours is wired in, so the documentation is actually published.
+- **The `fieldFormat` enum needed `department` and `calculated_value`.** Upstream's schema
+  lists neither, but both are registered here — `department` is a Community-available
+  fork feature and `calculated_value` is Enterprise-gated. Since `search_custom_fields`
+  returns every visible field, a valid response could violate our own documented schema.
+  Note `empty` is registered too and deliberately stays out: it is an internal fallback
+  formatter with a nil label, explicitly not selectable as a custom field's format.
 - **`HierarchyItemRepresenter`'s parent link needed `.compact`**, and
   `hierarchy_item_read_model.yml` needed `depth` widened to `["integer", "null"]`. Both
   were live bugs in our tree, not new: a root hierarchy item has no label, so children

@@ -23,7 +23,9 @@ properties:
     description: Defines which kind of values are allowed in the custom field.
     enum:
     - bool
+    - calculated_value
     - date
+    - department
     - float
     - hierarchy
     - int
