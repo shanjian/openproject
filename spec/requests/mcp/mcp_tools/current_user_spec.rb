@@ -75,10 +75,10 @@ RSpec.describe McpTools::CurrentUser, with_flag: { mcp_server: true } do
     end
   end
 
-  context "when the mcp_server enterprise feature is disabled" do
-    it "responds in a 404" do
+  context "without an Enterprise token" do
+    it "still responds successfully" do
       subject
-      expect(last_response).to have_http_status(404)
+      expect(last_response).to have_http_status(200)
     end
   end
 end

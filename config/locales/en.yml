@@ -132,6 +132,19 @@ en:
       server_form:
         description_caption: "How the MCP server will be described to other applications who connect to it."
         title_caption: "A short title shown to applications that connect to the MCP server."
+        tool_response_format: "Tool response format"
+        tool_response_format_content_only_caption: >
+          Choose this if MCP clients connecting to this instance do not support structured content.
+          Tool responses will only contain plain text content and leave out the structured version.
+        tool_response_format_content_only_label: "Content only"
+        tool_response_format_full_caption: >
+          The most compatible option. Tool responses will include both regular and structured content, allowing MCP clients to choose which format they want to read.
+          This may increase the number of tokens that the language model has to process, potentially increasing cost and decreasing performance.
+        tool_response_format_full_label: "Full"
+        tool_response_format_structured_only_caption: >
+          Choose this if you are certain that MCP clients connecting to this instance support structured content.
+          Tool responses will only include structured content and leave out its text representation.
+        tool_response_format_structured_only_label: "Structured content only"
       update:
         failure: "MCP configuration could not be updated."
         success: "MCP configuration was updated successfully."
@@ -758,6 +771,11 @@ en:
       failure: "The list cannot be made private: %{errors}"
     can_be_saved: "List modified:"
     can_be_saved_as: "The modifications can only be saved in a new list:"
+
+  mcp_configurations:
+    server_url_component:
+      caption: "The URL at which the OpenProject MCP server will be reachable. Required for setting up MCP clients."
+      label: "Server URL"
 
   members:
     index:
@@ -5718,6 +5736,8 @@ en:
     scopes:
       api_v3: "Full API v3 access"
       api_v3_text: "Application will receive full read & write access to the OpenProject API v3 to perform actions on your behalf."
+      mcp: "Access to MCP"
+      mcp_text: "Application will receive access to the OpenProject MCP endpoints. They are a limited subset of APIv3, that's tailored for usage with AI agents."
     grants:
       created_date: "Approved on"
       scopes: "Permissions"

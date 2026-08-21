@@ -33,14 +33,14 @@ module McpTools
     default_title "Search versions"
     default_description "Search versions matching all of the passed input parameters. " \
                         "Parameters not passed are ignored. Results are limited to a maximum " \
-                        "of #{page_size} versions. To get the rest of the results, call the tool again with a" \
+                        "of #{page_size} versions. To get the rest of the results, call the tool again with a " \
                         "page number of 2 or higher."
 
     name "search_versions"
     annotations read_only: true, idempotent: true, destructive: false
     enable_pagination
 
-    filter :name, filter_class: Queries::Versions::Filters::NameFilter, operator: "~"
+    filter :name, filter_class: "Queries::Versions::Filters::NameFilter", operator: "~"
     filter :sharing
 
     input_schema(

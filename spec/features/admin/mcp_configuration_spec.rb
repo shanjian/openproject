@@ -138,14 +138,18 @@ RSpec.describe "MCP configuration page", :js do
     end
   end
 
-  context "when the enterprise feature is disabled" do
-    it "hides the entire form, but shows an enterprise banner" do
+  context "without an Enterprise token" do
+    before do
+      McpConfiguration.server_config.update!(enabled: true)
+    end
+
+    it "still shows the whole form and no enterprise banner" do
       visit mcp_configurations_path
 
-      expect(page).to have_enterprise_banner(:professional)
+      expect(page).not_to have_enterprise_banner
 
-      expect(page).to have_no_test_selector("mcp-configuration--server-config-form")
-      expect(page).to have_no_test_selector("mcp-configuration--config-row-name")
+      expect(page).to have_test_selector("mcp-configuration--server-config-form")
+      expect(page).to have_test_selector("mcp-configuration--config-row-name")
     end
   end
 end

@@ -33,14 +33,14 @@ module McpTools
     default_title "Search programs"
     default_description "Search programs matching all of the passed input parameters. " \
                         "Parameters not passed are ignored. Results are limited to a maximum " \
-                        "of #{page_size} programs. To get the rest of the results, call the tool again with a" \
+                        "of #{page_size} programs. To get the rest of the results, call the tool again with a " \
                         "page number of 2 or higher."
 
     name "search_programs"
     annotations read_only: true, idempotent: true, destructive: false
     enable_pagination
 
-    filter :name, filter_class: Queries::Projects::Filters::NameFilter, operator: "~"
+    filter :name, filter_class: "Queries::Projects::Filters::NameFilter", operator: "~"
     filter :identifier
     filter :status_code
 
