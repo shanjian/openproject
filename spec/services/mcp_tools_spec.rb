@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-#-- copyright
+# -- copyright
 # OpenProject is an open source project management software.
 # Copyright (C) the OpenProject GmbH
 #
@@ -26,39 +26,33 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 #
 # See COPYRIGHT and LICENSE files for more details.
-#++
+# ++
+require "spec_helper"
 
-module McpTools
-  class SearchUsers < Base
-    default_title "Search users"
-    default_description "Search users matching all of the passed input parameters. " \
-                        "Parameters not passed are ignored. Results are limited to a maximum of #{page_size} users. " \
-                        "To get the rest of the results, call the tool again with a page number of 2 or higher."
+RSpec.describe McpTools do
+  describe ".register" do
+    it "has registered the tools the initializer declares" do
+      expect(described_class.all).to include(McpTools::SearchWorkPackages)
+    end
 
-    name "search_users"
-    annotations read_only: true, idempotent: true, destructive: false
-    enable_pagination
+    # Registration runs from a to_prepare block so the registry survives code reloading in
+    # development, and that block fires more than once per reload cycle. Appending
+    # unconditionally duplicates every entry, which is what upstream does.
+    it "is a no-op for tools that are already registered" do
+      expect { described_class.register(*described_class.all) }
+        .not_to change(described_class, :all)
+    end
 
-    filter :search_term, filter_class: "Queries::Users::Filters::AnyNameAttributeFilter", operator: "~"
+    it "invalidates the memoized #tools_by_name so a newly registered tool is findable" do
+      extra = Class.new(described_class::Base) { name "spec_only_tool" }
+      described_class.tools_by_name # memoize the lookup before registering
 
-    input_schema(
-      properties: {
-        search_term: {
-          type: "string",
-          description: "A search term to find the user by. Accepts first name and last name. Also accepts email address, " \
-                       "if instance settings allow it."
-        }
-      }
-    )
+      described_class.register(extra)
 
-    def call(page: nil, **filters)
-      users = apply_filters(User.visible.not_builtin, filters)
-      users, total = apply_pagination(users, page)
-
-      {
-        items: users.map { |user| API::V3::Users::UserRepresenter.create(user, current_user:) },
-        total:
-      }
+      expect(described_class.tools_by_name["tools/spec_only_tool"]).to eq(extra)
+    ensure
+      described_class.all.delete(extra)
+      described_class.register # a no-op registration, to drop the memoized lookup again
     end
   end
 end

@@ -43,3 +43,29 @@ MCP.configure do |config|
     OpenProject::OpenTelemetry.trace_exception(exception, server_context) if OpenProject::OpenTelemetry.enabled?
   end
 end
+
+# Registered in a to_prepare block rather than upstream's after_initialize: McpTools and McpResources live
+# under app/services, so Zeitwerk unloads them (and with them the registries) on every code reload in
+# development. after_initialize never runs again, which would leave the server with no tools after the
+# first reload. to_prepare re-runs on each reload, so the registries are repopulated.
+Rails.application.config.to_prepare do
+  McpTools.register McpTools::CurrentUser,
+                    McpTools::ListStatuses,
+                    McpTools::ListTypes,
+                    McpTools::SearchPortfolios,
+                    McpTools::SearchPrograms,
+                    McpTools::SearchProjects,
+                    McpTools::SearchUsers,
+                    McpTools::SearchVersions,
+                    McpTools::SearchWorkPackages
+
+  McpResources.register McpResources::CurrentUser,
+                        McpResources::Project,
+                        McpResources::Status,
+                        McpResources::StatusList,
+                        McpResources::Type,
+                        McpResources::TypeList,
+                        McpResources::User,
+                        McpResources::Version,
+                        McpResources::WorkPackage
+end

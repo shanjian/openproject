@@ -151,7 +151,9 @@ Two habits make answers noticeably better:
 - **Name projects and versions the way OpenProject does.** The assistant matches on
   real names and identifiers.
 - **Ask for a follow-up rather than a huge sweep.** Each search returns at most 40
-  results per call (see [Notes & limitations](#notes--limitations)).
+  results per call, though it also reports how many matches there are in total, so
+  the assistant can page through the rest if you ask
+  (see [Notes & limitations](#notes--limitations)).
 
 ---
 
@@ -272,8 +274,10 @@ yet. Tracked as item 2 in
 [mcp-upstream-backlog.md](../development/mcp-upstream-backlog.md).
 
 **Assistant only ever finds 40 of something.**
-That is the per-call page limit, not the total. Ask it to fetch the next page, or
-narrow the question.
+That is the per-call page limit, not the total. Every search response reports a
+`total` alongside the results, so ask the assistant how many matches there are in
+all and to fetch the remaining pages. If it insists 40 is everything, it is ignoring
+the `total` it was given — say the number back to it, or narrow the question.
 
 **Nothing above fits.**
 Server-side failures are logged with `Unhandled exception occured during MCP
@@ -284,11 +288,10 @@ request`, so grep the OpenProject log for that string.
 ## Notes & limitations
 
 - **Read-only.** By design in this build.
-- **40 results per call.** Every search caps there. A client can request page 2, 3
-  and so on, but it is not told the total number of matches, so an assistant cannot
-  know whether more pages exist — it may stop early on a broad question. Prefer
-  narrower questions. Tracked as item 3 in
-  [mcp-upstream-backlog.md](../development/mcp-upstream-backlog.md).
+- **40 results per call.** Every search caps there, and a client requests page 2, 3
+  and so on to get the rest. Each response also reports `total`, the full number of
+  matches, so an assistant can tell whether more pages exist rather than guessing.
+  Broad questions still cost several round trips.
 - **Custom field names are not resolved.** Reported as `customFieldN`.
 - **Responses are verbose.** Work package payloads currently include rendered HTML
   alongside the raw text plus a large block of internal links, which consumes the

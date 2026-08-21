@@ -14,7 +14,7 @@ Companion to [upstream-sync-plan.md](upstream-sync-plan.md), which covers the ge
 | Fork point | `v17.1.2` (MCP first shipped upstream in `v17.1.0`) |
 | Upstream surveyed | `upstream/dev` @ `4a95621961c`, 2026-08-21 |
 | Latest upstream tag | `v17.7.2`; `release/17.8` branch open |
-| Our `mcp` gem | `0.8.0` |
+| Our `mcp` gem | `~> 0.24.0` (was `0.8.0`) |
 | Upstream `mcp` gem | `~> 0.24.0` |
 
 Our tree is not simply "at 17.1.2" for MCP. An earlier partial sync already brought in
@@ -24,7 +24,17 @@ Expect more of this kind of half-applied state.
 
 ## Already applied
 
-Done on `feature/ungate-mcp-server`; listed so this doc reads as a complete picture.
+Listed so this doc reads as a complete picture.
+
+On `feature/mcp-gem-0-24-upgrade`:
+
+- **`mcp` gem `0.8.0` -> `0.24.0`** with upstream's `McpTools::Base` refactor. See
+  [what the upgrade actually changed](#done-the-gem-upgrade-and-base-refactor) below.
+- **`total` in paginated responses** (was item 3). `apply_pagination` returns
+  `[scope, total]` and all six search tools report it.
+- **`output_filter` hook** on `base.rb`, so item 1 below is a pure addition.
+
+On `feature/ungate-mcp-server`:
 
 - **Enterprise gating removed** from the endpoint, the admin page and the menu badge.
   The specs now assert MCP responds *without* a token, so a future merge that restores
@@ -41,28 +51,82 @@ Done on `feature/ungate-mcp-server`; listed so this doc reads as a complete pict
   `/admin/settings/experimental`" block is gone and the Enterprise badge is replaced by a
   note about our ungating.
 
-## The blocker: `mcp` gem 0.8.0 -> 0.24.0
+## Done: the gem upgrade and base refactor
 
-Nearly everything outstanding sits behind this. Upstream's refactor of
-`McpTools::Base` is driven by the gem upgrade, not by taste:
+This was the blocker for everything below. It is done.
 
-- `output_schema` is **removed** from tools entirely, along with the dev-mode
-  `validate_result` check and `resource_schema` on `ResourceProxyTool`.
-- `tool` becomes `tool(title:, description:)`; the `McpConfiguration` lookup moves out
+**One correction to what this doc previously claimed.** It said the gem "removes"
+`output_schema`. It does not — mcp 0.24 still ships `MCP::Tool::OutputSchema` and
+`MCP::Tool.define(..., output_schema:)`, and gem-side result validation exists as
+`Configuration#validate_tool_call_results` (defaulting to `false`). Dropping
+`output_schema` was upstream's *choice*, and we followed it deliberately: nothing was
+connected to the server yet, so removing `outputSchema` from `tools/list` cost nothing,
+and keeping per-tool schemas would have meant hand-writing one for every future ported
+tool and would have conflicted with the output filters in item 1. If we ever want
+validation back, `validate_tool_call_results` gives it to us at the right point —
+after the output filters run.
+
+The gem bump itself was close to transparent: `MCP::Server.new` and
+`MCP::Tool::Response.new` are signature-compatible on every kwarg we pass. All the
+churn was upstream's refactor:
+
+- `output_schema` dropped from `base.rb` and from the six search tools that declared one,
+  along with the dev-mode `validate_result` check and `validate_root_output_schema!`. The
+  `resource_schema` shorthand that the three resource-proxy tools used went with it.
+- `tool` became `tool(title:, description:)`; the `McpConfiguration` lookup moved out
   into `McpTools.enabled_mcp_tools` / `McpResources.enabled_mcp_resources`.
-- `McpTools.all` / `McpResources.all` become mutable registries populated by
-  `register` from an `after_initialize` block, replacing the hardcoded arrays.
-- `format_structured_content` gains a `JSON.parse(result.to_json)` round-trip
+- `McpTools.all` / `McpResources.all` became mutable registries populated by `register`,
+  replacing the hardcoded arrays.
+- `format_structured_content` gained a `JSON.parse(result.to_json)` round-trip
   "because the mcp gem performs strict type checks on the structured content".
-- `apply_pagination` returns `[scope, total]` and every tool returns `total:`.
+- `apply_pagination` returns `[scope, total]` and every search tool returns `total:`.
 
-These are interlocked: `base.rb` cannot be taken without every tool file changing in
-lockstep. Our 497 MCP specs currently pass on 0.8.0, including the dev-mode
-`validate_result` path (`Rails.env.local?` is true in test), so there is no bug forcing
-our hand — this is a deliberate upgrade, not a fix.
+**Deliberate deviations from upstream**, all of them small:
 
-**Estimated shape:** one focused branch, ~15 app files plus specs, no data migration.
-Do this first; it unlocks everything below.
+- **Registration runs in `to_prepare`, not `after_initialize`.** `McpTools` lives under
+  `app/services`, so Zeitwerk unloads it — and the registry with it — on every dev
+  reload, while `after_initialize` never runs again. Upstream's version silently
+  serves zero tools after the first file edit in development.
+- **`register` is idempotent**, because `to_prepare` fires more than once per reload
+  cycle. Upstream's unconditional `all << t` duplicates every entry on the first reload
+  (verified: 9 tools become 18), which would double every row on the admin page and make
+  the seeder visit each tool twice. `register` now unions into the registry and drops the
+  memoized `tools_by_name` / `resources_by_name` lookup. Covered by
+  `spec/services/mcp_tools_spec.rb` and `spec/services/mcp_resources_spec.rb`, both of
+  which fail against upstream's version.
+- The `search_projects`, `search_portfolios`, `search_programs` and `search_versions`
+  descriptions keep our missing-space fix; upstream still renders "with apage number" in
+  all four.
+- **`format_structured_content` does not round-trip again.** `format_response` has already
+  converted the representers into plain hashes by the time it is called, so upstream's
+  `JSON.parse(result.to_json)` there can only ever be a no-op on an already-converted
+  hash. Ours returns the hash as-is. Response bodies are byte-identical either way; the
+  505 request specs assert them deeply and pass unchanged.
+- `filter_class` stays a String, as does the doc example in `base.rb`.
+- Not taken from upstream's `base.rb` consumers: the `output_filter` *declarations* on
+  `search_work_packages` (item 1), the custom-field sentence in its description
+  (item 2), and `target_version_id` (item 5).
+
+### Where the time actually goes
+
+Measured on a 40-work-package search response (202 KB of JSON), warm:
+
+| | |
+|---|---|
+| Building + serializing the page (representers) | ~334 ms |
+| Redundant `format_structured_content` round-trip, now removed | 2.58 ms |
+| The `COUNT(*)` that `total` added | 1.29 ms |
+
+**Almost all of it is representer materialization**, not JSON handling or querying. Two
+consequences:
+
+- The round-trip in `format_response` is *necessary*, not waste — it is what converts the
+  representers into the plain hashes the gem type-checks, needed with or without output
+  filters. Only the second one, in `format_structured_content`, was redundant.
+- This bounds item 1. Output filters run *after* the representers are built, so they cut
+  the tokens a model pays for but will not make a search call faster. If search latency
+  ever becomes the complaint, the fix is narrowing what the representer renders, not
+  filtering its output.
 
 ## Outstanding items
 
@@ -73,15 +137,16 @@ Do this first; it unlocks everything below.
 `RemoveWorkPackageActionLinks` (strips 23 HAL action links: `update`, `delete`, `logTime`,
 `watch`, `addRelation`, …) and `RemoveActivityDetails`.
 
-- **Gain:** large and immediate. Work package payloads currently ship rendered HTML
-  alongside the raw markdown and a wall of action links the model cannot use. This is
-  pure token cost on every single call.
-- **Risk:** medium. Needs the small `output_filter` / `output_filters` addition to
-  `base.rb` (~8 lines, independent of the gem), but it strips keys that our still-present
-  `output_schema` declarations validate against in dev and test. Either take it with the
-  gem upgrade above, or verify the JSON schemas tolerate the removals first.
-- **Verdict:** highest-value item. Worth considering ahead of the full gem upgrade if
-  the schema interaction turns out to be benign.
+- **Gain:** large and immediate, but in tokens only. Work package payloads currently ship
+  rendered HTML alongside the raw markdown and a wall of action links the model cannot
+  use, on every single call. Measured above: filters run after the representers are built,
+  so they will not reduce response latency.
+- **Risk:** low now. The `output_filter` / `output_filters` hook is already on `base.rb`
+  and `format_response` already runs the filters, so this is purely adding the four
+  filter classes plus the two `output_filter` declarations on `search_work_packages`.
+  The reason this used to be medium-risk — the filters strip keys our `output_schema`
+  declarations validated against — no longer applies; those declarations are gone.
+- **Verdict:** highest-value item and now the cheapest. Do it next.
 
 ### 2. Read-only tools we are missing
 
@@ -100,22 +165,22 @@ Four tools and one resource, all `read_only: true, destructive: false`:
   feature, for one), and without these an agent reports raw `customField7` labels.
   Upstream's own `search_work_packages` description now instructs the model to resolve
   names through these tools rather than showing `customFieldN`.
-- **Risk:** medium, and entirely from porting. They are written against the post-upgrade
-  base (no `output_schema`, `apply_pagination` returning `total`, `output_filter`), so
-  they are not drop-in on our tree.
-- **Verdict:** take with or right after the gem upgrade.
+- **Risk:** low. They are written against the post-upgrade base (no `output_schema`,
+  `apply_pagination` returning `total`, `output_filter`), which is now what we have, so
+  they are close to drop-in. The remaining work is the `search_work_packages`
+  description sentence telling the model to resolve custom field names through these
+  tools, which we deliberately held back until the tools exist.
+- **Verdict:** take after item 1, custom fields first.
 
-### 3. `total` in paginated responses
+### 3. `total` in paginated responses — DONE
 
-`apply_pagination` returns a count and every search tool returns `total:`.
+Landed with the gem upgrade; `apply_pagination` returns a count and all six search tools
+report `total:`. Costs one extra `COUNT` query per search call.
 
-- **Gain:** moderate but real. Pagination is currently blind — the tool description tells
-  the model to "call again with a page number of 2 or higher" with no way to know whether
-  there is a page 2. Models either stop early or page pointlessly.
-- **Risk:** low in isolation, and independent of the gem. Touches `base.rb` plus all six
-  search tools, and adds a `total` key that the `output_schema` declarations do not list.
-- **Verdict:** the one substantial item that could be done standalone if the gem upgrade
-  gets deferred. Costs one extra `COUNT` query per search call.
+Worth knowing: neither we nor upstream mention `total` in any tool description, and with
+`output_schema` gone there is no declared output shape either. A model discovers it only
+by reading the response body. If paging in practice turns out to be worse than the
+mechanism allows, adding a sentence to the search descriptions is the cheap fix.
 
 ### 4. Write tools — high gain, high risk
 
@@ -175,14 +240,24 @@ other half of this.
 
 ## Suggested order
 
-1. **Gem upgrade + base refactor** (the blocker above). Unlocks the rest, no data migration.
-2. **Output filters** (item 1). Biggest token win, lands cleanly on the new base.
-3. **Read-only tools** (item 2), custom fields first.
-4. **`total`** (item 3) — comes almost free with the refactor.
-5. **Write tools** (item 4) — separate branch, separate review, after the questions above
-   are answered.
+Item numbers are stable — `docs/features/MCP_FEATURE_GUIDE.md` cites items 1 and 2 by
+number, so renumber nothing.
+
+1. ~~Gem upgrade + base refactor~~ — done.
+2. ~~`total`~~ (item 3) — done, came with the refactor.
+3. **Output filters** (item 1). Biggest token win, and now the cheapest change in the
+   list: the hook is already in place.
+4. **Read-only tools** (item 2), custom fields first. Near drop-in on the new base. Also
+   unblocks the custom-field sentence held back from the `search_work_packages`
+   description.
+5. **Write tools** (item 4) — separate branch, separate review, after the open questions
+   there are answered.
 6. Leave item 5 to the Release/Sprint work and item 6 to natural upstream drift.
 
 Items 1-3 are read-only and sit behind the per-tool admin toggles, so each can ship and
 be reverted independently. Item 4 is the write tools and needs its own review before any
 of it ships.
+
+When items 1 and 2 land, `MCP_FEATURE_GUIDE.md` needs updating with them: the
+"Responses are verbose" note and the `customFieldN` troubleshooting entry both describe
+gaps those items close.
