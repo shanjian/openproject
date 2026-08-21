@@ -26,6 +26,12 @@ Expect more of this kind of half-applied state.
 
 Listed so this doc reads as a complete picture.
 
+On `feature/mcp-custom-field-tools`:
+
+- **The custom field half of item 2**: `search_custom_fields`, `search_custom_field_items`
+  and `McpResources::CustomField`, plus the `search_work_packages` description sentence
+  held back in #147. An agent can now resolve `customField7` to a real name.
+
 On `feature/mcp-output-filters`:
 
 - **Output filters** (was item 1). `HashFilter`, `RemoveFormattableHtml`, `RemoveLinks` and
@@ -175,29 +181,64 @@ Note also that filtering covers the **tool** path only. `McpResources.read_resou
 not run output filters, so reading a work package as a resource still returns the full
 payload.
 
-### 2. Read-only tools we are missing
+### 2. Read-only tools we are missing — custom fields DONE, work package detail outstanding
 
-Four tools and one resource, all `read_only: true, destructive: false`:
+| Tool | Notes | Status |
+|---|---|---|
+| `search_custom_fields` | resolves `customFieldN` to real names | done |
+| `search_custom_field_items` | hierarchy custom field items | done |
+| `McpResources::CustomField` | matching resource | done |
+| `list_work_package_comments` | journals/comments for a WP | outstanding |
+| `list_work_package_relations` | relations for a WP | outstanding |
 
-| Tool | Notes |
-|---|---|
-| `list_work_package_comments` | journals/comments for a WP |
-| `list_work_package_relations` | relations for a WP |
-| `search_custom_fields` | resolves `customFieldN` to real names |
-| `search_custom_field_items` | hierarchy custom field items |
-| `McpResources::CustomField` | matching resource |
+**Correction to what this doc claimed.** It said these were "close to drop-in" because
+they target the post-upgrade base. That was wrong, and wrong for an avoidable reason: the
+claim was made by reading the tool files without checking what they *call*. The tool files
+themselves did port cleanly; their dependencies did not. Porting the three custom field
+pieces needed:
 
-- **Gain:** solid. The custom field pair matters more for us than for upstream — this
-  fork leans on custom fields heavily (the "End Date" field behind the done-date
-  feature, for one), and without these an agent reports raw `customField7` labels.
-  Upstream's own `search_work_packages` description now instructs the model to resolve
-  names through these tools rather than showing `customFieldN`.
-- **Risk:** low. They are written against the post-upgrade base (no `output_schema`,
-  `apply_pagination` returning `total`, `output_filter`), which is now what we have, so
-  they are close to drop-in. The remaining work is the `search_work_packages`
-  description sentence telling the model to resolve custom field names through these
-  tools, which we deliberately held back until the tools exist.
-- **Verdict:** next up. Custom fields first.
+- **`API::V3::CustomFields::CustomFieldRepresenter`** — absent here. 56 lines; all four of
+  its dependencies were present, so it ported as-is with upstream's spec.
+- **`docs/api/apiv3/components/schemas/custom_field_model.yml`** — absent, while
+  `custom_field_properties.yml` and `custom_field_linked_properties.yml` were already
+  here. Another half-applied sync of exactly the kind noted at the top of this doc.
+- **`CustomFields::Hierarchy::HierarchicalItemAggregator`** — absent. Upstream extracted
+  it from `ItemsAPI#flatten_tree_hash` so the MCP tool could reuse it; we took the
+  extraction, so `items_api.rb` is now byte-identical to upstream instead of carrying an
+  inline copy.
+- **`HierarchicalItemService#hashed_subtree`** needed upstream's `depth: -1` default. The
+  MCP tool omits `depth:`; ours required it, so every call raised
+  `missing keyword: :depth`. Backward compatible — both existing callers pass it.
+- **`HierarchyItemRepresenter`'s parent link needed `.compact`**, and
+  `hierarchy_item_read_model.yml` needed `depth` widened to `["integer", "null"]`. Both
+  were live bugs in our tree, not new: a root hierarchy item has no label, so children
+  linking to it emitted `title: null`, and our representer has always mapped
+  `depth < 0` to `nil` while our schema forbade it. Nothing exercised that path before.
+
+**What did *not* need changing, though it first looked like it did.** Upstream added an
+admin short-circuit to `CustomFields::Scopes::Visible` (`all` if `active_admin?`), and
+without it the ported specs returned zero rows. Porting it would have altered shared
+custom field *visibility* semantics for the whole application. It turned out to be
+unnecessary: our `on_visible_type_and_project` path already shows an admin every custom
+field once any project with a type exists, and shows ordinary users only the fields on
+projects they can see. Upstream's spec fixtures simply create bare custom fields on an
+instance with no projects at all — a state no real instance is in. The fixtures were
+adapted instead; the visibility scope was left alone.
+
+**Enterprise caveat on `search_custom_field_items`.** Hierarchy custom fields are gated
+behind `custom_field_hierarchies`, a *different* Enterprise feature from `mcp_server`, and
+this fork has not ungated it. `CustomFieldsController` blocks creating one without a
+token, so on a Community instance the tool has nothing to return. It is shipped and
+correct, but inert until hierarchies are available. Ungating that feature is its own
+decision, not an MCP one.
+
+**Still outstanding: `list_work_package_comments` and `list_work_package_relations`.**
+Both need no new supporting classes. The one known adaptation is that
+`list_work_package_comments` passes `embed_emoji_reactions: true` to
+`ActivityRepresenter`, a kwarg upstream added purely for this tool; ours embeds reactions
+on `embed_links` alone. Dropping the kwarg is the cheaper call — an LLM has no use for
+reaction counts, and it keeps a shared API v3 representer untouched. Upstream ships
+request specs for both tools (215 and 145 lines).
 
 ### 3. `total` in paginated responses — DONE
 
@@ -273,16 +314,18 @@ number, so renumber nothing.
 1. ~~Gem upgrade + base refactor~~ — done.
 2. ~~`total`~~ (item 3) — done, came with the refactor.
 3. ~~Output filters~~ (item 1) — done. 41.7% smaller work package responses.
-4. **Read-only tools** (item 2), custom fields first. Near drop-in on the new base. Also
-   brings `RemoveActivityDetails`, and unblocks the custom-field sentence held back from
-   the `search_work_packages` description.
-5. **Write tools** (item 4) — separate branch, separate review, after the open questions
+4. ~~Read-only tools, custom fields~~ (item 2) — done, along with the held-back
+   `search_work_packages` description sentence.
+5. **Read-only tools, work package detail** (rest of item 2): `list_work_package_comments`
+   and `list_work_package_relations`, plus `RemoveActivityDetails` from item 1.
+6. **Write tools** (item 4) — separate branch, separate review, after the open questions
    there are answered.
-6. Leave item 5 to the Release/Sprint work and item 6 to natural upstream drift.
+7. Leave item 5 to the Release/Sprint work and item 6 to natural upstream drift.
 
 Items 1-3 are read-only and sit behind the per-tool admin toggles, so each can ship and
 be reverted independently. Item 4 is the write tools and needs its own review before any
 of it ships.
 
-When item 2 lands, `MCP_FEATURE_GUIDE.md` needs updating with it: the `customFieldN`
-troubleshooting entry describes a gap it closes.
+A lesson worth keeping from items 1 and 2: **check what a ported file calls, not just the
+file.** Both times the risk assessment written from reading tool files alone turned out
+optimistic, and both times the real work was in their dependencies.
