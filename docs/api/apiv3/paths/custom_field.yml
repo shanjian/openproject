@@ -20,8 +20,8 @@ get:
         application/hal+json:
           schema:
             $ref: '../components/schemas/custom_field_model.yml'
-    '403':
-      description: Returned if the user is not logged in.
+    '401':
+      description: Returned if no user is currently authenticated.
       content:
         application/hal+json:
           schema:
@@ -30,8 +30,8 @@ get:
             response:
               value:
                 _type: Error
-                errorIdentifier: urn:openproject-org:api:v3:errors:MissingPermission
-                message: You are not authorized to access this resource.
+                errorIdentifier: urn:openproject-org:api:v3:errors:Unauthenticated
+                message: You need to be authenticated to access this resource.
     '404':
       description: Returned if the custom field does not exist or the user lacks the permission to view it.
       content:
