@@ -263,6 +263,60 @@ RSpec.describe McpTools::SearchWorkPackages, with_flag: { mcp_server: true } do
       end
     end
 
+    describe "output filtering" do
+      # Work package payloads otherwise ship a rendered html twin of every formattable and a wall of
+      # action links an assistant cannot act on, both of which are pure token cost on every call.
+      let(:formattables) do
+        [].tap do |found|
+          walk = lambda do |node|
+            case node
+            when Hash
+              found << node if node.key?("format") && node.key?("raw")
+              node.each_value { |value| walk.call(value) }
+            when Array
+              node.each { |value| walk.call(value) }
+            end
+          end
+          walk.call(result_items)
+        end
+      end
+      let(:all_link_names) do
+        [].tap do |found|
+          walk = lambda do |node|
+            case node
+            when Hash
+              found.concat(node["_links"].keys) if node["_links"].is_a?(Hash)
+              node.each_value { |value| walk.call(value) }
+            when Array
+              node.each { |value| walk.call(value) }
+            end
+          end
+          walk.call(result_items)
+        end
+      end
+
+      it "strips the rendered html twin, keeping the raw text" do
+        subject
+
+        expect(formattables).not_to be_empty
+        expect(formattables).to all(satisfy { |f| !f.key?("html") })
+        expect(formattables).to all(have_key("raw"))
+      end
+
+      it "strips the action links an assistant cannot use" do
+        subject
+
+        expect(all_link_names).not_to be_empty
+        expect(all_link_names).not_to include("update", "delete", "logTime", "watch", "addComment")
+      end
+
+      it "keeps the links that identify the work package and its relations" do
+        subject
+
+        expect(all_link_names).to include("self", "status", "type", "project")
+      end
+    end
+
     describe "pagination" do
       let(:page_size) { 10 }
       let(:overspilling_work_packages) { 5 }
