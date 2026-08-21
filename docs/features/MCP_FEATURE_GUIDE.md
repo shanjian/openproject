@@ -185,7 +185,7 @@ resolving to the right account.
 
 ## What it can and can't do
 
-**It can read**, through nine tools:
+**It can read**, through eleven tools:
 
 | Tool | Answers |
 |---|---|
@@ -195,13 +195,15 @@ resolving to the right account.
 | `search_portfolios` | Portfolios (the level above programs) |
 | `search_versions` | Versions by name |
 | `search_users` | Users by name |
+| `search_custom_fields` | Custom fields by ID or partial name — this is how an assistant turns `customField7` into a real name |
+| `search_custom_field_items` | The values available for a hierarchy custom field |
 | `list_statuses` | Every work package status on the instance |
 | `list_types` | Every work package type on the instance |
 | `current_user` | Who the token belongs to |
 
 Alongside these it exposes **resources** — direct lookups of a single project,
-work package, user, version, type, or status by ID, which a client can fetch
-without a search.
+work package, user, version, type, status, or custom field by ID, which a client can
+fetch without a search.
 
 **It cannot write.** There is no tool to create, edit, comment on, or delete
 anything, and no way to configure one. Assistant-suggested changes still have to
@@ -269,9 +271,11 @@ Confirm you are connected as the right account by asking "using OpenProject, who
 I?". A token belonging to a different or less-privileged user is the usual answer.
 
 **Assistant reports fields as `customField7` instead of real names.**
-Expected in this build — the tool that resolves custom field names is not ported
-yet. Tracked as item 2 in
-[mcp-upstream-backlog.md](../development/mcp-upstream-backlog.md).
+It now has `search_custom_fields` to resolve those, and `search_work_packages`
+explicitly tells it to. If it still shows raw identifiers, check that
+**Search custom fields** is ticked on the admin page — and note that a custom field is
+only visible to a user through the projects and work package types it is enabled on, so
+an assistant connected as a restricted user may genuinely not be able to resolve one.
 
 **Assistant only ever finds 40 of something.**
 That is the per-call page limit, not the total. Every search response reports a
@@ -292,7 +296,10 @@ request`, so grep the OpenProject log for that string.
   and so on to get the rest. Each response also reports `total`, the full number of
   matches, so an assistant can tell whether more pages exist rather than guessing.
   Broad questions still cost several round trips.
-- **Custom field names are not resolved.** Reported as `customFieldN`.
+- **Hierarchy custom field values need Enterprise.** `search_custom_field_items` works,
+  but hierarchy custom fields can only be *created* with an Enterprise token
+  (`custom_field_hierarchies` is a separate feature from MCP, and this build does not
+  ungate it). On a Community instance the tool has nothing to return.
 - **Work package searches are trimmed; direct resource reads are not.**
   `search_work_packages` drops the rendered HTML twin of every formatted text field and
   the action links an assistant cannot act on, which cuts those responses by roughly 40%.

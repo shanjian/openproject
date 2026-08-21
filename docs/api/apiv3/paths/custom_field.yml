@@ -1,15 +1,15 @@
-# /api/v3/custom_field_items/{id}
+# /api/v3/custom_field/{id}
 ---
 get:
-  summary: Get a custom field hierarchy item
-  operationId: get_custom_field_item
+  summary: Get custom field
+  operationId: get_custom_field
   description: |-
-    Retrieves a single custom field item specified by its unique identifier.
+    Retrieves the custom field with the given ID.
   parameters:
     - name: id
-      description: The custom field item's unique identifier
+      description: The custom field's unique identifier
       in: path
-      example: 42
+      example: '42'
       required: true
       schema:
         type: integer
@@ -19,10 +19,7 @@ get:
       content:
         application/hal+json:
           schema:
-            $ref: '../components/schemas/hierarchy_item_read_model.yml'
-          examples:
-            'simple response':
-              $ref: '../components/examples/hierarchy_item_response.yml'
+            $ref: '../components/schemas/custom_field_model.yml'
     '401':
       description: Returned if no user is currently authenticated.
       content:
@@ -36,10 +33,7 @@ get:
                 errorIdentifier: urn:openproject-org:api:v3:errors:Unauthenticated
                 message: You need to be authenticated to access this resource.
     '404':
-      description: |-
-        Returned if the custom field item does not exist or the user lacks permission to see it.
-
-        The permission required to view the item depends on the custom field it belongs to.
+      description: Returned if the custom field does not exist or the user lacks the permission to view it.
       content:
         application/hal+json:
           schema:

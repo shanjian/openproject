@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 #-- copyright
 # OpenProject is an open source project management software.
 # Copyright (C) the OpenProject GmbH
@@ -21,27 +23,37 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 #
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-module API
-  module V3
-    module CustomFields
-      class CustomFieldsAPI < ::API::OpenProjectAPI
-        resource :custom_fields do
-          route_param :id, type: Integer, desc: "Custom Field ID" do
-            after_validation do
-              authorize_logged_in
+module CustomFields
+  module Hierarchy
+    class HierarchicalItemAggregator
+      class << self
+        def flatten_tree_hash(hash)
+          flat_list = []
+          queue = [hash.merge({ depth: -1 })]
 
-              @custom_field = CustomField.visible.find(params[:id])
-            end
+          # From the service we get a hashed tree like this:
+          # {:a => {:b => {:c1 => {:d1 => {}}, :c2 => {:d2 => {}}}, :b2 => {}}}
+          #
+          # We flatten it depth first to this result list:
+          # [:a, :b, :c1, :d1, :c2, :d2, :b2]
 
-            get &API::V3::Utilities::Endpoints::Show.new(model: CustomField).mount
+          while queue.any?
+            current = queue.shift
+            depth = current[:depth]
+            item, children = current.shift
 
-            mount Hierarchy::ItemsAPI
+            flat_list << API::V3::CustomFields::Hierarchy::HierarchicalItemAggregate.new(item:, depth:)
+
+            queue.unshift(current) unless current.keys == [:depth]
+            queue.unshift(children.merge({ depth: depth + 1 })) unless children.empty?
           end
+
+          flat_list
         end
       end
     end

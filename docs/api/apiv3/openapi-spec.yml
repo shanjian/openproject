@@ -214,6 +214,8 @@ paths:
     "$ref": "./paths/custom_action.yml"
   "/api/v3/custom_actions/{id}/execute":
     "$ref": "./paths/custom_action_execute.yml"
+  "/api/v3/custom_fields/{id}":
+    "$ref": "./paths/custom_field.yml"
   "/api/v3/custom_fields/{id}/items":
     "$ref": "./paths/custom_field_items.yml"
   "/api/v3/custom_field_items/{id}":
