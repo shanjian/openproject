@@ -43,6 +43,7 @@ See COPYRIGHT and LICENSE files for more details.
 
 <%= with_enterprise_banner_guard(
   :mcp_server,
+  inactive_guard: true, # Fork deviation: MCP is not Enterprise-gated here (see lib/api/mcp.rb)
   variant: :large,
   video: "enterprise/mcp-server.mp4"
 ) do %>
