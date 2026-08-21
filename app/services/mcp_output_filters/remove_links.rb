@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# -- copyright
+#-- copyright
 # OpenProject is an open source project management software.
 # Copyright (C) the OpenProject GmbH
 #
@@ -26,34 +26,28 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 #
 # See COPYRIGHT and LICENSE files for more details.
-# ++
+#++
 
-require "spec_helper"
+module McpOutputFilters
+  class RemoveLinks < HashFilter
+    attr_reader :blocked_links
 
-RSpec.describe McpResources do
-  describe ".register" do
-    it "has registered the resources the initializer declares" do
-      expect(described_class.all).to include(McpResources::WorkPackage)
+    def initialize(blocked_links)
+      super()
+
+      @blocked_links = blocked_links.to_set
     end
 
-    # Registration runs from a to_prepare block so the registry survives code reloading in
-    # development, and that block fires more than once per reload cycle. Appending
-    # unconditionally duplicates every entry, which is what upstream does.
-    it "is a no-op for resources that are already registered" do
-      expect { described_class.register(*described_class.all) }
-        .not_to change(described_class, :all)
-    end
+    private
 
-    it "invalidates the memoized #resources_by_name so a newly registered resource is findable" do
-      extra = Class.new(described_class::Base) { name "spec_only_resource" }
-      described_class.resources_by_name # memoize the lookup before registering
+    def on_hash(hash) # rubocop:disable Naming/PredicateMethod
+      links = hash["_links"]
+      if links
+        links.delete_if { |key| blocked_links.include?(key) }
+        return false
+      end
 
-      described_class.register(extra)
-
-      expect(described_class.resources_by_name["resources/spec_only_resource"]).to eq(extra)
-    ensure
-      described_class.all.delete(extra)
-      described_class.register # a no-op registration, to drop the memoized lookup again
+      true
     end
   end
 end

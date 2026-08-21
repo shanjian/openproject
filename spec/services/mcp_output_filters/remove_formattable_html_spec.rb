@@ -30,30 +30,32 @@
 
 require "spec_helper"
 
-RSpec.describe McpResources do
-  describe ".register" do
-    it "has registered the resources the initializer declares" do
-      expect(described_class.all).to include(McpResources::WorkPackage)
-    end
+RSpec.describe McpOutputFilters::RemoveFormattableHtml do
+  subject(:filter) { described_class.new }
 
-    # Registration runs from a to_prepare block so the registry survives code reloading in
-    # development, and that block fires more than once per reload cycle. Appending
-    # unconditionally duplicates every entry, which is what upstream does.
-    it "is a no-op for resources that are already registered" do
-      expect { described_class.register(*described_class.all) }
-        .not_to change(described_class, :all)
-    end
+  it "drops the html twin of a formattable, keeping the raw text the model reads" do
+    payload = { "description" => { "format" => "markdown", "raw" => "# Hi", "html" => "<h1>Hi</h1>" } }
 
-    it "invalidates the memoized #resources_by_name so a newly registered resource is findable" do
-      extra = Class.new(described_class::Base) { name "spec_only_resource" }
-      described_class.resources_by_name # memoize the lookup before registering
+    filter.filter(payload)
 
-      described_class.register(extra)
+    expect(payload["description"]).to eq({ "format" => "markdown", "raw" => "# Hi" })
+  end
 
-      expect(described_class.resources_by_name["resources/spec_only_resource"]).to eq(extra)
-    ensure
-      described_class.all.delete(extra)
-      described_class.register # a no-op registration, to drop the memoized lookup again
-    end
+  it "leaves a hash that is missing one of the three keys alone" do
+    payload = { "thing" => { "format" => "markdown", "html" => "<p></p>" } }
+
+    filter.filter(payload)
+
+    expect(payload["thing"]).to have_key("html")
+  end
+
+  it "reaches formattables nested inside arrays" do
+    formattable = { "format" => "markdown", "raw" => "x", "html" => "<p>x</p>" }
+    payload = { "items" => [{ "subject" => "a", "description" => formattable.dup },
+                            { "subject" => "b", "description" => formattable.dup }] }
+
+    filter.filter(payload)
+
+    expect(payload["items"].map { |item| item["description"].keys }).to all(eq(%w[format raw]))
   end
 end

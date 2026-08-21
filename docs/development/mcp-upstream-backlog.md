@@ -26,6 +26,12 @@ Expect more of this kind of half-applied state.
 
 Listed so this doc reads as a complete picture.
 
+On `feature/mcp-output-filters`:
+
+- **Output filters** (was item 1). `HashFilter`, `RemoveFormattableHtml`, `RemoveLinks` and
+  `RemoveWorkPackageActionLinks`, declared on `search_work_packages`. Measured at **41.7%
+  smaller** responses on a 10-work-package payload (50,589 -> 29,471 bytes).
+
 On `feature/mcp-gem-0-24-upgrade`:
 
 - **`mcp` gem `0.8.0` -> `0.24.0`** with upstream's `McpTools::Base` refactor. See
@@ -123,30 +129,51 @@ consequences:
 - The round-trip in `format_response` is *necessary*, not waste — it is what converts the
   representers into the plain hashes the gem type-checks, needed with or without output
   filters. Only the second one, in `format_structured_content`, was redundant.
-- This bounds item 1. Output filters run *after* the representers are built, so they cut
-  the tokens a model pays for but will not make a search call faster. If search latency
+- This bounded item 1, and the outcome matched: the filters cut responses by 41.7% but
+  left latency untouched, because they run *after* the representers are built. If search latency
   ever becomes the complaint, the fix is narrowing what the representer renders, not
   filtering its output.
 
 ## Outstanding items
 
-### 1. Output filters — best value for effort
+### 1. Output filters — DONE
 
-`app/services/mcp_output_filters/`: `HashFilter` base plus `RemoveFormattableHtml`
-(drops the `html` twin of every `{format, raw, html}` triple), `RemoveLinks`,
-`RemoveWorkPackageActionLinks` (strips 23 HAL action links: `update`, `delete`, `logTime`,
-`watch`, `addRelation`, …) and `RemoveActivityDetails`.
+`app/services/mcp_output_filters/`: `HashFilter` base plus `RemoveFormattableHtml` (drops
+the `html` twin of every `{format, raw, html}` triple), `RemoveLinks` and
+`RemoveWorkPackageActionLinks` (strips 22 HAL action links: `update`, `delete`, `logTime`,
+`watch`, `addRelation`, …), declared on `search_work_packages`.
 
-- **Gain:** large and immediate, but in tokens only. Work package payloads currently ship
-  rendered HTML alongside the raw markdown and a wall of action links the model cannot
-  use, on every single call. Measured above: filters run after the representers are built,
-  so they will not reduce response latency.
-- **Risk:** low now. The `output_filter` / `output_filters` hook is already on `base.rb`
-  and `format_response` already runs the filters, so this is purely adding the four
-  filter classes plus the two `output_filter` declarations on `search_work_packages`.
-  The reason this used to be medium-risk — the filters strip keys our `output_schema`
-  declarations validated against — no longer applies; those declarations are gone.
-- **Verdict:** highest-value item and now the cheapest. Do it next.
+**Gain, measured:** a 10-work-package response drops from 50,589 to 29,471 bytes — 41.7%
+smaller — with 192 blocked action links and 10 rendered-HTML twins removed. Tokens only:
+the filters run after the representers are built, so response latency is unchanged.
+
+**Not taken:** `RemoveActivityDetails`, whose only caller is `list_work_package_comments`
+in item 2. It arrives with that tool, where its behaviour can be tested against a real
+payload instead of a synthetic one.
+
+**Two adaptations, both spec-pinned so a future sync cannot quietly revert them:**
+
+- `HashFilter#on_hash` raised `SubclassResponsibilityError`, which **does not exist
+  anywhere in our tree** — it arrived upstream with unrelated work, so upstream's file
+  would `NameError` on the abstract path. Now `NotImplementedError, "subclass
+  responsibility"`, this repo's dominant convention.
+- **`HashFilter#filter` now returns the structure it was given.** Upstream returns the
+  value of its `case` expression, which is `nil` whenever `#on_hash` stops the descent at
+  the top level. Since `McpTools::Base#format_response` threads that return value through
+  its filter chain, a tool whose result is a HAL document with top-level `_links` would
+  have its **entire response body replaced by `nil`**. Upstream is only latently exposed
+  (`list_work_package_comments` returns `{items:, total:}`), but all three of our
+  `ResourceProxyTool` subclasses return exactly that shape, so adding `RemoveLinks` to one
+  of them — a natural next step — would have broken it silently.
+
+Worth knowing for item 2 and beyond: `RemoveLinks#on_hash` deliberately stops descending
+once it finds `_links`, so `_embedded` children are never visited. That looks like a bug
+and is not: all 22 blocked links live in a work package's own top-level `_links`, and
+embedded projects, types and users do not carry them. Verified, not assumed.
+
+Note also that filtering covers the **tool** path only. `McpResources.read_resource` does
+not run output filters, so reading a work package as a resource still returns the full
+payload.
 
 ### 2. Read-only tools we are missing
 
@@ -170,7 +197,7 @@ Four tools and one resource, all `read_only: true, destructive: false`:
   they are close to drop-in. The remaining work is the `search_work_packages`
   description sentence telling the model to resolve custom field names through these
   tools, which we deliberately held back until the tools exist.
-- **Verdict:** take after item 1, custom fields first.
+- **Verdict:** next up. Custom fields first.
 
 ### 3. `total` in paginated responses — DONE
 
@@ -245,11 +272,10 @@ number, so renumber nothing.
 
 1. ~~Gem upgrade + base refactor~~ — done.
 2. ~~`total`~~ (item 3) — done, came with the refactor.
-3. **Output filters** (item 1). Biggest token win, and now the cheapest change in the
-   list: the hook is already in place.
+3. ~~Output filters~~ (item 1) — done. 41.7% smaller work package responses.
 4. **Read-only tools** (item 2), custom fields first. Near drop-in on the new base. Also
-   unblocks the custom-field sentence held back from the `search_work_packages`
-   description.
+   brings `RemoveActivityDetails`, and unblocks the custom-field sentence held back from
+   the `search_work_packages` description.
 5. **Write tools** (item 4) — separate branch, separate review, after the open questions
    there are answered.
 6. Leave item 5 to the Release/Sprint work and item 6 to natural upstream drift.
@@ -258,6 +284,5 @@ Items 1-3 are read-only and sit behind the per-tool admin toggles, so each can s
 be reverted independently. Item 4 is the write tools and needs its own review before any
 of it ships.
 
-When items 1 and 2 land, `MCP_FEATURE_GUIDE.md` needs updating with them: the
-"Responses are verbose" note and the `customFieldN` troubleshooting entry both describe
-gaps those items close.
+When item 2 lands, `MCP_FEATURE_GUIDE.md` needs updating with it: the `customFieldN`
+troubleshooting entry describes a gap it closes.

@@ -293,9 +293,11 @@ request`, so grep the OpenProject log for that string.
   matches, so an assistant can tell whether more pages exist rather than guessing.
   Broad questions still cost several round trips.
 - **Custom field names are not resolved.** Reported as `customFieldN`.
-- **Responses are verbose.** Work package payloads currently include rendered HTML
-  alongside the raw text plus a large block of internal links, which consumes the
-  assistant's context for no benefit. Upstream's fix is item 1 in the backlog.
+- **Work package searches are trimmed; direct resource reads are not.**
+  `search_work_packages` drops the rendered HTML twin of every formatted text field and
+  the action links an assistant cannot act on, which cuts those responses by roughly 40%.
+  Reading a single work package as a *resource* still returns the full payload, because
+  resources are served on a path the filtering does not cover.
 - **One endpoint per instance.** No per-project enablement.
 - **Versions:** work packages are matched on their single assigned version. Upstream
   is moving to multiple target versions per work package; that change conflicts with

@@ -30,30 +30,28 @@
 
 require "spec_helper"
 
-RSpec.describe McpResources do
-  describe ".register" do
-    it "has registered the resources the initializer declares" do
-      expect(described_class.all).to include(McpResources::WorkPackage)
-    end
+RSpec.describe McpOutputFilters::RemoveLinks do
+  subject(:filter) { described_class.new(%w[update delete]) }
 
-    # Registration runs from a to_prepare block so the registry survives code reloading in
-    # development, and that block fires more than once per reload cycle. Appending
-    # unconditionally duplicates every entry, which is what upstream does.
-    it "is a no-op for resources that are already registered" do
-      expect { described_class.register(*described_class.all) }
-        .not_to change(described_class, :all)
-    end
+  it "removes only the blocked links" do
+    payload = { "_links" => { "self" => 1, "update" => 2, "delete" => 3, "schema" => 4 } }
 
-    it "invalidates the memoized #resources_by_name so a newly registered resource is findable" do
-      extra = Class.new(described_class::Base) { name "spec_only_resource" }
-      described_class.resources_by_name # memoize the lookup before registering
+    filter.filter(payload)
 
-      described_class.register(extra)
+    expect(payload["_links"].keys).to eq(%w[self schema])
+  end
 
-      expect(described_class.resources_by_name["resources/spec_only_resource"]).to eq(extra)
-    ensure
-      described_class.all.delete(extra)
-      described_class.register # a no-op registration, to drop the memoized lookup again
-    end
+  it "descends through hashes that have no _links of their own" do
+    payload = { "_embedded" => { "child" => { "_links" => { "self" => 1, "update" => 2 } } } }
+
+    filter.filter(payload)
+
+    expect(payload.dig("_embedded", "child", "_links").keys).to eq(%w[self])
+  end
+
+  it "returns the payload rather than nil when the top level carries _links" do
+    payload = { "_links" => { "update" => 1 } }
+
+    expect(filter.filter(payload)).to be(payload)
   end
 end
