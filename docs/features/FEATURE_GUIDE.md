@@ -7,6 +7,7 @@ Some larger features have their own dedicated guides:
 - **[Releases](RELEASE_FEATURE_GUIDE.md)** — group work packages into a deliverable, track readiness, and ship it (separate from Sprints).
 - **[Epics](EPIC_FEATURE_GUIDE.md)** — group work packages under an initiative, across projects (Jira‑style Epic link).
 - **[Create a GitLab branch from a work package](GITLAB_CREATE_BRANCH_FEATURE_GUIDE.md)** — one‑click branch creation in GitLab, named after the work package.
+- **[Connect an AI assistant to OpenProject (MCP)](MCP_FEATURE_GUIDE.md)** — let Claude or another AI client read your OpenProject data when answering you.
 
 Everything else is below.
 
