@@ -219,10 +219,14 @@ user can see. Two people connecting the same assistant to the same instance get
 different answers, correctly.
 
 > Upstream has begun building write tools — creating work packages, comments, and
-> relations. They are deliberately **not** in this build. See
-> [mcp-upstream-backlog.md](../development/mcp-upstream-backlog.md) for the open
-> questions, notably that agent-authored comments would notify subscribers and
-> journals would not distinguish agent edits from human ones.
+> relations. They are deliberately **not** in this build: they were reviewed and
+> declined, not merely skipped. Upstream's own documentation still describes MCP as
+> read-only, so the work is unreleased, and nothing here needs an agent that writes.
+> Two things weighed against it in particular — an agent-authored comment would notify
+> every subscriber, and journals would attribute agent edits to the token's user with
+> nothing marking them as an agent's. See
+> [mcp-upstream-backlog.md](../development/mcp-upstream-backlog.md) for the full
+> reasoning and what a future port would involve.
 
 ---
 

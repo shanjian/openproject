@@ -1,8 +1,10 @@
 # MCP: upstream backlog for this fork
 
-Survey of what upstream has done to the MCP server since our fork point, split into
-what has already been pulled in and what is still outstanding. The outstanding items
-are the high-gain / higher-risk ones that need a deliberate decision.
+Survey of what upstream has done to the MCP server since our fork point, and what this
+fork took. **Closed as of 2026-08-22:** every read-only item is ported and merged, the
+write tools were reviewed and declined, and the two remaining items are blocked or not
+worth chasing. Kept as the record of what was decided and why — the per-item sections
+below carry findings that are expensive to re-derive.
 
 Companion to [upstream-sync-plan.md](upstream-sync-plan.md), which covers the general
 `17.1.2 -> 17.7.1` catch-up and does not mention MCP.
@@ -146,7 +148,7 @@ consequences:
   ever becomes the complaint, the fix is narrowing what the representer renders, not
   filtering its output.
 
-## Outstanding items
+## The items, and what happened to each
 
 ### 1. Output filters — DONE
 
@@ -284,7 +286,7 @@ Worth knowing: neither we nor upstream mention `total` in any tool description, 
 by reading the response body. If paging in practice turns out to be worse than the
 mechanism allows, adding a sentence to the search descriptions is the cheap fix.
 
-### 4. Write tools — high gain, high risk
+### 4. Write tools — reviewed 2026-08-22, deliberately NOT ported
 
 Six tools, all going through the normal service objects with `user: current_user`, so
 contracts and permissions are enforced the same way the API v3 enforces them:
@@ -312,8 +314,44 @@ contracts and permissions are enforced the same way the API v3 enforces them:
   - Do we want an audit trail distinguishing agent-authored changes from human ones?
     Journals will attribute them to the token's user with nothing marking them as agent work.
   - Should write tools be restricted to specific projects or roles?
-- **Verdict:** defer until reviewed. Note upstream's own docs still say MCP is read-only,
-  so this is fresh and unreleased work — worth letting it settle upstream regardless.
+- **Verdict: reviewed and skipped.** Not ported, and not because of the technical cost —
+  the port is small. Upstream's own documentation still describes MCP as read-only, so
+  this is unreleased work, and nothing currently needs an agent to write. Revisit when
+  there is a concrete use for it, or once upstream ships it.
+
+**Findings from that review, recorded so a future attempt need not re-derive them.**
+
+The port itself is cheap. Every service already exists here — `WorkPackages::CreateService`,
+`WorkPackages::UpdateService`, `AddWorkPackageNoteService` (accepting both
+`send_notifications:` and `internal:`), and the three `Relations::` services. Upstream
+ships request specs for all six tools, about 790 lines. One dependency gap:
+`API::V3::WorkPackages::ParsingStruct`, which lives here nested inside
+`ParseParamsService`; upstream extracted it to `lib/api/v3/work_packages/parsing_struct.rb`
+so these tools could use it. Taking that extraction is the same move as the
+`HierarchicalItemAggregator` one in item 2.
+
+Four things about the *behaviour* matter more than the port, and none were obvious from
+the summary above:
+
+- **`create_work_package` and `update_work_package` accept an arbitrary APIv3 payload.**
+  `data` is parsed by `WorkPackagePayloadRepresenter`, so a model can set any writable
+  attribute, `_links` included — project, type, status, assignee, version. There is no
+  curated safe subset. Narrowing it would mean diverging from upstream's input schema.
+- **`update_work_package` requires `lockVersion`** and its description tells the model to
+  re-read and retry on conflict. That is a real guard against blind overwrites, and worth
+  keeping if the tool is ever ported.
+- **`create_work_package_comment` can post internal comments.** It hardcodes
+  `send_notifications: true`, so every agent comment notifies subscribers, and it accepts
+  `internal: true` — meaning an agent could write comments only users with
+  `view_internal_comments` can see. That is a sharper exposure than "an agent can comment".
+- **`delete_work_package_relation` is the only destructive tool, and it deletes a
+  relation.** Nothing in this set can delete a work package. The destructive surface is
+  narrower than the summary above implies.
+
+Authorization is not the concern: all six go through the normal service objects with
+`user: current_user`, so contracts and permissions apply exactly as they do for APIv3. An
+agent can do nothing the token's user could not do in the UI. The exposure is that an LLM
+is now the one deciding, on behalf of whoever holds the token.
 
 ### 5. Version filtering — do not take as-is
 
@@ -340,10 +378,10 @@ other half of this.
 - Upstream re-exported the three MCP screenshots at smaller file sizes. Pure churn; ours
   are still accurate.
 
-## Suggested order
+## The order it was done in
 
-Item numbers are stable — `docs/features/MCP_FEATURE_GUIDE.md` cites items 1 and 2 by
-number, so renumber nothing.
+Item numbers are stable — renumber nothing, since the sections above and any external
+reference cite them by number.
 
 1. ~~Gem upgrade + base refactor~~ — done.
 2. ~~`total`~~ (item 3) — done, came with the refactor.
@@ -353,9 +391,15 @@ number, so renumber nothing.
 5. ~~Read-only tools, work package detail~~ (rest of item 2) — done, with
    `RemoveActivityDetails` from item 1. **Everything read-only in this backlog is now
    ported.** What remains is item 4 (write tools), item 5 (blocked) and item 6 (drift).
-6. **Write tools** (item 4) — separate branch, separate review, after the open questions
-   there are answered.
+6. ~~Write tools~~ (item 4) — reviewed and skipped; see the findings there.
 7. Leave item 5 to the Release/Sprint work and item 6 to natural upstream drift.
+
+**This backlog is now closed.** Everything read-only is ported and merged (#147, #148,
+#149, #150). Item 4 was reviewed and declined, item 5 is blocked on the Release/Sprint
+model rather than on anything MCP, and item 6 is drift not worth chasing. Reopen this doc
+when upstream ships write tools, when the Release/Sprint work unblocks the version
+filtering, or at the next general upstream sync — see
+[upstream-sync-plan.md](upstream-sync-plan.md).
 
 Items 1-3 are read-only and sit behind the per-tool admin toggles, so each can ship and
 be reverted independently. Item 4 is the write tools and needs its own review before any
