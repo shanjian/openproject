@@ -58,6 +58,31 @@ en:
           description: "Your comment will be visible to anyone who can access this work package. Are you sure you want to do this?"
           confirm_button_text: "Make public"
 
+  # City-first labels for Users::CommonTimeZones - the curated time zone list
+  # shared by the meeting form, My account, and the admin default time zone
+  # setting.
+  common_time_zones:
+    america_new_york: "New York (US East)"
+    america_toronto: "Toronto (Canada)"
+    america_los_angeles: "Los Angeles / San Francisco"
+    america_mexico_city: "Mexico City"
+    america_sao_paulo: "São Paulo (Brazil)"
+    europe_london: "London (UK)"
+    europe_paris: "Paris (France)"
+    europe_berlin: "Berlin (Germany)"
+    europe_stockholm: "Stockholm (Sweden)"
+    europe_madrid: "Madrid (Spain)"
+    europe_rome: "Rome (Italy)"
+    europe_prague: "Prague (Czechia)"
+    europe_bratislava: "Bratislava (Slovakia)"
+    europe_bucharest: "Bucharest (Romania)"
+    asia_tokyo: "Tokyo (Japan)"
+    asia_seoul: "Seoul (Korea)"
+    asia_taipei: "Taipei (Taiwan)"
+    australia_sydney: "Sydney (Australia)"
+    pacific_auckland: "Auckland (New Zealand)"
+    etc_utc: "UTC"
+
   admin:
     plugins:
       no_results_title_text: There are currently no plugins installed.
@@ -3931,6 +3956,7 @@ en:
   label_this_week: "this week"
   label_this_year: "this year"
   label_time: "Time"
+  label_time_zone_divider: "── All time zones ──"
   label_time_entry_plural: "Spent time"
   label_time_entry_activity_plural: "Spent time activities"
   label_title: "Title"

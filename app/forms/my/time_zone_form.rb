@@ -37,8 +37,10 @@ class My::TimeZoneForm < ApplicationForm
       include_blank: false,
       input_width: :large
     ) do |list|
-      available_time_zones.each do |label, value|
-        list.option(label:, value:)
+      available_time_zones.each do |label, value, disabled|
+        options = { label:, value: }
+        options[:disabled] = true if disabled
+        list.option(**options)
       end
     end
   end
@@ -46,16 +48,8 @@ class My::TimeZoneForm < ApplicationForm
   private
 
   def available_time_zones
-    @available_time_zones ||= UserPreferences::UpdateContract
-      .assignable_time_zones
-      .group_by { it.tzinfo.canonical_zone }
-      .map { |canonical_zone, included_zones| build_time_zone_entry(canonical_zone, included_zones) }
-  end
-
-  def build_time_zone_entry(canonical_zone, zones)
-    zone_names = zones.map(&:name).join(", ")
-    offset = ActiveSupport::TimeZone.seconds_to_utc_offset(canonical_zone.base_utc_offset)
-
-    ["(UTC#{offset}) #{zone_names}", canonical_zone.identifier]
+    @available_time_zones ||= Users::CommonTimeZones.grouped_options(
+      identifiers: Users::CommonTimeZones::PROFILE_ZONE_IDENTIFIERS
+    )
   end
 end

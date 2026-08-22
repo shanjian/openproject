@@ -30,33 +30,6 @@
 class Meeting::TimeGroup < ApplicationForm
   include Redmine::I18n
 
-  # The zones our offices actually use. The full Rails zone list (~120 grouped
-  # entries, labeled by Rails names like "Eastern Time (US & Canada)") made the
-  # common case - finding your own city - needlessly hard. Zones outside this
-  # list stay valid; see the safety valve in #available_time_zones.
-  COMMON_TIME_ZONES = %w[
-    America/New_York
-    America/Toronto
-    America/Los_Angeles
-    America/Mexico_City
-    America/Sao_Paulo
-    Europe/London
-    Europe/Paris
-    Europe/Berlin
-    Europe/Stockholm
-    Europe/Madrid
-    Europe/Rome
-    Europe/Prague
-    Europe/Bratislava
-    Europe/Bucharest
-    Asia/Tokyo
-    Asia/Seoul
-    Asia/Taipei
-    Australia/Sydney
-    Pacific/Auckland
-    Etc/UTC
-  ].freeze
-
   form do |meeting_form|
     if editing_recurring? && friendly_timezone_name(User.current.time_zone) != friendly_timezone_name(@meeting.time_zone)
       meeting_form.html_content do
@@ -124,8 +97,10 @@ class Meeting::TimeGroup < ApplicationForm
       disabled: series_occurrence?,
       data: time_zone_select_data
     ) do |list|
-      available_time_zones.each do |zone_label, value|
-        list.option(label: zone_label, value:, selected: value == @initial_time_zone)
+      available_time_zones.each do |zone_label, value, disabled|
+        options = { label: zone_label, value:, selected: value == @initial_time_zone }
+        options[:disabled] = true if disabled
+        list.option(**options)
       end
     end
   end
@@ -145,41 +120,10 @@ class Meeting::TimeGroup < ApplicationForm
   private
 
   def available_time_zones
-    @available_time_zones ||= begin
-      options = COMMON_TIME_ZONES.map { |identifier| [common_zone_label(identifier), identifier] }
-
-      # Safety valve: a meeting stored with (or a creator whose profile is set to)
-      # a zone outside the curated list must still see that zone offered and
-      # preselected - otherwise the browser would silently submit the first
-      # option on save and shift the meeting's wall-clock time.
-      unless COMMON_TIME_ZONES.include?(@initial_time_zone)
-        options << [fallback_zone_label(@initial_time_zone), @initial_time_zone]
-      end
-
-      options
-    end
-  end
-
-  def common_zone_label(identifier)
-    name = I18n.t("meeting.common_time_zones.#{identifier.downcase.gsub(%r{[/\s-]}, '_')}")
-
-    if identifier == "Etc/UTC"
-      "(UTC#{live_utc_offset(identifier)}) #{name}"
-    else
-      "(UTC#{live_utc_offset(identifier)}) #{name} — #{identifier}"
-    end
-  end
-
-  def fallback_zone_label(identifier)
-    "(UTC#{live_utc_offset(identifier)}) #{identifier}"
-  end
-
-  # The offset the zone actually observes at the meeting's start (or now, on a
-  # blank form) - i.e. DST-aware, unlike the base offset, which for e.g.
-  # America/New_York claims -05:00 all summer long.
-  def live_utc_offset(identifier)
-    period = @meeting.start_time || Time.zone.now
-    ActiveSupport::TimeZone.seconds_to_utc_offset(TZInfo::Timezone.get(identifier).observed_utc_offset(period))
+    @available_time_zones ||= Users::CommonTimeZones.grouped_options(
+      identifiers: Users::CommonTimeZones::MEETING_ZONE_IDENTIFIERS,
+      offset_period: @meeting.start_time || Time.zone.now
+    )
   end
 
   def initial_time_zone_value(meeting)
@@ -198,17 +142,14 @@ class Meeting::TimeGroup < ApplicationForm
     # Rails MAPPING, or a link zone like "Europe/Bratislava"). Prefer an exact
     # match against the curated identifiers so Bratislava selects Bratislava,
     # then fall back to canonical-identifier matching (e.g. a stored
-    # "US/Eastern" selects America/New_York), and otherwise hand the canonical
-    # identifier to the safety valve in #available_time_zones.
+    # "US/Eastern" selects America/New_York); the canonical identifier is
+    # always reachable somewhere in the full list either way.
     raw = zone.tzinfo.name
-    return raw if COMMON_TIME_ZONES.include?(raw)
+    curated = Users::CommonTimeZones::MEETING_ZONE_IDENTIFIERS
+    return raw if curated.include?(raw)
 
     canonical = zone.tzinfo.canonical_zone.identifier
-    COMMON_TIME_ZONES.find { |identifier| canonical_identifier(identifier) == canonical } || canonical
-  end
-
-  def canonical_identifier(identifier)
-    TZInfo::Timezone.get(identifier).canonical_zone.identifier
+    curated.find { |identifier| TZInfo::Timezone.get(identifier).canonical_zone.identifier == canonical } || canonical
   end
 
   def time_zone_select_data
