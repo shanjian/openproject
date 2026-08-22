@@ -225,6 +225,27 @@ en:
   caption_template_project_select: "Please select the project in which to create this meeting template"
 
   meeting:
+    common_time_zones:
+      america_new_york: "New York (US East)"
+      america_toronto: "Toronto (Canada)"
+      america_los_angeles: "Los Angeles / San Francisco"
+      america_mexico_city: "Mexico City"
+      america_sao_paulo: "São Paulo (Brazil)"
+      europe_london: "London (UK)"
+      europe_paris: "Paris (France)"
+      europe_berlin: "Berlin (Germany)"
+      europe_stockholm: "Stockholm (Sweden)"
+      europe_madrid: "Madrid (Spain)"
+      europe_rome: "Rome (Italy)"
+      europe_prague: "Prague (Czechia)"
+      europe_bratislava: "Bratislava (Slovakia)"
+      europe_bucharest: "Bucharest (Romania)"
+      asia_tokyo: "Tokyo (Japan)"
+      asia_seoul: "Seoul (Korea)"
+      asia_taipei: "Taipei (Taiwan)"
+      australia_sydney: "Sydney (Australia)"
+      pacific_auckland: "Auckland (New Zealand)"
+      etc_utc: "UTC"
     participants:
       label:
         participants: "Participants"

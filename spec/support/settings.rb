@@ -75,11 +75,21 @@ def default_auto_hide_popups_false
   Setting.default_auto_hide_popups = false
 end
 
+def no_user_default_timezone
+  # This fork ships America/New_York as user_default_timezone (see
+  # config/constants/settings/definition.rb), but the test suite assumes
+  # upstream's unset default, i.e. an Etc/UTC fallback for users without an
+  # explicit profile time zone. The shipped default itself is asserted in
+  # spec/models/users/default_timezone_spec.rb.
+  Setting.user_default_timezone = nil
+end
+
 RSpec.configure do |config|
   config.before(:suite) do
     # The test suite assumes the default of all days working.
     # Since the Setting default is with Sat-Sun non-working, we update it before the tests.
     week_with_all_days_working
     default_auto_hide_popups_false
+    no_user_default_timezone
   end
 end
