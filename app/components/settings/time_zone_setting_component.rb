@@ -70,20 +70,8 @@ module Settings
     end
 
     def time_zone_entries
-      UserPreferences::UpdateContract
-        .assignable_time_zones
-        .group_by { |tz| tz.tzinfo.canonical_zone }
-        .map { |canonical_zone, included_zones| time_zone_option(canonical_zone, included_zones) }
-    end
-
-    private
-
-    def time_zone_option(canonical_zone, zones)
-      zone_names = zones.map(&:name).join(", ")
-      [
-        "(UTC#{ActiveSupport::TimeZone.seconds_to_utc_offset(canonical_zone.base_utc_offset)}) #{zone_names}",
-        canonical_zone.identifier
-      ]
+      Users::CommonTimeZones.grouped_options(identifiers: Users::CommonTimeZones::PROFILE_ZONE_IDENTIFIERS)
+                             .map { |label, value, disabled| disabled ? [label, value, { disabled: true }] : [label, value] }
     end
   end
 end

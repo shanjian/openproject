@@ -88,19 +88,20 @@ RSpec.describe "Meeting time_zone select field",
     expect(response.body).to include(I18n.t("recurring_meeting.time_zone_difference_banner.title"))
   end
 
-  describe "curated common time zone list" do
-    it "offers exactly the curated common zones on the new-meeting form" do
+  describe "curated common time zone list, with every other zone still reachable below a divider" do
+    it "lists the curated zones first, in order, then a disabled divider, then the rest of the world" do
       get new_dialog_project_meetings_path(project), as: :turbo_stream
 
       select = time_zone_select_markup
       expect(select).to be_present
-      expect(select.scan("<option").size).to eq(20)
-      expect(select).to include('value="America/New_York"')
+      curated_count = Users::CommonTimeZones::MEETING_ZONE_IDENTIFIERS.size
+      values = select.scan(/<option[^>]*value="([^"]*)"/).flatten
+
+      expect(values.first(curated_count)).to eq(Users::CommonTimeZones::MEETING_ZONE_IDENTIFIERS)
+      expect(select).to match(/<option[^>]*disabled="disabled"[^>]*>#{Regexp.escape(I18n.t(:label_time_zone_divider))}/)
+      # Nothing is hidden anymore - every zone is reachable, just further down.
+      expect(values).to include("Asia/Kolkata", "Pacific/Honolulu")
       expect(select).to include("New York (US East)")
-      expect(select).to include('value="Etc/UTC"')
-      # Spot-check that the full Rails zone list is gone
-      expect(select).not_to include("Hawaii")
-      expect(select).not_to include("Asia/Kolkata")
     end
 
     it "shows the DST-aware offset for the meeting's own date, not the base offset" do
@@ -122,22 +123,21 @@ RSpec.describe "Meeting time_zone select field",
       select = time_zone_select_markup
       expect(select).to include('<option selected="selected" value="Europe/Bratislava">')
       expect(select).not_to include('<option selected="selected" value="Europe/Prague">')
-      expect(select.scan("<option").size).to eq(20)
+      expect(select.scan('value="Europe/Bratislava"').size).to eq(1)
     end
 
-    describe "safety valve for zones outside the curated list" do
-      it "appends and selects a meeting's stored non-curated zone instead of silently snapping it" do
+    describe "zones outside the curated top of the list" do
+      it "selects a meeting's stored non-curated zone from its natural place in the full list, without duplicating it" do
         meeting = create(:meeting, project:, author: user, time_zone: "Asia/Kolkata")
 
         get details_dialog_project_meeting_path(project, meeting), as: :turbo_stream
 
         select = time_zone_select_markup
         expect(select).to include('<option selected="selected" value="Asia/Kolkata">')
-        expect(select).to include("Asia/Kolkata</option>")
-        expect(select.scan("<option").size).to eq(21)
+        expect(select.scan('value="Asia/Kolkata"').size).to eq(1)
       end
 
-      it "appends and selects the creator's non-curated profile zone on the new-meeting form" do
+      it "selects the creator's non-curated profile zone on the new-meeting form, without duplicating it" do
         outsider = create(:user,
                           preferences: { time_zone: "Asia/Kathmandu" },
                           member_with_permissions: { project => %i[view_meetings create_meetings] })
@@ -147,7 +147,7 @@ RSpec.describe "Meeting time_zone select field",
 
         select = time_zone_select_markup
         expect(select).to include('<option selected="selected" value="Asia/Kathmandu">')
-        expect(select.scan("<option").size).to eq(21)
+        expect(select.scan('value="Asia/Kathmandu"').size).to eq(1)
       end
     end
   end

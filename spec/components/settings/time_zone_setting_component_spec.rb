@@ -33,12 +33,23 @@ require "rails_helper"
 RSpec.describe Settings::TimeZoneSettingComponent, type: :component do
   subject { render_inline(described_class.new("user_default_timezone")) }
 
-  it "renders the timezones as options, grouping cities with the same identifier" do
+  it "renders the curated common zones first, then a disabled divider, then every other " \
+     "zone grouped by identifier - so nothing is unreachable, but the common case stays short" do
     subject
 
-    expect(page).to have_css("option[value=\"America/Los_Angeles\"]",
-                             text: "(UTC-08:00) Pacific Time (US & Canada)")
-    expect(page).to have_css("option[value=\"Europe/Berlin\"]", text: "(UTC+01:00) Berlin, Copenhagen, Stockholm")
+    expect(page).to have_css("option[value=\"America/New_York\"]",
+                             text: "(UTC-05:00) New York (US East) — America/New_York")
+    expect(page).to have_css("option[value=\"Europe/Berlin\"]", text: "(UTC+01:00) Berlin (Germany) — Europe/Berlin")
+    expect(page).to have_css("option[disabled]", text: I18n.t(:label_time_zone_divider))
+    # Still reachable, just below the divider - the full list is never hidden.
     expect(page).to have_css("option[value=\"Asia/Shanghai\"]", text: "(UTC+08:00) Beijing, Chongqing")
+  end
+
+  it "does not offer Europe/Stockholm or Europe/Bratislava as their own values - both are tzinfo " \
+     "links whose canonical identifier (Berlin/Prague) is already curated" do
+    subject
+
+    expect(page).to have_no_css("option[value=\"Europe/Stockholm\"]")
+    expect(page).to have_no_css("option[value=\"Europe/Bratislava\"]")
   end
 end
