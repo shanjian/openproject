@@ -33,6 +33,11 @@ import { TurboRequestsService } from 'core-app/core/turbo/turbo-requests.service
 import { PathHelperService } from 'core-app/core/path-helper/path-helper.service';
 
 export default class extends ApplicationController {
+  static targets = ['timezoneSelect'];
+
+  declare readonly timezoneSelectTarget:HTMLSelectElement;
+  declare readonly hasTimezoneSelectTarget:boolean;
+
   protected turboRequests:TurboRequestsService;
   protected pathHelper:PathHelperService;
 
@@ -40,6 +45,48 @@ export default class extends ApplicationController {
     const context = await window.OpenProject.getPluginContext();
     this.turboRequests = context.services.turboRequests;
     this.pathHelper = context.services.pathHelperService;
+
+    this.applyBrowserTimezoneDefault();
+  }
+
+  // When the server rendered only a fallback zone (nothing stored on the
+  // meeting, no explicit profile zone - marked via data-browser-timezone-default),
+  // refine it to the browser's own zone, provided that zone is among the
+  // offered options. An explicit selection is never overridden.
+  applyBrowserTimezoneDefault():void {
+    if (!this.hasTimezoneSelectTarget) {
+      return;
+    }
+
+    const select = this.timezoneSelectTarget;
+    if (select.dataset.browserTimezoneDefault !== 'true') {
+      return;
+    }
+
+    const browserZone = this.normalizeBrowserZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    if (!browserZone || select.value === browserZone) {
+      return;
+    }
+
+    const offered = Array.from(select.options).some((option) => option.value === browserZone);
+    if (!offered) {
+      return;
+    }
+
+    select.value = browserZone;
+    this.updateTimezoneText();
+  }
+
+  // The select's option values are tzinfo identifiers, but browsers report the
+  // UTC family differently: V8 resolves any UTC-equivalent system zone (UTC,
+  // Etc/UTC, Universal, ...) to plain "UTC", and a fixed-offset TZ like GMT to
+  // "+00:00" - neither of which matches the offered "Etc/UTC" option verbatim.
+  private normalizeBrowserZone(zone:string):string {
+    if (['UTC', 'GMT', 'Etc/GMT', 'Etc/Universal', 'Etc/Zulu', '+00:00'].includes(zone)) {
+      return 'Etc/UTC';
+    }
+
+    return zone;
   }
 
   updateTimezoneText():void {

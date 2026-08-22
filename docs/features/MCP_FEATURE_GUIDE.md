@@ -205,9 +205,9 @@ resolving to the right account.
 | `list_types` | Every work package type on the instance |
 | `current_user` | Who the token belongs to |
 
-Alongside these it exposes **resources** — direct lookups of a single project,
-work package, user, version, type, status, or custom field by ID, which a client can
-fetch without a search.
+Alongside these it exposes ten **resources** — by-ID lookups of a single project, work
+package, user, version, type, status or custom field, plus the current user and the full
+status and type lists — which a client can fetch without a search.
 
 **It cannot write.** There is no tool to create, edit, comment on, or delete
 anything, and no way to configure one. It can *read* a work package's comments; it
@@ -287,9 +287,9 @@ only visible to a user through the projects and work package types it is enabled
 an assistant connected as a restricted user may genuinely not be able to resolve one.
 
 **Assistant only ever finds 40 of something.**
-That is the per-call page limit, not the total. Every search response reports a
-`total` alongside the results, so ask the assistant how many matches there are in
-all and to fetch the remaining pages. If it insists 40 is everything, it is ignoring
+That is the per-call page limit, not the total. The paginated tools report a `total`
+alongside the results, so ask the assistant how many matches there are in all and to
+fetch the remaining pages. If it insists 40 is everything, it is ignoring
 the `total` it was given — say the number back to it, or narrow the question.
 
 **Nothing above fits.**
@@ -301,25 +301,32 @@ request`, so grep the OpenProject log for that string.
 ## Notes & limitations
 
 - **Read-only.** By design in this build.
-- **40 results per call.** Every search caps there, and a client requests page 2, 3
-  and so on to get the rest. Each response also reports `total`, the full number of
-  matches, so an assistant can tell whether more pages exist rather than guessing.
-  Broad questions still cost several round trips.
+- **40 results per call, for the tools that paginate.** Eight tools do: work packages,
+  projects, programs, portfolios, versions, users, custom fields and work package
+  comments. Those cap at 40 and report a `total`, so an assistant can tell whether more
+  pages exist and ask for page 2, 3 and so on. `list_work_package_relations` and
+  `search_custom_field_items` are *not* paginated — they return everything they find,
+  with a `total` matching. `current_user`, `list_statuses` and `list_types` return one
+  whole document and have no page or total at all. Broad questions still cost several
+  round trips.
 - **Hierarchy custom field values need Enterprise.** `search_custom_field_items` works,
   but hierarchy custom fields can only be *created* with an Enterprise token
   (`custom_field_hierarchies` is a separate feature from MCP, and this build does not
   ungate it). On a Community instance the tool has nothing to return.
-- **Work package searches are trimmed; direct resource reads are not.**
+- **Two tools trim their responses; direct resource reads do not.**
   `search_work_packages` drops the rendered HTML twin of every formatted text field and
   the action links an assistant cannot act on, which cuts those responses by roughly 40%.
-  Reading a single work package as a *resource* still returns the full payload, because
+  `list_work_package_comments` does the same and also empties each activity's
+  attribute-by-attribute diff. Every other tool returns its payload untrimmed, and
+  reading a single work package as a *resource* returns the full payload too, because
   resources are served on a path the filtering does not cover.
 - **One endpoint per instance.** No per-project enablement.
 - **Versions:** work packages are matched on their single assigned version. Upstream
   is moving to multiple target versions per work package; that change conflicts with
   this build's Release/Sprint model and is deliberately not ported.
-- **No agent audit trail.** Since MCP cannot write, nothing needs one yet — but it
-  is the open question blocking write tools.
+- **No agent audit trail.** Nothing needs one while MCP cannot write. It was one of the
+  considerations that led to declining the write tools, and would have to be settled
+  before they were ever ported.
 
 ---
 

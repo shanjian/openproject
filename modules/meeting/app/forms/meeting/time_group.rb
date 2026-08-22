@@ -30,6 +30,33 @@
 class Meeting::TimeGroup < ApplicationForm
   include Redmine::I18n
 
+  # The zones our offices actually use. The full Rails zone list (~120 grouped
+  # entries, labeled by Rails names like "Eastern Time (US & Canada)") made the
+  # common case - finding your own city - needlessly hard. Zones outside this
+  # list stay valid; see the safety valve in #available_time_zones.
+  COMMON_TIME_ZONES = %w[
+    America/New_York
+    America/Toronto
+    America/Los_Angeles
+    America/Mexico_City
+    America/Sao_Paulo
+    Europe/London
+    Europe/Paris
+    Europe/Berlin
+    Europe/Stockholm
+    Europe/Madrid
+    Europe/Rome
+    Europe/Prague
+    Europe/Bratislava
+    Europe/Bucharest
+    Asia/Tokyo
+    Asia/Seoul
+    Asia/Taipei
+    Australia/Sydney
+    Pacific/Auckland
+    Etc/UTC
+  ].freeze
+
   form do |meeting_form|
     if editing_recurring? && friendly_timezone_name(User.current.time_zone) != friendly_timezone_name(@meeting.time_zone)
       meeting_form.html_content do
@@ -95,9 +122,7 @@ class Meeting::TimeGroup < ApplicationForm
       include_blank: false,
       input_width: :large,
       disabled: series_occurrence?,
-      data: {
-        action: "input->meetings--form#updateTimezoneText"
-      }
+      data: time_zone_select_data
     ) do |list|
       available_time_zones.each do |zone_label, value|
         list.option(label: zone_label, value:, selected: value == @initial_time_zone)
@@ -120,37 +145,85 @@ class Meeting::TimeGroup < ApplicationForm
   private
 
   def available_time_zones
-    @available_time_zones ||= UserPreferences::UpdateContract
-      .assignable_time_zones
-      .group_by { it.tzinfo.canonical_zone }
-      .map { |canonical_zone, included_zones| build_time_zone_entry(canonical_zone, included_zones) }
+    @available_time_zones ||= begin
+      options = COMMON_TIME_ZONES.map { |identifier| [common_zone_label(identifier), identifier] }
+
+      # Safety valve: a meeting stored with (or a creator whose profile is set to)
+      # a zone outside the curated list must still see that zone offered and
+      # preselected - otherwise the browser would silently submit the first
+      # option on save and shift the meeting's wall-clock time.
+      unless COMMON_TIME_ZONES.include?(@initial_time_zone)
+        options << [fallback_zone_label(@initial_time_zone), @initial_time_zone]
+      end
+
+      options
+    end
   end
 
-  def build_time_zone_entry(canonical_zone, zones)
-    zone_names = zones.map(&:name).join(", ")
-    offset = ActiveSupport::TimeZone.seconds_to_utc_offset(canonical_zone.base_utc_offset)
+  def common_zone_label(identifier)
+    name = I18n.t("meeting.common_time_zones.#{identifier.downcase.gsub(%r{[/\s-]}, '_')}")
 
-    ["(UTC#{offset}) #{zone_names}", canonical_zone.identifier]
+    if identifier == "Etc/UTC"
+      "(UTC#{live_utc_offset(identifier)}) #{name}"
+    else
+      "(UTC#{live_utc_offset(identifier)}) #{name} — #{identifier}"
+    end
+  end
+
+  def fallback_zone_label(identifier)
+    "(UTC#{live_utc_offset(identifier)}) #{identifier}"
+  end
+
+  # The offset the zone actually observes at the meeting's start (or now, on a
+  # blank form) - i.e. DST-aware, unlike the base offset, which for e.g.
+  # America/New_York claims -05:00 all summer long.
+  def live_utc_offset(identifier)
+    period = @meeting.start_time || Time.zone.now
+    ActiveSupport::TimeZone.seconds_to_utc_offset(TZInfo::Timezone.get(identifier).observed_utc_offset(period))
   end
 
   def initial_time_zone_value(meeting)
     zone =
-      if meeting.persisted? || (meeting.is_a?(RecurringMeeting) && meeting.template&.persisted?)
+      if persisted_zone_source?
         meeting.time_zone
       else
-        # New record: default to the creator's profile zone; if they have none set,
-        # show UTC explicitly in the select rather than applying it silently.
+        # New record: default to the creator's profile zone (which itself falls
+        # back to Setting.user_default_timezone); the meetings--form Stimulus
+        # controller may then refine a pure fallback to the browser's zone.
         User.current.time_zone
       end
 
-    # The select's option values are canonical tzinfo identifiers
-    # (`build_time_zone_entry`), but `ActiveSupport::TimeZone#name` returns
-    # whichever string was used to look the zone up - e.g. "UTC" for
-    # `ActiveSupport::TimeZone["UTC"]`, whose canonical identifier is
-    # "Etc/UTC". Comparing on `#name` left no option selected for any zone
-    # where those differ, so the browser silently submitted the first option
-    # on save. Compare canonical identifiers instead.
-    zone.tzinfo.canonical_zone.identifier
+    # `ActiveSupport::TimeZone#tzinfo.name` returns the tzinfo identifier the
+    # zone was looked up as - which may be an alias ("UTC" -> "Etc/UTC" via the
+    # Rails MAPPING, or a link zone like "Europe/Bratislava"). Prefer an exact
+    # match against the curated identifiers so Bratislava selects Bratislava,
+    # then fall back to canonical-identifier matching (e.g. a stored
+    # "US/Eastern" selects America/New_York), and otherwise hand the canonical
+    # identifier to the safety valve in #available_time_zones.
+    raw = zone.tzinfo.name
+    return raw if COMMON_TIME_ZONES.include?(raw)
+
+    canonical = zone.tzinfo.canonical_zone.identifier
+    COMMON_TIME_ZONES.find { |identifier| canonical_identifier(identifier) == canonical } || canonical
+  end
+
+  def canonical_identifier(identifier)
+    TZInfo::Timezone.get(identifier).canonical_zone.identifier
+  end
+
+  def time_zone_select_data
+    data = {
+      action: "input->meetings--form#updateTimezoneText",
+      "meetings--form-target": "timezoneSelect"
+    }
+    # Only a pure fallback default (nothing stored, no explicit profile zone) may
+    # be refined to the browser's zone client-side; an explicit choice never is.
+    data["browser-timezone-default"] = "true" if !persisted_zone_source? && !User.current.pref.time_zone?
+    data
+  end
+
+  def persisted_zone_source?
+    @meeting.persisted? || (@meeting.is_a?(RecurringMeeting) && @meeting.template&.persisted?)
   end
 
   def duration_value(meeting)

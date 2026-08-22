@@ -33,6 +33,15 @@ require "spec_helper"
 RSpec.describe User, "default time zone" do
   let(:user) { create(:user) }
 
+  context "with the shipped default" do
+    it "ships America/New_York as this fork's system-wide default" do
+      expect(Settings::Definition[:user_default_timezone].default).to eq "America/New_York"
+    end
+  end
+
+  # The test suite itself pins user_default_timezone off suite-wide (see
+  # spec/support/settings.rb) so upstream's Etc/UTC-fallback expectations keep
+  # holding; hence users without a profile zone read as UTC below.
   context "with no system default set" do
     it "is still set to Etc/UTC as that will be calculated with internally" do
       expect(user.pref.time_zone).to eq "Etc/UTC"

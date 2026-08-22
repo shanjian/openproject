@@ -1240,7 +1240,10 @@ module Settings
         ].freeze
       },
       user_default_timezone: {
-        default: nil,
+        # Fork default: our organization is anchored on US-Eastern time, so users
+        # without an explicit profile time zone get New York rather than UTC.
+        # Admins can still override (or blank) this in Administration -> Users.
+        default: "America/New_York",
         format: :string,
         allowed: ActiveSupport::TimeZone.all.map { |tz| tz.tzinfo.canonical_identifier }.sort.uniq + [nil]
       },

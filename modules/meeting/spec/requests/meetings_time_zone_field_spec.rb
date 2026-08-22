@@ -51,18 +51,28 @@ RSpec.describe "Meeting time_zone select field",
   # (which parses response.body as a normal document) can't see inside it -
   # hence plain string assertions against response.body here rather than
   # `have_select`/`have_css`.
+
+  # Extracts the raw markup of the time_zone <select> from the turbo-stream body.
+  def time_zone_select_markup
+    response.body[%r{<select[^>]*name="meeting\[time_zone\]".*?</select>}m]
+  end
+
   it "defaults the new one-time meeting's time zone select to the creator's profile zone" do
     get new_dialog_project_meetings_path(project), as: :turbo_stream
 
     expect(response.body).to include('name="meeting[time_zone]"')
-    expect(response.body).to include('<option selected="selected" value="Asia/Tokyo">(UTC+09:00) Tokyo</option>')
+    expect(response.body).to include(
+      '<option selected="selected" value="Asia/Tokyo">(UTC+09:00) Tokyo (Japan) — Asia/Tokyo</option>'
+    )
   end
 
   it "defaults the new recurring meeting's time zone select to the creator's profile zone" do
     get new_dialog_project_meetings_path(project, type: "recurring"), as: :turbo_stream
 
     expect(response.body).to include('name="meeting[time_zone]"')
-    expect(response.body).to include('<option selected="selected" value="Asia/Tokyo">(UTC+09:00) Tokyo</option>')
+    expect(response.body).to include(
+      '<option selected="selected" value="Asia/Tokyo">(UTC+09:00) Tokyo (Japan) — Asia/Tokyo</option>'
+    )
   end
 
   it "defaults an existing recurring series' time zone select to the series' own zone, " \
@@ -72,10 +82,103 @@ RSpec.describe "Meeting time_zone select field",
     get details_dialog_project_recurring_meeting_path(project, recurring_meeting), as: :turbo_stream
 
     expect(response.body).to include('name="meeting[time_zone]"')
-    expect(response.body).to include(
-      '<option selected="selected" value="America/New_York">(UTC-05:00) Eastern Time (US &amp; Canada)</option>'
+    expect(response.body).to match(
+      %r{<option selected="selected" value="America/New_York">\(UTC-0[45]:00\) New York \(US East\) — America/New_York</option>}
     )
     expect(response.body).to include(I18n.t("recurring_meeting.time_zone_difference_banner.title"))
+  end
+
+  describe "curated common time zone list" do
+    it "offers exactly the curated common zones on the new-meeting form" do
+      get new_dialog_project_meetings_path(project), as: :turbo_stream
+
+      select = time_zone_select_markup
+      expect(select).to be_present
+      expect(select.scan("<option").size).to eq(20)
+      expect(select).to include('value="America/New_York"')
+      expect(select).to include("New York (US East)")
+      expect(select).to include('value="Etc/UTC"')
+      # Spot-check that the full Rails zone list is gone
+      expect(select).not_to include("Hawaii")
+      expect(select).not_to include("Asia/Kolkata")
+    end
+
+    it "shows the DST-aware offset for the meeting's own date, not the base offset" do
+      meeting = create(:meeting, project:, author: user, time_zone: "America/New_York",
+                                 start_time: DateTime.iso8601("2026-07-01T10:00:00-04:00"))
+
+      get details_dialog_project_meeting_path(project, meeting), as: :turbo_stream
+
+      expect(time_zone_select_markup).to include(
+        '<option selected="selected" value="America/New_York">(UTC-04:00) New York (US East) — America/New_York</option>'
+      )
+    end
+
+    it "keeps Bratislava selectable in its own right although it is a tzinfo link to Prague" do
+      meeting = create(:meeting, project:, author: user, time_zone: "Europe/Bratislava")
+
+      get details_dialog_project_meeting_path(project, meeting), as: :turbo_stream
+
+      select = time_zone_select_markup
+      expect(select).to include('<option selected="selected" value="Europe/Bratislava">')
+      expect(select).not_to include('<option selected="selected" value="Europe/Prague">')
+      expect(select.scan("<option").size).to eq(20)
+    end
+
+    describe "safety valve for zones outside the curated list" do
+      it "appends and selects a meeting's stored non-curated zone instead of silently snapping it" do
+        meeting = create(:meeting, project:, author: user, time_zone: "Asia/Kolkata")
+
+        get details_dialog_project_meeting_path(project, meeting), as: :turbo_stream
+
+        select = time_zone_select_markup
+        expect(select).to include('<option selected="selected" value="Asia/Kolkata">')
+        expect(select).to include("Asia/Kolkata</option>")
+        expect(select.scan("<option").size).to eq(21)
+      end
+
+      it "appends and selects the creator's non-curated profile zone on the new-meeting form" do
+        outsider = create(:user,
+                          preferences: { time_zone: "Asia/Kathmandu" },
+                          member_with_permissions: { project => %i[view_meetings create_meetings] })
+        login_as outsider
+
+        get new_dialog_project_meetings_path(project), as: :turbo_stream
+
+        select = time_zone_select_markup
+        expect(select).to include('<option selected="selected" value="Asia/Kathmandu">')
+        expect(select.scan("<option").size).to eq(21)
+      end
+    end
+  end
+
+  describe "browser-timezone default marker" do
+    shared_let(:no_pref_user) do
+      create(:user, member_with_permissions: { project => %i[view_meetings create_meetings edit_meetings] })
+    end
+
+    it "marks the select on a new-meeting form when the creator has no explicit profile zone" do
+      login_as no_pref_user
+
+      get new_dialog_project_meetings_path(project), as: :turbo_stream
+
+      expect(time_zone_select_markup).to include('data-browser-timezone-default="true"')
+    end
+
+    it "does not mark the select when the creator has an explicit profile zone" do
+      get new_dialog_project_meetings_path(project), as: :turbo_stream
+
+      expect(time_zone_select_markup).not_to include("data-browser-timezone-default")
+    end
+
+    it "does not mark the select when editing a persisted meeting, even without a profile zone" do
+      meeting = create(:meeting, project:, author: no_pref_user, time_zone: "Europe/Berlin")
+      login_as no_pref_user
+
+      get details_dialog_project_meeting_path(project, meeting), as: :turbo_stream
+
+      expect(time_zone_select_markup).not_to include("data-browser-timezone-default")
+    end
   end
 
   describe "start-time field caption on first paint (Finding 2 regression)" do
