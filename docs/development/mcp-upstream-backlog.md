@@ -15,9 +15,17 @@ Companion to [upstream-sync-plan.md](upstream-sync-plan.md), which covers the ge
 |---|---|
 | Fork point | `v17.1.2` (MCP first shipped upstream in `v17.1.0`) |
 | Upstream surveyed | `upstream/dev` @ `4a95621961c`, 2026-08-21 |
+| Survey still current? | Yes, rechecked 2026-08-22 |
 | Latest upstream tag | `v17.7.2`; `release/17.8` branch open |
-| Our `mcp` gem | `~> 0.24.0` (was `0.8.0`) |
+| Our `mcp` gem | `~> 0.24.0` |
 | Upstream `mcp` gem | `~> 0.24.0` |
+
+Rechecked on 2026-08-22: `upstream/dev` had advanced 56 commits since the survey and
+**not one of them touches MCP** — `app/services/mcp_*`, `lib/api/mcp*`,
+`config/initializers/mcp.rb` and the admin-guide screenshots are byte-identical to the
+surveyed commit, and upstream's gem pin is still `~> 0.24.0`. So this fork is level with
+upstream on MCP, and upstream has not shipped the write tools in the meantime. Re-run that
+comparison before trusting anything below.
 
 Our tree is not simply "at 17.1.2" for MCP. An earlier partial sync already brought in
 `ServerUrlComponent`, the `mcp_tool_response_format` setting and `McpTools::Base::RESPONSE_FORMATS`
@@ -308,12 +316,18 @@ contracts and permissions are enforced the same way the API v3 enforces them:
   holds, `create_work_package_comment` notifies subscribers on every call, and
   `delete_work_package_relation` is genuinely destructive. Our `McpConfiguration` per-tool
   toggles are the natural control — they let each write tool be enabled individually.
-- **Open questions for the review:**
-  - Enable per tool, or all-or-nothing? Per-tool is already supported.
+- **What the review weighed.** These were the open questions going in; none of them had
+  to be answered in the end, because the decision was not to port. They are the questions
+  to reopen if that changes:
+  - Enable per tool, or all-or-nothing? Per-tool is already supported, so this one has a
+    ready answer: ship every write tool disabled and let an admin opt in individually.
   - Comments notify by default. Do we want agent-authored comments hitting subscribers?
+    Unresolved, and one of the two considerations that decided it.
   - Do we want an audit trail distinguishing agent-authored changes from human ones?
-    Journals will attribute them to the token's user with nothing marking them as agent work.
-  - Should write tools be restricted to specific projects or roles?
+    Journals attribute them to the token's user with nothing marking them as agent work.
+    Unresolved, and the other deciding consideration.
+  - Should write tools be restricted to specific projects or roles? Not investigated;
+    there is no existing mechanism for it, so it would need building.
 - **Verdict: reviewed and skipped.** Not ported, and not because of the technical cost —
   the port is small. Upstream's own documentation still describes MCP as read-only, so
   this is unreleased work, and nothing currently needs an agent to write. Revisit when
