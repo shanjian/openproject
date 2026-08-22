@@ -32,8 +32,22 @@ class Queries::WorkPackages::Filter::EpicFilter <
   Queries::WorkPackages::Filter::WorkPackageFilter
   include ::Queries::WorkPackages::Filter::FilterForWpMixin
 
+  # Matches the epics themselves in addition to the work packages linked to them.
+  # The epic link is not a hierarchy relation, so an epic is never pulled in as an
+  # ancestor row the way a parent is; without this the Gantt/timeline would show an
+  # epic's children but never the epic itself. See #cross_project? below for the
+  # project-scope half of the same feature.
   def where
-    operator_strategy.sql_for_field(no_templated_values, self.class.model.table_name, :epic_id)
+    table = self.class.model.table_name
+    linked_children = operator_strategy.sql_for_field(no_templated_values, table, :epic_id)
+    epics_themselves = operator_strategy.sql_for_field(no_templated_values, table, :id)
+
+    if negated_operator?
+      # Excluding an epic has to exclude its children *and* the epic itself.
+      "((#{linked_children}) AND (#{epics_themselves}))"
+    else
+      "((#{linked_children}) OR (#{epics_themselves}))"
+    end
   end
 
   # When the operator is the cross-project variant, the query should ignore its
@@ -44,6 +58,10 @@ class Queries::WorkPackages::Filter::EpicFilter <
   end
 
   private
+
+  def negated_operator?
+    operator.to_s == ::Queries::Operators::NotEquals.symbol
+  end
 
   # Epic links may be cross-project (see docs/development/epic-link-implementation-tasks.md),
   # so the selectable epic must not be restricted to the current project's subtree the way
