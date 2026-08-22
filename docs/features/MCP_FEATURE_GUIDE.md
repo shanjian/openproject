@@ -145,6 +145,8 @@ questions in plain language and it decides which tools to call:
 - "List the projects under the Infrastructure program."
 - "What's in the 2026 Q3 version of the Website Redesign project?"
 - "Who's on the Website Redesign project?"
+- "Summarise the discussion on work package 1234."
+- "What's blocking work package 1234?"
 
 Two habits make answers noticeably better:
 
@@ -185,7 +187,7 @@ resolving to the right account.
 
 ## What it can and can't do
 
-**It can read**, through eleven tools:
+**It can read**, through thirteen tools:
 
 | Tool | Answers |
 |---|---|
@@ -195,6 +197,8 @@ resolving to the right account.
 | `search_portfolios` | Portfolios (the level above programs) |
 | `search_versions` | Versions by name |
 | `search_users` | Users by name |
+| `list_work_package_comments` | The discussion on a work package, newest first |
+| `list_work_package_relations` | What a work package relates to, follows, or blocks |
 | `search_custom_fields` | Custom fields by ID or partial name — this is how an assistant turns `customField7` into a real name |
 | `search_custom_field_items` | The values available for a hierarchy custom field |
 | `list_statuses` | Every work package status on the instance |
@@ -206,7 +210,8 @@ work package, user, version, type, status, or custom field by ID, which a client
 fetch without a search.
 
 **It cannot write.** There is no tool to create, edit, comment on, or delete
-anything, and no way to configure one. Assistant-suggested changes still have to
+anything, and no way to configure one. It can *read* a work package's comments; it
+cannot post one. Assistant-suggested changes still have to
 be made by a person in the UI.
 
 **It cannot exceed your permissions.** Every query is scoped to what the token's

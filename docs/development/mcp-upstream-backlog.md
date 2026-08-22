@@ -26,6 +26,12 @@ Expect more of this kind of half-applied state.
 
 Listed so this doc reads as a complete picture.
 
+On `feature/mcp-wp-detail-tools`:
+
+- **The rest of item 2**: `list_work_package_comments` and
+  `list_work_package_relations`, plus `RemoveActivityDetails` deferred from item 1.
+  Item 2 is now complete.
+
 On `feature/mcp-custom-field-tools`:
 
 - **The custom field half of item 2**: `search_custom_fields`, `search_custom_field_items`
@@ -181,15 +187,15 @@ Note also that filtering covers the **tool** path only. `McpResources.read_resou
 not run output filters, so reading a work package as a resource still returns the full
 payload.
 
-### 2. Read-only tools we are missing — custom fields DONE, work package detail outstanding
+### 2. Read-only tools we are missing — DONE
 
 | Tool | Notes | Status |
 |---|---|---|
 | `search_custom_fields` | resolves `customFieldN` to real names | done |
 | `search_custom_field_items` | hierarchy custom field items | done |
 | `McpResources::CustomField` | matching resource | done |
-| `list_work_package_comments` | journals/comments for a WP | outstanding |
-| `list_work_package_relations` | relations for a WP | outstanding |
+| `list_work_package_comments` | journals/comments for a WP | done |
+| `list_work_package_relations` | relations for a WP | done |
 
 **Correction to what this doc claimed.** It said these were "close to drop-in" because
 they target the post-upgrade base. That was wrong, and wrong for an avoidable reason: the
@@ -244,13 +250,29 @@ token, so on a Community instance the tool has nothing to return. It is shipped 
 correct, but inert until hierarchies are available. Ungating that feature is its own
 decision, not an MCP one.
 
-**Still outstanding: `list_work_package_comments` and `list_work_package_relations`.**
-Both need no new supporting classes. The one known adaptation is that
-`list_work_package_comments` passes `embed_emoji_reactions: true` to
-`ActivityRepresenter`, a kwarg upstream added purely for this tool; ours embeds reactions
-on `embed_links` alone. Dropping the kwarg is the cheaper call — an LLM has no use for
-reaction counts, and it keeps a shared API v3 representer untouched. Upstream ships
-request specs for both tools (215 and 145 lines).
+**The work package detail half went cleanly**, unlike the custom field half — and the
+difference was doing the dependency sweep first. Everything both tools call already
+existed: `Relation.visible`, `work_package.relations`, all five journal associations
+`includes` names (`:bcf_comment` and `:storable_journals` included),
+`RelationCollectionRepresenter.to_eager_load`, both docs schemas, both shared examples,
+and the `relates_relation` / `follows_relation` / `emoji_reaction` factories.
+
+One gap, and the earlier recommendation in this doc was **wrong**. It said to drop
+`embed_emoji_reactions: true`, a kwarg upstream added to `ActivityRepresenter` for this
+tool, on the grounds that an LLM has no use for reaction counts and a shared representer
+should stay untouched. Porting it turned out to be the better call: the change is purely
+additive and backward compatible — a new kwarg defaulting to `false`, so no existing
+caller's behaviour moves — and it makes `activity_representer.rb` identical to upstream
+while letting the tool and its spec port verbatim. Dropping it would have meant deleting
+an upstream spec example and carrying divergence in three files instead of converging one.
+If reaction noise ever matters, an output filter is the right layer for it. Verified
+backward compatible against the 179 examples that cover the representer.
+
+Also worth knowing: `internal_visible` degrades to `where(internal: false)` without the
+`internal_comments` Enterprise feature, so `list_work_package_comments` returns ordinary
+comments and is fully useful on Community — unlike `search_custom_field_items`. It reads
+`User.current` rather than the user it is passed; in the MCP path those are the same
+object, but that is a trap if it ever changes.
 
 ### 3. `total` in paginated responses — DONE
 
@@ -328,8 +350,9 @@ number, so renumber nothing.
 3. ~~Output filters~~ (item 1) — done. 41.7% smaller work package responses.
 4. ~~Read-only tools, custom fields~~ (item 2) — done, along with the held-back
    `search_work_packages` description sentence.
-5. **Read-only tools, work package detail** (rest of item 2): `list_work_package_comments`
-   and `list_work_package_relations`, plus `RemoveActivityDetails` from item 1.
+5. ~~Read-only tools, work package detail~~ (rest of item 2) — done, with
+   `RemoveActivityDetails` from item 1. **Everything read-only in this backlog is now
+   ported.** What remains is item 4 (write tools), item 5 (blocked) and item 6 (drift).
 6. **Write tools** (item 4) — separate branch, separate review, after the open questions
    there are answered.
 7. Leave item 5 to the Release/Sprint work and item 6 to natural upstream drift.
@@ -339,5 +362,7 @@ be reverted independently. Item 4 is the write tools and needs its own review be
 of it ships.
 
 A lesson worth keeping from items 1 and 2: **check what a ported file calls, not just the
-file.** Both times the risk assessment written from reading tool files alone turned out
-optimistic, and both times the real work was in their dependencies.
+file.** Twice the risk assessment written from reading tool files alone turned out
+optimistic, and both times the real work was in their dependencies. Doing the sweep up
+front on the work package detail tools took one pass and turned up nothing — which is
+what a clean port looks like, and is the cheapest possible way to find out.
