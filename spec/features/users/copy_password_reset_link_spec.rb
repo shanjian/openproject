@@ -56,6 +56,16 @@ RSpec.describe "Copying a password reset link", :js do
     expect(ActionMailer::Base.deliveries).to be_empty
   end
 
+  it "also opens the dialog from the user's show page (a separate action button, not the edit-page menu)" do
+    visit user_path(active_user)
+
+    perform_enqueued_jobs do
+      click_on "Copy password reset link"
+    end
+
+    expect(page).to have_css("dialog##{Users::ShareableLinkDialogComponent::DIALOG_ID}", visible: true, wait: 10)
+  end
+
   context "when the viewer only has create_user, not manage_user" do
     let(:create_user_only) { create(:user, global_permissions: %i[view_all_principals create_user]) }
 
