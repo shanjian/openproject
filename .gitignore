@@ -57,6 +57,10 @@ npm-debug.log*
 /.idea
 /frontend/.idea
 
+# Ignore Claude Code / CodeGraph local state
+/.claude
+/.codegraph
+
 /backup
 /.project
 /.loadpath
