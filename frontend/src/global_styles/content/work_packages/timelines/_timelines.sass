@@ -102,6 +102,17 @@
 .-duration-overflow
   border-color: var(--fgColor-danger)
 
+// Span of the work linked to an epic. Dashed and drawn below the row's own bar
+// so it reads as scope rather than as the hierarchy children-duration clamp.
+.epic-scope-bar
+  position: absolute
+  height: 6px
+  top: 2.4em
+  border: 1px dashed var(--fgColor-accent)
+  border-bottom: none
+  background: none
+  pointer-events: none
+
 .children-duration-hover-container
   display: none
   margin-left: -1px

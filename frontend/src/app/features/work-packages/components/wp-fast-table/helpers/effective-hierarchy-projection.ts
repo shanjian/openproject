@@ -29,6 +29,14 @@
 import { WorkPackageResource } from 'core-app/features/hal/resources/work-package-resource';
 
 /**
+ * The span an epic's work occupies, as ISO dates.
+ */
+export interface DateEnvelope {
+  start:string;
+  due:string;
+}
+
+/**
  * The hierarchy the table *displays*, as opposed to the stored parent
  * hierarchy the API reports. It is the real hierarchy with one addition: a work
  * package that has no parent at all is displayed under the epic it links to, so
@@ -128,6 +136,53 @@ export class EffectiveHierarchyProjection {
     }
 
     return this.rows.filter((row) => this.epicIdOf(row) === epic.id);
+  }
+
+  /**
+   * The span of the epic's linked children on this page: the earliest start and
+   * the latest finish among them, or null when none of them carries a date.
+   *
+   * This is the epic's *scope*, not its subtree, so it also covers linked work
+   * displayed elsewhere in the tree. It is computed from the rows of the page
+   * rather than from the rows currently visible, so collapsing the epic does not
+   * move it -- collapsing is presentation, not filtering.
+   */
+  public linkedChildrenEnvelopeOf(epic:WorkPackageResource):DateEnvelope|null {
+    let start:string|null = null;
+    let due:string|null = null;
+
+    this.linkedChildrenOf(epic).forEach((child) => {
+      const dates = this.datesOf(child);
+      if (!dates) {
+        return;
+      }
+
+      if (start === null || dates.start < start) {
+        start = dates.start;
+      }
+      if (due === null || dates.due > due) {
+        due = dates.due;
+      }
+    });
+
+    return start !== null && due !== null ? { start, due } : null;
+  }
+
+  /**
+   * A work package's own span. A work package carrying only one of the two dates
+   * -- a milestone, or one that is only half scheduled -- occupies that single
+   * day.
+   */
+  private datesOf(workPackage:WorkPackageResource):DateEnvelope|null {
+    const { startDate, dueDate } = workPackage as unknown as {
+      startDate?:string|null;
+      dueDate?:string|null;
+    };
+
+    const start = startDate ?? dueDate;
+    const due = dueDate ?? startDate;
+
+    return start && due ? { start, due } : null;
   }
 
   private resolveAdoptiveEpic(workPackage:WorkPackageResource):WorkPackageResource|null {

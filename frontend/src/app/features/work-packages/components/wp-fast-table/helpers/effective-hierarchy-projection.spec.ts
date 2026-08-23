@@ -34,6 +34,8 @@ describe('EffectiveHierarchyProjection', () => {
     hasParent?:boolean;
     epicId?:string;
     ancestors?:WorkPackageResource[];
+    startDate?:string|null;
+    dueDate?:string|null;
   }
 
   function wp(id:string, options:FakeOptions = {}):WorkPackageResource {
@@ -42,6 +44,8 @@ describe('EffectiveHierarchyProjection', () => {
       id,
       hasParent: options.hasParent,
       epic: options.epicId ? { id: options.epicId } : undefined,
+      startDate: options.startDate,
+      dueDate: options.dueDate,
       getAncestors: () => ancestors,
     } as unknown as WorkPackageResource;
   }
@@ -160,6 +164,74 @@ describe('EffectiveHierarchyProjection', () => {
       const unrelated = wp('4', { hasParent: false });
 
       expect(projectionOf(epic, unrelated).linkedChildrenOf(epic)).toEqual([]);
+    });
+  });
+
+  // The epic's bar shows when its work runs. It is the span of the linked
+  // children on this page, which is deliberately not the same thing as the
+  // hierarchy children-duration bar: it covers linked work displayed elsewhere
+  // in the tree, and it covers nothing that is not on the page.
+  describe('linkedChildrenEnvelopeOf', () => {
+    it('spans the earliest start and the latest finish of the linked children', () => {
+      const epic = wp('1');
+      const early = wp('2', { hasParent: false, epicId: '1', startDate: '2026-03-02', dueDate: '2026-03-20' });
+      const late = wp('3', { hasParent: false, epicId: '1', startDate: '2026-04-01', dueDate: '2026-04-10' });
+
+      expect(projectionOf(epic, early, late).linkedChildrenEnvelopeOf(epic))
+        .toEqual({ start: '2026-03-02', due: '2026-04-10' });
+    });
+
+    it('covers a linked child displayed under its own real parent', () => {
+      const epic = wp('1');
+      const parent = wp('4');
+      const parented = wp('2', {
+        hasParent: true, epicId: '1', ancestors: [parent], startDate: '2026-03-02', dueDate: '2026-03-20',
+      });
+
+      expect(projectionOf(epic, parent, parented).linkedChildrenEnvelopeOf(epic))
+        .toEqual({ start: '2026-03-02', due: '2026-03-20' });
+    });
+
+    it('ignores linked children that carry no dates', () => {
+      const epic = wp('1');
+      const dated = wp('2', { hasParent: false, epicId: '1', startDate: '2026-03-02', dueDate: '2026-03-20' });
+      const undated = wp('3', { hasParent: false, epicId: '1' });
+
+      expect(projectionOf(epic, dated, undated).linkedChildrenEnvelopeOf(epic))
+        .toEqual({ start: '2026-03-02', due: '2026-03-20' });
+    });
+
+    it('uses a milestone-style child with only one date at both ends', () => {
+      const epic = wp('1');
+      const milestone = wp('2', { hasParent: false, epicId: '1', dueDate: '2026-03-20' });
+
+      expect(projectionOf(epic, milestone).linkedChildrenEnvelopeOf(epic))
+        .toEqual({ start: '2026-03-20', due: '2026-03-20' });
+    });
+
+    it('is null when no linked child is on the page', () => {
+      const epic = wp('1');
+      const elsewhere = wp('2', { hasParent: false, epicId: '99', startDate: '2026-03-02', dueDate: '2026-03-20' });
+
+      expect(projectionOf(epic, elsewhere).linkedChildrenEnvelopeOf(epic)).toBeNull();
+    });
+
+    it('is null when every linked child is undated', () => {
+      const epic = wp('1');
+      const undated = wp('2', { hasParent: false, epicId: '1' });
+
+      expect(projectionOf(epic, undated).linkedChildrenEnvelopeOf(epic)).toBeNull();
+    });
+
+    // Collapsing is presentation, not filtering: the rows are still on the page,
+    // so the span the projection reports does not move.
+    it('does not depend on which rows are currently visible', () => {
+      const epic = wp('1');
+      const child = wp('2', { hasParent: false, epicId: '1', startDate: '2026-03-02', dueDate: '2026-03-20' });
+      const projection = projectionOf(epic, child);
+
+      expect(projection.linkedChildrenEnvelopeOf(epic)).toEqual(projection.linkedChildrenEnvelopeOf(epic));
+      expect(projection.linkedChildrenEnvelopeOf(epic)).toEqual({ start: '2026-03-02', due: '2026-03-20' });
     });
   });
 
