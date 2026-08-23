@@ -1089,6 +1089,49 @@ RSpec.describe API::V3::WorkPackages::WorkPackageRepresenter do
         end
       end
 
+      describe "hasParent property" do
+        # The parent link is empty both when there is no parent and when the
+        # parent is invisible, so clients cannot tell those apart from it.
+        # hasParent states the plain fact, without revealing the parent.
+        let(:visible_parent) do
+          build_stubbed(:work_package) do |wp|
+            allow(wp).to receive(:visible?).and_return(true)
+          end
+        end
+        let(:invisible_parent) do
+          build_stubbed(:work_package) do |wp|
+            allow(wp).to receive(:visible?).and_return(false)
+          end
+        end
+
+        context "with no parent" do
+          it "is false" do
+            expect(generated).to be_json_eql(false.to_json).at_path("hasParent")
+          end
+        end
+
+        context "when parent is visible" do
+          let(:parent) { visible_parent }
+
+          it "is true" do
+            expect(generated).to be_json_eql(true.to_json).at_path("hasParent")
+          end
+        end
+
+        context "when parent is not visible" do
+          let(:parent) { invisible_parent }
+
+          it "is still true, so an invisible parent is not mistaken for none" do
+            expect(generated).to be_json_eql(true.to_json).at_path("hasParent")
+          end
+
+          it "does not disclose the invisible parent itself" do
+            expect(generated).to have_json_path("_links/parent")
+            expect(generated).to be_json_eql(nil.to_json).at_path("_links/parent/href")
+          end
+        end
+      end
+
       describe "epic" do
         let(:visible_epic) do
           build_stubbed(:work_package) do |wp|

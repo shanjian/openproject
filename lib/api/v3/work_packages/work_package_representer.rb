@@ -354,6 +354,15 @@ module API
         property :subject,
                  render_nil: true
 
+        # Whether a real parent exists. The parent link is empty both when there
+        # is no parent and when the parent is invisible to the current user, so
+        # clients cannot tell "root" from "parented, but you may not see it".
+        # This states the fact without disclosing the parent itself.
+        property :has_parent,
+                 as: :hasParent,
+                 render_nil: true,
+                 getter: ->(*) { parent_id.present? }
+
         formattable_property :description
 
         property :schedule_manually,
