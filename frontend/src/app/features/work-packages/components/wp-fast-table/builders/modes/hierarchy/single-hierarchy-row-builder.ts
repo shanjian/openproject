@@ -10,6 +10,7 @@ import {
 } from 'core-app/features/work-packages/components/wp-fast-table/helpers/wp-table-hierarchy-helpers';
 import { WorkPackageViewHierarchiesService } from 'core-app/features/work-packages/routing/wp-view-base/view-services/wp-view-hierarchy.service';
 import { InjectField } from 'core-app/shared/helpers/angular/inject-field.decorator';
+import { EffectiveHierarchyProjection } from 'core-app/features/work-packages/components/wp-fast-table/helpers/effective-hierarchy-projection';
 
 export const indicatorCollapsedClass = '-hierarchy-collapsed';
 export const hierarchyCellClassName = 'wp-table--hierarchy-span';
@@ -26,6 +27,10 @@ export class SingleHierarchyRowBuilder extends SingleRowBuilder {
   // Retain a map of hierarchy elements present in the table
   // with at least a visible child
   public parentsWithVisibleChildren:Record<string, boolean>;
+
+  // The hierarchy actually being displayed, which may nest a work package under
+  // the epic it links to. Set by the render pass before any row is built.
+  public hierarchy:EffectiveHierarchyProjection;
 
   public text:{
     leaf:(level:number) => string;
@@ -84,7 +89,7 @@ export class SingleHierarchyRowBuilder extends SingleRowBuilder {
       rowClasses.push(hierarchyRootClass(workPackage.id!));
     }
 
-    const ancestors = workPackage.getAncestors();
+    const ancestors = this.displayedAncestorsOf(workPackage);
     if (_.isArray(ancestors)) {
       ancestors.forEach((ancestor) => {
         rowClasses.push(hierarchyGroupClass(ancestor.id!));
@@ -118,7 +123,7 @@ export class SingleHierarchyRowBuilder extends SingleRowBuilder {
    * @param level Indentation level
    */
   private appendHierarchyIndicator(workPackage:WorkPackageResource, row:HTMLTableRowElement, level?:number):void {
-    const ancestors = workPackage.getAncestors();
+    const ancestors = this.displayedAncestorsOf(workPackage);
     const hierarchyLevel = level === undefined || null ? ancestors.length : level;
     const hierarchyElement = this.buildHierarchyIndicator(workPackage, row, hierarchyLevel);
 
@@ -170,4 +175,18 @@ export class SingleHierarchyRowBuilder extends SingleRowBuilder {
 
     return hierarchyIndicator;
   }
+
+  /**
+   * The ancestors this row is displayed under. Falls back to the real ancestors
+   * when no projection was handed in (the row builder is also used outside the
+   * hierarchy render pass).
+   */
+  private displayedAncestorsOf(workPackage:WorkPackageResource):WorkPackageResource[] {
+    if (this.hierarchy) {
+      return this.hierarchy.ancestorsOf(workPackage);
+    }
+
+    return workPackage.getAncestors();
+  }
+
 }

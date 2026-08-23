@@ -13,6 +13,7 @@ import { IsolatedQuerySpace } from 'core-app/features/work-packages/directives/q
 import { WorkPackageViewHierarchiesService } from 'core-app/features/work-packages/routing/wp-view-base/view-services/wp-view-hierarchy.service';
 import { InjectField } from 'core-app/shared/helpers/angular/inject-field.decorator';
 import { ApiV3Service } from 'core-app/core/apiv3/api-v3.service';
+import { EffectiveHierarchyProjection } from 'core-app/features/work-packages/components/wp-fast-table/helpers/effective-hierarchy-projection';
 import { additionalHierarchyRowClassName, SingleHierarchyRowBuilder } from './single-hierarchy-row-builder';
 
 export class HierarchyRenderPass extends PrimaryRenderPass {
@@ -36,6 +37,10 @@ export class HierarchyRenderPass extends PrimaryRenderPass {
   // Collapsed state
   private hierarchies:WorkPackageViewHierarchies;
 
+  // The hierarchy being displayed, which nests a parentless work package under
+  // the epic it links to when that epic is on this page.
+  private hierarchy:EffectiveHierarchyProjection;
+
   // Build a map of hierarchy elements present in the table
   // with at least a visible child
   public parentsWithVisibleChildren:Record<string, boolean> = {};
@@ -50,14 +55,18 @@ export class HierarchyRenderPass extends PrimaryRenderPass {
     super.prepare();
 
     this.hierarchies = this.wpTableHierarchies.current;
+    this.hierarchy = new EffectiveHierarchyProjection(
+      _.map(this.workPackageTable.originalRowIndex, (row) => row.object),
+    );
 
     _.each(this.workPackageTable.originalRowIndex, (row) => {
-      row.object.getAncestors().forEach((ancestor:WorkPackageResource) => {
+      this.ancestorsOf(row.object).forEach((ancestor:WorkPackageResource) => {
         this.parentsWithVisibleChildren[ancestor.id!] = true;
       });
     });
 
     this.rowBuilder.parentsWithVisibleChildren = this.parentsWithVisibleChildren;
+    this.rowBuilder.hierarchy = this.hierarchy;
   }
 
   /**
@@ -73,7 +82,7 @@ export class HierarchyRenderPass extends PrimaryRenderPass {
         return;
       }
 
-      if (workPackage.getAncestors().length) {
+      if (this.ancestorsOf(workPackage).length) {
         // If we have ancestors, render it
         this.buildWithHierarchy(row);
       } else {
@@ -96,7 +105,7 @@ export class HierarchyRenderPass extends PrimaryRenderPass {
    * @returns {boolean}
    */
   public deferInsertion(workPackage:WorkPackageResource):boolean {
-    const ancestors = workPackage.getAncestors();
+    const ancestors = this.ancestorsOf(workPackage);
 
     // Will only defer if at least one ancestor exists
     if (ancestors.length === 0) {
@@ -153,7 +162,7 @@ export class HierarchyRenderPass extends PrimaryRenderPass {
     // If the work package has deferred children to render,
     // run them through the callback
     deferredChildren.forEach((child:WorkPackageResource) => {
-      this.insertUnderParent(this.getOrBuildRow(child), child.parent || workPackage);
+      this.insertUnderParent(this.getOrBuildRow(child), this.displayedParentOf(child) ?? workPackage);
 
       // Descend into any children the child WP might have and callback
       this.renderAllDeferredChildren(child);
@@ -172,7 +181,7 @@ export class HierarchyRenderPass extends PrimaryRenderPass {
 
   private buildWithHierarchy(row:WorkPackageTableRow) {
     // Ancestor data [root, med, thisrow]
-    const ancestors = row.object.getAncestors();
+    const ancestors = this.ancestorsOf(row.object);
     const ancestorGroups:string[] = [];
 
     // Iterate ancestors
@@ -279,4 +288,21 @@ export class HierarchyRenderPass extends PrimaryRenderPass {
 
     return info;
   }
+
+  /**
+   * The ancestors this work package is displayed under: its real ancestors, or
+   * the epic standing in for a missing parent. Everything in this pass reads
+   * the hierarchy through here so the displayed tree stays consistent.
+   */
+  private ancestorsOf(workPackage:WorkPackageResource):WorkPackageResource[] {
+    return this.hierarchy.ancestorsOf(workPackage);
+  }
+
+  /**
+   * The work package this one is displayed directly beneath, if any.
+   */
+  private displayedParentOf(workPackage:WorkPackageResource):WorkPackageResource|null {
+    return workPackage.parent ?? this.hierarchy.adoptiveEpicOf(workPackage);
+  }
+
 }
