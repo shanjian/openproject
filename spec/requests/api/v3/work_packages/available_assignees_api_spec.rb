@@ -37,4 +37,32 @@ RSpec.describe "API::V3::WorkPackages::AvailableAssigneesAPI" do
     let(:base_permissions) { %i[edit_work_packages view_work_packages] }
     let(:href) { api_v3_paths.available_assignees_in_work_package(work_package.id) }
   end
+
+  describe "ordering" do
+    current_user { create(:user, member_with_roles: { project => role }) }
+
+    let(:role) { create(:project_role, permissions: %i[edit_work_packages view_work_packages]) }
+    let(:assignable_role) { create(:project_role, permissions: %i[work_package_assigned]) }
+    let(:project) { create(:project) }
+    let(:work_package) { create(:work_package, project:) }
+    let(:href) { api_v3_paths.available_assignees_in_work_package(work_package.id) }
+
+    let!(:charlie) do
+      create(:user, firstname: "Charlie", lastname: "Zulu", member_with_roles: { project => assignable_role })
+    end
+    let!(:alice) do
+      create(:user, firstname: "Alice", lastname: "Yankee", member_with_roles: { project => assignable_role })
+    end
+    let!(:bob) do
+      create(:user, firstname: "Bob", lastname: "Xray", member_with_roles: { project => assignable_role })
+    end
+
+    before { get href }
+
+    it "returns assignees ordered by name, not by id/creation order" do
+      names = JSON.parse(last_response.body)["_embedded"]["elements"].pluck("name")
+
+      expect(names).to eq(["Alice Yankee", "Bob Xray", "Charlie Zulu"])
+    end
+  end
 end

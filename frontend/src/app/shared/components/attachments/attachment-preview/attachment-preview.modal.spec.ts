@@ -37,6 +37,10 @@ function item(name:string):OpPreviewItem {
   return { url: `/content/${name}`, fileName: name, contentType: 'image/png', kind: 'image' };
 }
 
+function videoItem(name:string):OpPreviewItem {
+  return { url: `/content/${name}`, fileName: name, contentType: 'video/mp4', kind: 'video' };
+}
+
 function backdropEvent(sameTarget:boolean):MouseEvent {
   const el = document.createElement('div');
   const child = document.createElement('img');
@@ -79,6 +83,17 @@ describe('OpAttachmentPreviewModalComponent', () => {
     const fixture = await setup([item('only')]);
 
     expect(fixture.componentInstance.hasMultiple).toBeFalse();
+  });
+
+  it('renders a video element (not an image) for a video item', async () => {
+    const fixture = await setup([videoItem('clip.mp4')]);
+
+    const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+
+    expect(video).not.toBeNull();
+    expect(video.getAttribute('src')).toBe('/content/clip.mp4');
+    expect(video.controls).toBeTrue();
+    expect(fixture.nativeElement.querySelector('img')).toBeNull();
   });
 
   it('wraps around when navigating next/previous', async () => {

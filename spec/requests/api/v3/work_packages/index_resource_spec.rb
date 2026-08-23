@@ -80,6 +80,17 @@ RSpec.describe "API v3 Work package resource",
               .at_path("_embedded/schemas/_embedded/elements/0/_links/self/href")
     end
 
+    context "with a select param (SQL fast-path representer)" do
+      let(:path) { api_v3_paths.path_for :work_packages, select: "elements/id,elements/subject,total" }
+
+      before { get path }
+
+      it "still returns the requested fields for each element" do
+        expect(subject.body).to be_json_eql(work_package.id.to_json).at_path("_embedded/elements/0/id")
+        expect(subject.body).to be_json_eql(work_package.subject.to_json).at_path("_embedded/elements/0/subject")
+      end
+    end
+
     context "with filtering by typeahead" do
       before { get path }
 

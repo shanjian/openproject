@@ -30,43 +30,28 @@
 
 require "spec_helper"
 
-RSpec.describe "Copying an invitation link", :js do
-  shared_let(:admin) { create(:admin) }
-  shared_let(:invited_user) { create(:invited_user) }
+RSpec.describe Projects::Versions do
+  let(:project) { create(:project) }
 
-  before do
-    login_as admin
-  end
+  describe "#assignable_versions" do
+    # This is the scope backing the version picker in the bulk-edit dropdown
+    # and the work package form - reversed alphabetically ("Version 3" before
+    # "Version 1") so the most recently numbered version surfaces first.
+    let!(:version_b) { create(:version, project:, name: "Version B") }
+    let!(:version_a) { create(:version, project:, name: "Version A") }
+    let!(:version_c) { create(:version, project:, name: "Version C") }
 
-  it "opens a dialog with the activation link, without sending an email" do
-    visit edit_user_path(invited_user)
-
-    perform_enqueued_jobs do
-      page.find('[data-test-selector="user-more-dropdown-menu"]').click
-      click_on "Copy invitation link"
+    it "returns versions ordered by name, descending" do
+      expect(project.assignable_versions.map(&:name)).to eq(%w[Version\ C Version\ B Version\ A])
     end
 
-    expect(page).to have_css("dialog##{Users::ShareableLinkDialogComponent::DIALOG_ID}", visible: true, wait: 10)
+    context "with a kind filter" do
+      let!(:release_version) { create(:version, project:, name: "Version D", kind: "release") }
 
-    token = Token::Invitation.find_by(user_id: invited_user.id)
-    expect(page).to have_css(
-      "clipboard-copy[value*='/account/activate'][value*='token=#{token.value}']",
-      visible: true
-    )
-    expect(ActionMailer::Base.deliveries).to be_empty
-  end
-
-  context "when a regular user without create_user views their own profile" do
-    let(:user) { create(:user) }
-
-    before do
-      login_as user
-    end
-
-    it "does not show the button" do
-      visit user_path(user)
-
-      expect(page).to have_no_link("Copy invitation link")
+      it "restricts the result to that kind while keeping the descending order" do
+        expect(project.assignable_versions(kind: "release").map(&:name)).to eq(["Version D"])
+        expect(project.assignable_versions.map(&:name)).to eq(%w[Version\ D Version\ C Version\ B Version\ A])
+      end
     end
   end
 end

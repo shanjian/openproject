@@ -74,7 +74,7 @@ See COPYRIGHT and LICENSE files for more details.
             label: t(:label_copy_invitation_link),
             tag: :a,
             href: invitation_link_user_path(@user),
-            content_arguments: { data: { turbo_method: :post } }
+            content_arguments: { data: { controller: "async-dialog", turbo_method: :post } }
           ) do |item|
             item.with_leading_visual_icon(icon: :copy)
           end
@@ -85,7 +85,7 @@ See COPYRIGHT and LICENSE files for more details.
             label: t(:label_copy_password_reset_link),
             tag: :a,
             href: password_reset_link_user_path(@user),
-            content_arguments: { data: { turbo_method: :post } }
+            content_arguments: { data: { controller: "async-dialog", turbo_method: :post } }
           ) do |item|
             item.with_leading_visual_icon(icon: :key)
           end

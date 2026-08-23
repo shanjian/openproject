@@ -61,6 +61,7 @@ RSpec.describe "Boards enterprise spec", :js do
       new_board_page.navigate_by_create_button(path: project_work_package_boards_path(project))
 
       expect(page).to have_css("#{test_selector('op-tile-block')}:not(.-disabled)", count: 6)
+      expect(page).not_to have_enterprise_banner
     end
 
     it "does not show a banner on the action board" do
@@ -90,6 +91,7 @@ RSpec.describe "Boards enterprise spec", :js do
       new_board_page.navigate_by_create_button(path: project_work_package_boards_path(project))
 
       expect(page).to have_css("#{test_selector('op-tile-block')}:not(.-disabled)", count: 6)
+      expect(page).not_to have_enterprise_banner
     end
 
     it "shows the action board" do

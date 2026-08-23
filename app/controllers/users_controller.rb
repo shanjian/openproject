@@ -244,8 +244,8 @@ class UsersController < ApplicationController
   def invitation_link # rubocop:disable Metrics/AbcSize
     if @user.admin? && !current_user.admin?
       # non-admin users are not allowed to change admin status
-      flash[:error] = I18n.t("user.error_admin_change_on_non_admin")
-      redirect_to helpers.allowed_management_user_profile_path(@user)
+      render_error_flash_message_via_turbo_stream(message: I18n.t("user.error_admin_change_on_non_admin"))
+      respond_with_turbo_streams
       return
     end
 
@@ -256,24 +256,22 @@ class UsersController < ApplicationController
 
     if token.persisted?
       link = url_for(controller: "/account", action: :activate, token: token.value)
-      flash_op_modal component: Users::ShareableLinkDialogComponent,
-                     parameters: {
-                       link:,
-                       title: I18n.t(:label_invitation_link_dialog_title),
-                       description: I18n.t(:text_invitation_link_dialog_description)
-                     }
+      respond_with_dialog Users::ShareableLinkDialogComponent.new(
+        link:,
+        title: I18n.t(:label_invitation_link_dialog_title),
+        description: I18n.t(:text_invitation_link_dialog_description)
+      )
     else
       logger.error "could not generate invitation link for #{@user.mail}: #{token.errors.full_messages.join(' ')}"
-      flash[:error] = I18n.t(:notice_internal_server_error, app_title: Setting.app_title)
+      render_error_flash_message_via_turbo_stream(message: I18n.t(:notice_internal_server_error, app_title: Setting.app_title))
+      respond_with_turbo_streams
     end
-
-    redirect_to helpers.allowed_management_user_profile_path(@user)
   end
 
   def password_reset_link # rubocop:disable Metrics/AbcSize
     unless @user.active? && @user.change_password_allowed?
-      flash[:error] = I18n.t("user.error_password_reset_link_not_allowed")
-      redirect_to helpers.allowed_management_user_profile_path(@user)
+      render_error_flash_message_via_turbo_stream(message: I18n.t("user.error_password_reset_link_not_allowed"))
+      respond_with_turbo_streams
       return
     end
 
@@ -281,18 +279,16 @@ class UsersController < ApplicationController
 
     if token.save
       link = url_for(controller: "/account", action: :lost_password, token: token.value)
-      flash_op_modal component: Users::ShareableLinkDialogComponent,
-                     parameters: {
-                       link:,
-                       title: I18n.t(:label_password_reset_link_dialog_title),
-                       description: I18n.t(:text_password_reset_link_dialog_description)
-                     }
+      respond_with_dialog Users::ShareableLinkDialogComponent.new(
+        link:,
+        title: I18n.t(:label_password_reset_link_dialog_title),
+        description: I18n.t(:text_password_reset_link_dialog_description)
+      )
     else
       logger.error "could not generate password reset link for #{@user.mail}: #{token.errors.full_messages.join(' ')}"
-      flash[:error] = I18n.t(:notice_internal_server_error, app_title: Setting.app_title)
+      render_error_flash_message_via_turbo_stream(message: I18n.t(:notice_internal_server_error, app_title: Setting.app_title))
+      respond_with_turbo_streams
     end
-
-    redirect_to helpers.allowed_management_user_profile_path(@user)
   end
 
   def destroy

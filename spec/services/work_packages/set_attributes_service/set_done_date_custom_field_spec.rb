@@ -101,4 +101,24 @@ RSpec.describe WorkPackages::SetAttributesService,
       expect(work_package.custom_value_for(done_date_cf)&.typed_value).to be_blank
     end
   end
+
+  context "when the status name has different casing" do
+    before { done_status.update_column(:name, "DoNe") }
+
+    it "still stamps the field (status-name match is case-insensitive)" do
+      expect(done_date_after(status: done_status)).to eq(today)
+    end
+  end
+
+  context "when the custom field is configured but not enabled for this work package's type" do
+    shared_let(:type_without_done_date_cf) { create(:type, custom_fields: []) }
+    shared_let(:other_project) { create(:project, types: [type_without_done_date_cf]) }
+
+    let(:work_package) { create(:work_package, project: other_project, type: type_without_done_date_cf, status: open_status) }
+
+    it "does nothing and does not raise when moving to Done" do
+      expect { done_date_after(status: done_status) }.not_to raise_error
+      expect(work_package.custom_value_for(done_date_cf)&.typed_value).to be_blank
+    end
+  end
 end

@@ -37,8 +37,8 @@ RSpec.describe Users::ShareableLinkDialogComponent, type: :component do
     render_inline(described_class.new(link:, title: "Invitation link", description: "Share this with the user."))
   end
 
-  it "renders as an auto-showing dialog" do
-    expect(page).to have_css("dialog##{described_class::DIALOG_ID}[data-controller='auto-show-dialog']", visible: :all)
+  it "renders as a dialog" do
+    expect(page).to have_css("dialog##{described_class::DIALOG_ID}", visible: :all)
   end
 
   it "shows the title" do

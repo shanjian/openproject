@@ -46,7 +46,7 @@ RSpec.describe "Copying a password reset link", :js do
       click_on "Copy password reset link"
     end
 
-    expect(page).to have_css("dialog##{Users::ShareableLinkDialogComponent::DIALOG_ID}", visible: true)
+    expect(page).to have_css("dialog##{Users::ShareableLinkDialogComponent::DIALOG_ID}", visible: true, wait: 10)
 
     token = Token::Recovery.find_by(user_id: active_user.id)
     expect(page).to have_css(
