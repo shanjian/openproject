@@ -105,6 +105,63 @@ RSpec.describe Queries::WorkPackages::Filter::EpicFilter do
     end
   end
 
+  describe "restriction to epic-typed work packages" do
+    shared_let(:epic_type) { create(:type, name: "Epic") }
+    shared_let(:task_type) { create(:type, name: "Task") }
+    shared_let(:restriction_project) { create(:project, types: [epic_type, task_type]) }
+    shared_let(:restriction_user) do
+      create(:user, member_with_permissions: { restriction_project => [:view_work_packages] })
+    end
+    shared_let(:an_epic) { create(:work_package, project: restriction_project, type: epic_type) }
+    shared_let(:a_task) { create(:work_package, project: restriction_project, type: task_type) }
+
+    let(:real_query) { build(:query, project: restriction_project, user: restriction_user) }
+
+    before { login_as(restriction_user) }
+
+    def filter_for(values, operator: "=")
+      described_class.create!(name: :epic, context: real_query, operator:, values:)
+    end
+
+    describe "candidate values" do
+      it "accepts an epic-typed work package" do
+        expect(filter_for([an_epic.id.to_s])).to be_valid
+      end
+
+      it "rejects a work package that is not an epic" do
+        expect(filter_for([a_task.id.to_s])).not_to be_valid
+      end
+    end
+
+    describe "self-matching" do
+      it "matches the epic itself" do
+        expect(WorkPackage.where(filter_for([an_epic.id.to_s]).where)).to include(an_epic)
+      end
+
+      it "does not match a non-epic work package by its own id" do
+        expect(WorkPackage.where(filter_for([a_task.id.to_s]).where)).not_to include(a_task)
+      end
+
+      it "does not exclude a non-epic work package when negated" do
+        expect(WorkPackage.where(filter_for([a_task.id.to_s], operator: "!").where)).to include(a_task)
+      end
+
+      it "excludes the epic itself when negated" do
+        expect(WorkPackage.where(filter_for([an_epic.id.to_s], operator: "!").where)).not_to include(an_epic)
+      end
+    end
+
+    describe "#available?" do
+      it "does not poison the availability cache shared by the other work-package filters" do
+        described_class.create!(name: :epic, context: real_query, values: [an_epic.id.to_s]).available?
+
+        parent = Queries::WorkPackages::Filter::ParentFilter.create!(name: :parent, context: real_query,
+                                                                     values: [a_task.id.to_s])
+        expect(parent).to be_available
+      end
+    end
+  end
+
   describe "SQL output of the cross-project operator" do
     let(:filter) { described_class.create!(context: query, operator: "cross_project=", values: %w[1 2]) }
 

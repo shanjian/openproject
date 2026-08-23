@@ -40,7 +40,7 @@ class Queries::WorkPackages::Filter::EpicFilter <
   def where
     table = self.class.model.table_name
     linked_children = operator_strategy.sql_for_field(no_templated_values, table, :epic_id)
-    epics_themselves = operator_strategy.sql_for_field(no_templated_values, table, :id)
+    epics_themselves = operator_strategy.sql_for_field(epic_typed_values, table, :id)
 
     if negated_operator?
       # Excluding an epic has to exclude its children *and* the epic itself.
@@ -57,18 +57,37 @@ class Queries::WorkPackages::Filter::EpicFilter <
     operator.to_s == ::Queries::Operators::EpicCrossProject.symbol
   end
 
+  # Sharing the mixin's cache key would let this filter's narrower scope decide
+  # availability for every other work-package filter in the request (and vice
+  # versa), so keep an availability cache of our own.
+  def available?
+    RequestStore.fetch("#{self.class.name}/available") do
+      visible_scope.exists?
+    end
+  end
+
   private
 
   def negated_operator?
     operator.to_s == ::Queries::Operators::NotEquals.symbol
   end
 
+  # Only the values that really are epics may match by their own id. The value
+  # picker is backed by the generic work packages endpoint, so a plain task id can
+  # reach this filter; without the narrowing, `epic = <task id>` would match that
+  # task itself and `epic ! <task id>` would exclude it.
+  def epic_typed_values
+    visible_scope.where(id: no_templated_values).pluck(:id).map(&:to_s)
+  end
+
   # Epic links may be cross-project (see docs/development/epic-link-implementation-tasks.md),
   # so the selectable epic must not be restricted to the current project's subtree the way
   # ParentFilter is. Otherwise selecting an epic that lives outside the current project
   # marks the filter as invalid and the whole query short-circuits to no results.
+  # It is restricted by type though: a work package that is not an epic is not a
+  # candidate, whichever project it lives in.
   def visible_scope
-    WorkPackage.visible
+    WorkPackage.visible.where(type_id: WorkPackage.epic_target_types)
   end
 
   # Use a strategy that adds the cross_project= operator on top of the standard

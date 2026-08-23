@@ -254,10 +254,17 @@ class WorkPackage < ApplicationRecord
     type_name_in?(type_or_name, EPIC_TARGET_TYPE_NAMES)
   end
 
+  # The types a work package must have to be linkable as an epic. Used both for
+  # picking an epic on a work package and for restricting the epic filter, so the
+  # two never disagree about what counts as an epic.
+  def self.epic_target_types
+    Type.where("LOWER(name) IN (?)", EPIC_TARGET_TYPE_NAMES)
+  end
+
   def self.relatable_epics_for(work_package)
     return none if work_package.blank? || !epic_source_type?(work_package.type)
 
-    where(type_id: Type.where("LOWER(name) IN (?)", EPIC_TARGET_TYPE_NAMES))
+    where(type_id: epic_target_types)
       .visible
       .where.not(id: work_package.id)
   end

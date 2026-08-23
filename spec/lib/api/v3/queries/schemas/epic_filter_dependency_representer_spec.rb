@@ -43,7 +43,7 @@ RSpec.describe API::V3::Queries::Schemas::EpicFilterDependencyRepresenter do
     subject(:href) { instance.href_callback }
 
     it "returns the cross-project work_packages endpoint, ignoring the query's project" do
-      expect(href).to eq(api_v3_paths.work_packages)
+      expect(href).to start_with("#{api_v3_paths.work_packages}?")
     end
 
     it "produces the same href regardless of the current project, so cross-project epics are selectable" do
@@ -60,7 +60,27 @@ RSpec.describe API::V3::Queries::Schemas::EpicFilterDependencyRepresenter do
       global_filter = Queries::WorkPackages::Filter::EpicFilter.create!(context: global_query)
       global_instance = described_class.new(global_filter, operator, form_embedded: false)
 
-      expect(global_instance.href_callback).to eq(api_v3_paths.work_packages)
+      expect(global_instance.href_callback).to eq(href)
+    end
+
+    context "with epic and non-epic types present" do
+      shared_let(:epic_type) { create(:type, name: "Epic") }
+      shared_let(:task_type) { create(:type, name: "Task") }
+
+      it "keys the cached schema on the epic types, so renaming a type refreshes the picker" do
+        before_key = instance.json_cache_key
+        epic_type.update!(name: "Initiative")
+
+        expect(described_class.new(filter, operator, form_embedded: false).json_cache_key)
+          .not_to eq(before_key)
+      end
+
+      it "constrains the offered work packages to the epic types" do
+        query_string = URI.decode_www_form_component(href.split("filters=").last.split("&").first)
+        type_filter = JSON.parse(query_string).first["type"]
+
+        expect(type_filter["values"]).to contain_exactly(epic_type.id.to_s)
+      end
     end
   end
 end
