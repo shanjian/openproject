@@ -38,8 +38,28 @@ module API
           # so the value picker has to offer epics from every visible project —
           # not only the current one. Override the project-scoped href callback
           # from the parent class to always use the cross-project endpoint.
+          #
+          # The endpoint is the generic work packages one, so constrain it to the
+          # epic types: without that the picker offers every visible work package
+          # and a plain task can be selected as though it were an epic, which the
+          # filter then rejects as an invalid value.
           def href_callback
-            api_v3_paths.work_packages
+            params = [{ type: { operator: "=", values: epic_type_ids } }]
+            escaped = CGI.escape(::JSON.dump(params))
+
+            "#{api_v3_paths.work_packages}?filters=#{escaped}&pageSize=-1"
+          end
+
+          # The href embeds the epic type ids, so a type renamed into or out of the
+          # epic names has to invalidate the cached schema along with it.
+          def json_cache_key
+            super + epic_type_ids
+          end
+
+          private
+
+          def epic_type_ids
+            WorkPackage.epic_target_types.pluck(:id).map(&:to_s)
           end
         end
       end
