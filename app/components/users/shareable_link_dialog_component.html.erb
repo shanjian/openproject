@@ -2,8 +2,7 @@
   render(
     Primer::Alpha::Dialog.new(
       id: Users::ShareableLinkDialogComponent::DIALOG_ID,
-      title: @title,
-      data: { controller: "auto-show-dialog" }
+      title: @title
     )
   ) do |dialog|
     dialog.with_header(show_divider: false)

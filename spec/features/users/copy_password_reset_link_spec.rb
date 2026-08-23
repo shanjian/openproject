@@ -46,7 +46,7 @@ RSpec.describe "Copying a password reset link", :js do
       click_on "Copy password reset link"
     end
 
-    expect(page).to have_css("dialog##{Users::ShareableLinkDialogComponent::DIALOG_ID}", visible: true)
+    expect(page).to have_css("dialog##{Users::ShareableLinkDialogComponent::DIALOG_ID}", visible: true, wait: 10)
 
     token = Token::Recovery.find_by(user_id: active_user.id)
     expect(page).to have_css(
@@ -54,6 +54,16 @@ RSpec.describe "Copying a password reset link", :js do
       visible: true
     )
     expect(ActionMailer::Base.deliveries).to be_empty
+  end
+
+  it "also opens the dialog from the user's show page (a separate action button, not the edit-page menu)" do
+    visit user_path(active_user)
+
+    perform_enqueued_jobs do
+      click_on "Copy password reset link"
+    end
+
+    expect(page).to have_css("dialog##{Users::ShareableLinkDialogComponent::DIALOG_ID}", visible: true, wait: 10)
   end
 
   context "when the viewer only has create_user, not manage_user" do

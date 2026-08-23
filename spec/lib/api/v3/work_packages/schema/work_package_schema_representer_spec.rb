@@ -1372,4 +1372,22 @@ RSpec.describe API::V3::WorkPackages::Schema::WorkPackageSchemaRepresenter do
       end
     end
   end
+
+  describe "#form_config_attribute_cache_key" do
+    # Regression: the cache key previously omitted `group.attributes`, so two
+    # groups sharing a key (e.g. "People") but differing in which attributes
+    # they actually contain (e.g. after the reporter-substitution logic
+    # rewrites the group for a persisted custom People group) collided in the
+    # cache and served each other's stale rendering (stale Accountable label).
+    it "differs when the group's attributes differ, even with the same key" do
+      group_with_reporter = Type::AttributeGroup.new(wp_type, "People", %w(assignee responsible))
+      group_with_accountable = Type::AttributeGroup.new(wp_type, "People", %w(assignee responsible author))
+
+      key_a = representer.send(:form_config_attribute_cache_key, group_with_reporter)
+      key_b = representer.send(:form_config_attribute_cache_key, group_with_accountable)
+
+      expect(group_with_reporter.key).to eq(group_with_accountable.key)
+      expect(key_a).not_to eq(key_b)
+    end
+  end
 end

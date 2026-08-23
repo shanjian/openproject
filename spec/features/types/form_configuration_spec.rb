@@ -378,6 +378,13 @@ RSpec.describe "form configuration", :js, :selenium do
       dialog.expect_open
     end
 
+    it "does not show an enterprise upsell banner on the configuration page" do
+      login_as(admin)
+      visit edit_type_form_configuration_path(type)
+
+      expect(page).not_to have_enterprise_banner
+    end
+
     it "allows hiding sections and fields" do
       login_as(admin)
       visit edit_type_form_configuration_path(type)

@@ -30,9 +30,12 @@
 
 module Users
   # Renders a shareable link (invitation or password-reset) after an admin
-  # action, delivered via flash[:op_modal]. See OpModalFlashable.
+  # action, delivered via a turbo-stream :dialog response. See
+  # OpTurbo::ComponentStream#respond_with_dialog and the async-dialog
+  # Stimulus controller that triggers it.
   class ShareableLinkDialogComponent < ApplicationComponent
     include OpPrimer::ComponentHelpers
+    include OpTurbo::Streamable
 
     DIALOG_ID = "shareable-link-dialog"
 

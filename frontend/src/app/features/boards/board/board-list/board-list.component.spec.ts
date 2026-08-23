@@ -150,3 +150,63 @@ describe('BoardListComponent load more', () => {
     expect(findSpy).not.toHaveBeenCalled();
   });
 });
+
+describe('BoardListComponent assignee column totals', () => {
+  const buildComponent = (toHoursResult:number):BoardListComponent => {
+    const component = Object.create(BoardListComponent.prototype) as BoardListComponent;
+    const fields = component as unknown as Record<string, unknown>;
+    fields.timezoneService = {
+      toHours: () => toHoursResult,
+      formattedChronicDuration: (duration:string) => `formatted(${duration})`,
+    };
+    return component;
+  };
+
+  const updateTotals = (component:BoardListComponent, totalSums:Record<string, unknown>|undefined):void =>
+    (component as unknown as { updateTotals:(sums:Record<string, unknown>|undefined) => void })
+      .updateTotals(totalSums);
+
+  it('shows a positive story point sum', () => {
+    const component = buildComponent(0);
+    updateTotals(component, { storyPoints: 13 });
+
+    expect(component.storyPointsSum).toBe(13);
+  });
+
+  it('hides a zero story point sum rather than showing "0"', () => {
+    const component = buildComponent(0);
+    updateTotals(component, { storyPoints: 0 });
+
+    expect(component.storyPointsSum).toBeNull();
+  });
+
+  it('hides a non-numeric story point sum', () => {
+    const component = buildComponent(0);
+    updateTotals(component, { storyPoints: undefined });
+
+    expect(component.storyPointsSum).toBeNull();
+  });
+
+  it('formats a positive estimated time sum via the timezone service', () => {
+    const component = buildComponent(8);
+    updateTotals(component, { estimatedTime: 'PT8H' });
+
+    expect(component.estimatedTimeSum).toBe('formatted(PT8H)');
+  });
+
+  it('hides a zero-hour estimated time sum', () => {
+    const component = buildComponent(0);
+    updateTotals(component, { estimatedTime: 'PT0H' });
+
+    expect(component.estimatedTimeSum).toBeNull();
+  });
+
+  it('clears both totals when no totalSums are given at all (non-assignee board)', () => {
+    const component = buildComponent(0);
+    updateTotals(component, { storyPoints: 5, estimatedTime: 'PT8H' });
+    updateTotals(component, undefined);
+
+    expect(component.storyPointsSum).toBeNull();
+    expect(component.estimatedTimeSum).toBeNull();
+  });
+});

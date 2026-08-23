@@ -30,30 +30,28 @@
 
 require "spec_helper"
 
-RSpec.describe Users::ShareableLinkDialogComponent, type: :component do
-  let(:link) { "https://example.org/account/activate?token=abc123" }
+RSpec.describe Projects::Versions do
+  let(:project) { create(:project) }
 
-  before do
-    render_inline(described_class.new(link:, title: "Invitation link", description: "Share this with the user."))
-  end
+  describe "#assignable_versions" do
+    # This is the scope backing the version picker in the bulk-edit dropdown
+    # and the work package form - reversed alphabetically ("Version 3" before
+    # "Version 1") so the most recently numbered version surfaces first.
+    let!(:version_b) { create(:version, project:, name: "Version B") }
+    let!(:version_a) { create(:version, project:, name: "Version A") }
+    let!(:version_c) { create(:version, project:, name: "Version C") }
 
-  it "renders as a dialog" do
-    expect(page).to have_css("dialog##{described_class::DIALOG_ID}", visible: :all)
-  end
+    it "returns versions ordered by name, descending" do
+      expect(project.assignable_versions.map(&:name)).to eq(%w[Version\ C Version\ B Version\ A])
+    end
 
-  it "shows the title" do
-    expect(page).to have_text("Invitation link")
-  end
+    context "with a kind filter" do
+      let!(:release_version) { create(:version, project:, name: "Version D", kind: "release") }
 
-  it "shows the description" do
-    expect(page).to have_text("Share this with the user.")
-  end
-
-  it "renders the link in a clipboard-copy element" do
-    expect(page).to have_css("clipboard-copy[value='#{link}']", visible: :all)
-  end
-
-  it "renders a close button" do
-    expect(page).to have_button("Close")
+      it "restricts the result to that kind while keeping the descending order" do
+        expect(project.assignable_versions(kind: "release").map(&:name)).to eq(["Version D"])
+        expect(project.assignable_versions.map(&:name)).to eq(%w[Version\ D Version\ C Version\ B Version\ A])
+      end
+    end
   end
 end

@@ -320,13 +320,14 @@ RSpec.describe UsersController do
       before do
         as_logged_in_user acting_user do
           perform_enqueued_jobs do
-            post :invitation_link, params: { id: invited_user.id }
+            post :invitation_link, params: { id: invited_user.id }, as: :turbo_stream
           end
         end
       end
 
-      it "redirects back to the edit user page" do
-        expect(response).to redirect_to edit_user_path(invited_user)
+      it "renders the dialog via a turbo stream response" do
+        expect(response).to have_http_status(:ok)
+        expect(response.media_type).to eq("text/vnd.turbo-stream.html")
       end
 
       it "does not send an email" do
@@ -339,13 +340,11 @@ RSpec.describe UsersController do
         expect(token).to be_present
       end
 
-      it "flashes the shareable link dialog with the activation URL" do
+      it "renders the shareable link dialog with the activation URL" do
         token = Token::Invitation.find_by(user_id: invited_user.id)
-        modal = flash[:op_modal]
 
-        expect(modal[:component]).to eq("Users::ShareableLinkDialogComponent")
-        expect(modal[:parameters][:link]).to include("token=#{token.value}")
-        expect(modal[:parameters][:link]).to include("/account/activate")
+        expect(response.body).to include("token=#{token.value}")
+        expect(response.body).to include("/account/activate")
       end
     end
 
@@ -355,7 +354,7 @@ RSpec.describe UsersController do
 
       before do
         as_logged_in_user acting_user do
-          post :invitation_link, params: { id: active_user.id }
+          post :invitation_link, params: { id: active_user.id }, as: :turbo_stream
         end
       end
 
@@ -381,7 +380,7 @@ RSpec.describe UsersController do
 
       subject do
         as_logged_in_user acting_user do
-          post :invitation_link, params: { id: affected_user.id }
+          post :invitation_link, params: { id: affected_user.id }, as: :turbo_stream
         end
       end
 
@@ -391,8 +390,7 @@ RSpec.describe UsersController do
         it "does not allow generating a link and does not touch the target" do
           subject
 
-          expect(flash[:error]).to eq(I18n.t("user.error_admin_change_on_non_admin"))
-          expect(flash[:op_modal]).to be_nil
+          expect(response.body).to include(I18n.t("user.error_admin_change_on_non_admin"))
           expect(Token::Invitation.where(user_id: affected_user.id)).to be_empty
         end
       end
@@ -403,7 +401,8 @@ RSpec.describe UsersController do
         it "allows generating the link" do
           subject
 
-          expect(flash[:op_modal]).to be_present
+          expect(response).to have_http_status(:ok)
+          expect(Token::Invitation.where(user_id: affected_user.id)).to be_present
         end
       end
     end
@@ -433,12 +432,13 @@ RSpec.describe UsersController do
 
       before do
         as_logged_in_user acting_user do
-          post :password_reset_link, params: { id: active_user.id }
+          post :password_reset_link, params: { id: active_user.id }, as: :turbo_stream
         end
       end
 
-      it "redirects back to the edit user page" do
-        expect(response).to redirect_to edit_user_path(active_user)
+      it "renders the dialog via a turbo stream response" do
+        expect(response).to have_http_status(:ok)
+        expect(response.media_type).to eq("text/vnd.turbo-stream.html")
       end
 
       it "does not send an email" do
@@ -452,13 +452,11 @@ RSpec.describe UsersController do
         expect(token.data["channel"]).to eq(Token::Recovery::CHANNEL_CHAT_LINK)
       end
 
-      it "flashes the shareable link dialog with the lost_password URL" do
+      it "renders the shareable link dialog with the lost_password URL" do
         token = Token::Recovery.find_by(user_id: active_user.id)
-        modal = flash[:op_modal]
 
-        expect(modal[:component]).to eq("Users::ShareableLinkDialogComponent")
-        expect(modal[:parameters][:link]).to include("token=#{token.value}")
-        expect(modal[:parameters][:link]).to include("/account/lost_password")
+        expect(response.body).to include("token=#{token.value}")
+        expect(response.body).to include("/account/lost_password")
       end
     end
 
@@ -468,7 +466,7 @@ RSpec.describe UsersController do
 
       before do
         as_logged_in_user acting_user do
-          post :password_reset_link, params: { id: locked_user.id }
+          post :password_reset_link, params: { id: locked_user.id }, as: :turbo_stream
         end
       end
 
@@ -476,9 +474,8 @@ RSpec.describe UsersController do
         expect(Token::Recovery.where(user_id: locked_user.id)).to be_empty
       end
 
-      it "flashes an error instead of the dialog" do
-        expect(flash[:op_modal]).to be_nil
-        expect(flash[:error]).to eq(I18n.t("user.error_password_reset_link_not_allowed"))
+      it "renders an error instead of the dialog" do
+        expect(response.body).to include(I18n.t("user.error_password_reset_link_not_allowed"))
       end
     end
 
@@ -488,7 +485,7 @@ RSpec.describe UsersController do
 
       before do
         as_logged_in_user acting_user do
-          post :password_reset_link, params: { id: ldap_user.id }
+          post :password_reset_link, params: { id: ldap_user.id }, as: :turbo_stream
         end
       end
 
@@ -496,9 +493,8 @@ RSpec.describe UsersController do
         expect(Token::Recovery.where(user_id: ldap_user.id)).to be_empty
       end
 
-      it "flashes an error instead of the dialog" do
-        expect(flash[:op_modal]).to be_nil
-        expect(flash[:error]).to eq(I18n.t("user.error_password_reset_link_not_allowed"))
+      it "renders an error instead of the dialog" do
+        expect(response.body).to include(I18n.t("user.error_password_reset_link_not_allowed"))
       end
     end
   end

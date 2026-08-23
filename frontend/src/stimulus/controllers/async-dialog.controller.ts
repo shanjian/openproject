@@ -31,6 +31,7 @@
 import { ApplicationController } from 'stimulus-use';
 import { renderStreamMessage } from '@hotwired/turbo';
 import { TurboHelpers } from 'core-turbo/helpers';
+import { getMetaContent } from 'core-app/core/setup/globals/global-helpers';
 
 export default class AsyncDialogController extends ApplicationController {
   connect() {
@@ -57,11 +58,15 @@ export default class AsyncDialogController extends ApplicationController {
   private triggerTurboStream(url:string):void {
     TurboHelpers.showProgressBar();
 
+    const headers:Record<string, string> = { Accept: 'text/vnd.turbo-stream.html' };
+    if (this.method.toUpperCase() !== 'GET') {
+      headers['X-CSRF-Token'] = getMetaContent('csrf-token');
+    }
+
     void fetch(url, {
       method: this.method,
-      headers: {
-        Accept: 'text/vnd.turbo-stream.html',
-      },
+      credentials: 'same-origin',
+      headers,
     }).then((response) => {
       const contentType = response.headers.get('Content-Type') ?? '';
       const isTurboStream = contentType.includes('text/vnd.turbo-stream.html');

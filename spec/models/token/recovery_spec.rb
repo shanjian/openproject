@@ -62,4 +62,16 @@ RSpec.describe Token::Recovery do
   it "EMAIL_VALIDITY is longer than CHAT_LINK_VALIDITY" do
     expect(described_class::EMAIL_VALIDITY).to be > described_class::CHAT_LINK_VALIDITY
   end
+
+  describe "#expired?" do
+    it "treats a chat_link token as expired once CHAT_LINK_VALIDITY has passed, sooner than an email token would be" do
+      chat_link_token = described_class.create!(user_id: user.id, data: { channel: described_class::CHANNEL_CHAT_LINK })
+      email_token = described_class.create!(user_id: user.id)
+
+      travel_to(described_class::CHAT_LINK_VALIDITY.from_now + 1.minute) do
+        expect(chat_link_token.expired?).to be true
+        expect(email_token.expired?).to be false
+      end
+    end
+  end
 end
