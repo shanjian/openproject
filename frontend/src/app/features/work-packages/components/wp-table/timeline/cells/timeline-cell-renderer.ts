@@ -7,6 +7,8 @@ import { HierarchyRenderPass } from 'core-app/features/work-packages/components/
 import { WorkPackageViewTimelineService } from 'core-app/features/work-packages/routing/wp-view-base/view-services/wp-view-timeline.service';
 import { WorkPackageChangeset } from 'core-app/features/work-packages/components/wp-edit/work-package-changeset';
 import { InjectField } from 'core-app/shared/helpers/angular/inject-field.decorator';
+import { IsolatedQuerySpace } from 'core-app/features/work-packages/directives/query-space/isolated-query-space';
+import { EffectiveHierarchyProjection } from 'core-app/features/work-packages/components/wp-fast-table/helpers/effective-hierarchy-projection';
 import { SchemaCacheService } from 'core-app/core/schemas/schema-cache.service';
 import { I18nService } from 'core-app/core/i18n/i18n.service';
 import { WeekdayService } from 'core-app/core/days/weekday.service';
@@ -44,9 +46,12 @@ export const classNameHideOnHover = 'hide-on-hover';
 export const classNameLeftHandle = 'leftHandle';
 export const classNameRightHandle = 'rightHandle';
 export const classNameBarLabel = 'bar-label';
+export const classNameEpicScopeBar = 'epic-scope-bar';
 
 export class TimelineCellRenderer {
   @InjectField() wpTableTimeline:WorkPackageViewTimelineService;
+
+  @InjectField() querySpace:IsolatedQuerySpace;
 
   @InjectField() weekdayService:WeekdayService;
 
@@ -56,6 +61,7 @@ export class TimelineCellRenderer {
 
   public text = {
     label_children_derived_duration: this.I18n.t('js.label_children_derived_duration'),
+    label_epic_linked_duration: this.I18n.t('js.label_epic_linked_duration'),
   };
 
   public ganttChartRowHeight:number;
@@ -488,6 +494,57 @@ export class TimelineCellRenderer {
    *    and display a box wrapping all the visible children when the
    *    parent is hovered
    */
+  // The projection is rebuilt only when the page of results changes, so every
+  // cell on a render shares one.
+  private cachedHierarchy:EffectiveHierarchyProjection|null = null;
+
+  private cachedHierarchySource:unknown = null;
+
+  /**
+   * Draw the span of the work linked to this epic, when there is any on this
+   * page. It is a separate bar from the hierarchy children-duration one on
+   * purpose: it covers linked work displayed elsewhere in the tree, and covers
+   * nothing that is not on the page. It is purely a visual envelope -- it does
+   * not touch leaf state, drag handles, or date editing.
+   */
+  private renderEpicScopeBar(renderInfo:RenderInfo, row:HTMLElement) {
+    const previous = row.querySelector(`.${classNameEpicScopeBar}`);
+    if (previous) {
+      previous.remove();
+    }
+
+    const hierarchy = this.effectiveHierarchy();
+    if (!hierarchy) {
+      return;
+    }
+
+    const envelope = hierarchy.linkedChildrenEnvelopeOf(renderInfo.workPackage);
+    if (!envelope) {
+      return;
+    }
+
+    const scopeBar = document.createElement('div');
+    scopeBar.classList.add(classNameEpicScopeBar);
+    scopeBar.title = this.text.label_epic_linked_duration;
+    this.setElementPositionAndSize(scopeBar, renderInfo, moment(envelope.start), moment(envelope.due));
+
+    row.appendChild(scopeBar);
+  }
+
+  private effectiveHierarchy():EffectiveHierarchyProjection|null {
+    const results = this.querySpace.results.value;
+    if (!results) {
+      return null;
+    }
+
+    if (this.cachedHierarchySource !== results) {
+      this.cachedHierarchySource = results;
+      this.cachedHierarchy = new EffectiveHierarchyProjection(results.elements);
+    }
+
+    return this.cachedHierarchy;
+  }
+
   checkForSpecialDisplaySituations(renderInfo:RenderInfo, bar:HTMLElement) {
     const wp = renderInfo.workPackage;
     const row = bar.parentElement!.parentElement!;
@@ -530,6 +587,8 @@ export class TimelineCellRenderer {
       childrenDurationBar.appendChild(childrenDurationHoverContainer);
       row.appendChild(childrenDurationBar);
     }
+
+    this.renderEpicScopeBar(renderInfo, row);
 
     // Check for non-working days and display a not-allowed cursor
     // when the startDate, dueDate are non-working days

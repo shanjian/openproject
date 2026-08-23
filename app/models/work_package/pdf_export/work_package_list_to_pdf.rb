@@ -233,9 +233,18 @@ class WorkPackage::PDFExport::WorkPackageListToPdf < WorkPackage::Exports::Query
     infos_map
   end
 
+  # Hangs each row off its effective parent: the real parent, or the linked epic
+  # when there is none. Scoped to the exported work packages, so an epic outside
+  # the export adopts nothing -- the same condition the screen applies to its
+  # rendered rows. See WorkPackage::EffectiveHierarchy.
   def link_meta_infos_map_nodes(infos_map, work_packages)
-    work_packages.reject { |wp| wp.parent_id.nil? }.each do |work_package|
-      parent = infos_map[work_package.parent_id]
+    hierarchy = WorkPackage::EffectiveHierarchy.new(work_packages)
+
+    work_packages.each do |work_package|
+      effective_parent_id = hierarchy.effective_parent_id(work_package)
+      next if effective_parent_id.nil?
+
+      parent = infos_map[effective_parent_id]
       infos_map[work_package.id][:parent] = parent
       parent[:children].push(infos_map[work_package.id]) if parent
     end
