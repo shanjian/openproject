@@ -36,6 +36,7 @@ describe('EffectiveHierarchyProjection', () => {
     ancestors?:WorkPackageResource[];
     startDate?:string|null;
     dueDate?:string|null;
+    date?:string|null;
   }
 
   function wp(id:string, options:FakeOptions = {}):WorkPackageResource {
@@ -46,6 +47,7 @@ describe('EffectiveHierarchyProjection', () => {
       epic: options.epicId ? { id: options.epicId } : undefined,
       startDate: options.startDate,
       dueDate: options.dueDate,
+      date: options.date,
       getAncestors: () => ancestors,
     } as unknown as WorkPackageResource;
   }
@@ -201,12 +203,41 @@ describe('EffectiveHierarchyProjection', () => {
         .toEqual({ start: '2026-03-02', due: '2026-03-20' });
     });
 
-    it('uses a milestone-style child with only one date at both ends', () => {
+    it('uses a half-scheduled child carrying only one of the two dates at both ends', () => {
       const epic = wp('1');
-      const milestone = wp('2', { hasParent: false, epicId: '1', dueDate: '2026-03-20' });
+      const halfScheduled = wp('2', { hasParent: false, epicId: '1', dueDate: '2026-03-20' });
+
+      expect(projectionOf(epic, halfScheduled).linkedChildrenEnvelopeOf(epic))
+        .toEqual({ start: '2026-03-20', due: '2026-03-20' });
+    });
+
+    // A milestone reports neither startDate nor dueDate: the representer skips
+    // both and renders `date` instead. Reading only the pair would drop
+    // milestone work out of the epic's scope entirely.
+    it('covers a milestone child, which reports date instead of a start/finish pair', () => {
+      const epic = wp('1');
+      const milestone = wp('2', { hasParent: false, epicId: '1', date: '2026-03-20' });
 
       expect(projectionOf(epic, milestone).linkedChildrenEnvelopeOf(epic))
         .toEqual({ start: '2026-03-20', due: '2026-03-20' });
+    });
+
+    it('lets a milestone extend an envelope set by dated work packages', () => {
+      const epic = wp('1');
+      const task = wp('2', { hasParent: false, epicId: '1', startDate: '2026-03-02', dueDate: '2026-03-20' });
+      const milestone = wp('3', { hasParent: false, epicId: '1', date: '2026-05-01' });
+
+      expect(projectionOf(epic, task, milestone).linkedChildrenEnvelopeOf(epic))
+        .toEqual({ start: '2026-03-02', due: '2026-05-01' });
+    });
+
+    it('spans milestone-only linked work', () => {
+      const epic = wp('1');
+      const first = wp('2', { hasParent: false, epicId: '1', date: '2026-03-20' });
+      const second = wp('3', { hasParent: false, epicId: '1', date: '2026-04-15' });
+
+      expect(projectionOf(epic, first, second).linkedChildrenEnvelopeOf(epic))
+        .toEqual({ start: '2026-03-20', due: '2026-04-15' });
     });
 
     it('is null when no linked child is on the page', () => {

@@ -122,6 +122,25 @@ describe('EffectiveHierarchyProjection with real HAL resources', () => {
     return halResourceService.createHalResourceOfType<WorkPackageResource>('WorkPackage', source);
   }
 
+  // A milestone element omits startDate and dueDate altogether -- the
+  // representer skips both for milestones -- and carries `date` instead.
+  function milestoneResourceFrom(id:number, date:string, epicId:number):WorkPackageResource {
+    const source = {
+      _type: 'WorkPackage',
+      id,
+      subject: `Milestone ${id}`,
+      hasParent: false,
+      date,
+      _links: {
+        self: { href: `/api/v3/work_packages/${id}` },
+        parent: { href: null },
+        epic: { href: `/api/v3/work_packages/${epicId}`, title: `WP ${epicId}` },
+      },
+    };
+
+    return halResourceService.createHalResourceOfType<WorkPackageResource>('WorkPackage', source);
+  }
+
   it('reads hasParent off the resource', () => {
     expect(resourceFrom(1, { hasParent: false }).hasParent).toBe(false);
     expect(resourceFrom(2, { hasParent: true, parentId: 1 }).hasParent).toBe(true);
@@ -157,6 +176,29 @@ describe('EffectiveHierarchyProjection with real HAL resources', () => {
 
     expect(task.parent).toBeFalsy();
     expect(projection.isAdopted(task)).toBe(false);
+  });
+
+  it('spans milestone-linked work, which reports no start/finish pair at all', () => {
+    const epic = resourceFrom(1, { hasParent: false });
+    const milestone = milestoneResourceFrom(2, '2026-03-20', 1);
+
+    expect(milestone.startDate).toBeFalsy();
+    expect(milestone.dueDate).toBeFalsy();
+    expect(milestone.date).toEqual('2026-03-20');
+
+    expect(new EffectiveHierarchyProjection([epic, milestone]).linkedChildrenEnvelopeOf(epic))
+      .toEqual({ start: '2026-03-20', due: '2026-03-20' });
+  });
+
+  it('lets a milestone extend an envelope set by dated work packages', () => {
+    const epic = resourceFrom(1, { hasParent: false });
+    const task = resourceFrom(2, {
+      hasParent: false, epicId: 1, startDate: '2026-03-02', dueDate: '2026-03-20',
+    });
+    const milestone = milestoneResourceFrom(3, '2026-05-01', 1);
+
+    expect(new EffectiveHierarchyProjection([epic, task, milestone]).linkedChildrenEnvelopeOf(epic))
+      .toEqual({ start: '2026-03-02', due: '2026-05-01' });
   });
 
   it('spans the linked children for the epic bar', () => {

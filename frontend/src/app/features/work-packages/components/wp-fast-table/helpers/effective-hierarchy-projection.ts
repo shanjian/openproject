@@ -169,18 +169,19 @@ export class EffectiveHierarchyProjection {
   }
 
   /**
-   * A work package's own span. A work package carrying only one of the two dates
-   * -- a milestone, or one that is only half scheduled -- occupies that single
-   * day.
+   * A work package's own span. A milestone reports neither start nor finish --
+   * the API skips both and renders `date` instead -- so it occupies that single
+   * day. So does a work package that is only half scheduled.
    */
   private datesOf(workPackage:WorkPackageResource):DateEnvelope|null {
-    const { startDate, dueDate } = workPackage as unknown as {
+    const { startDate, dueDate, date } = workPackage as unknown as {
       startDate?:string|null;
       dueDate?:string|null;
+      date?:string|null;
     };
 
-    const start = startDate ?? dueDate;
-    const due = dueDate ?? startDate;
+    const start = startDate ?? date ?? dueDate;
+    const due = dueDate ?? date ?? startDate;
 
     return start && due ? { start, due } : null;
   }
