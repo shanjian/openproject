@@ -98,9 +98,7 @@ export class FilterSearchableMultiselectValueComponent extends UntilDestroyedMix
   }
 
   ngOnInit():void {
-    if (this.filter.id === 'id') {
-      this.resourceType = 'work_packages';
-    }
+    this.resourceType = this.isWorkPackageResource ? 'work_packages' : null;
 
     this.initialRequest$ = this
       .loadCollection('')
@@ -220,5 +218,10 @@ export class FilterSearchableMultiselectValueComponent extends UntilDestroyedMix
   private get isVersionResource() {
     const type = _.get(this.filter.currentSchema, 'values.type', null) as string;
     return type && type.indexOf('Version') > 0;
+  }
+
+  private get isWorkPackageResource() {
+    const type = _.get(this.filter.currentSchema, 'values.type', null) as string;
+    return type && type.indexOf('WorkPackage') > 0;
   }
 }
