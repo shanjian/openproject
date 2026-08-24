@@ -36,6 +36,7 @@ import { CurrentUserService } from 'core-app/core/current-user/current-user.serv
 import { CollectionResource } from 'core-app/features/hal/resources/collection-resource';
 import { compareByHref } from 'core-app/shared/helpers/angular/tracking-functions';
 import { MAGIC_FILTER_AUTOCOMPLETE_PAGE_SIZE } from 'core-app/core/apiv3/helpers/get-paginated-results';
+import { OpAutocompleterService } from 'core-app/shared/components/autocompleter/op-autocompleter/services/op-autocompleter.service';
 
 @Component({
   selector: 'op-filter-searchable-multiselect-value',
@@ -59,7 +60,11 @@ export class FilterSearchableMultiselectValueComponent extends UntilDestroyedMix
     },
   }, true);
 
-  autocompleterFn = (searchTerm:string):Observable<HalResource[]> => this.autocomplete(searchTerm);
+  autocompleterFn = (searchTerm:string):Observable<HalResource[]> => (
+    this.isWorkPackageResource
+      ? this.opAutocompleterService.loadFromUrl(this.allowedValuesLink, searchTerm, 'work_packages', [], 'typeahead', true)
+      : this.autocomplete(searchTerm)
+  );
 
   initialRequest$:Observable<CollectionResource>;
 
@@ -74,6 +79,8 @@ export class FilterSearchableMultiselectValueComponent extends UntilDestroyedMix
   compareByHref = compareByHref;
 
   resourceType:string|null = null;
+
+  readonly opAutocompleterService = new OpAutocompleterService(this.apiV3Service, this.halResourceService);
 
   readonly text = {
     placeholder: this.I18n.t('js.placeholders.selection'),
@@ -98,15 +105,15 @@ export class FilterSearchableMultiselectValueComponent extends UntilDestroyedMix
   }
 
   ngOnInit():void {
-    if (this.filter.id === 'id') {
-      this.resourceType = 'work_packages';
-    }
+    this.resourceType = this.isWorkPackageResource ? 'work_packages' : null;
 
-    this.initialRequest$ = this
-      .loadCollection('')
-      .pipe(
-        shareReplay(1),
-      );
+    if (!this.isWorkPackageResource) {
+      this.initialRequest$ = this
+        .loadCollection('')
+        .pipe(
+          shareReplay(1),
+        );
+    }
   }
 
   private autocomplete(matching:string):Observable<HalResource[]> {
@@ -220,5 +227,10 @@ export class FilterSearchableMultiselectValueComponent extends UntilDestroyedMix
   private get isVersionResource() {
     const type = _.get(this.filter.currentSchema, 'values.type', null) as string;
     return type && type.indexOf('Version') > 0;
+  }
+
+  private get isWorkPackageResource() {
+    const type = _.get(this.filter.currentSchema, 'values.type', null) as string;
+    return type && type.indexOf('WorkPackage') > 0;
   }
 }

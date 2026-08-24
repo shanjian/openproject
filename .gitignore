@@ -60,6 +60,7 @@ npm-debug.log*
 # Ignore Claude Code / CodeGraph local state
 /.claude
 /.codegraph
+/.superpowers
 
 /backup
 /.project

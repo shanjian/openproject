@@ -63,6 +63,10 @@ RSpec.describe API::V3::Queries::Schemas::EpicFilterDependencyRepresenter do
       expect(global_instance.href_callback).to eq(href)
     end
 
+    it "does not constrain pageSize, letting the caller's own paging apply" do
+      expect(href).not_to include("pageSize")
+    end
+
     context "with epic and non-epic types present" do
       shared_let(:epic_type) { create(:type, name: "Epic") }
       shared_let(:task_type) { create(:type, name: "Task") }
