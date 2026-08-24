@@ -47,7 +47,7 @@ module API
             params = [{ type: { operator: "=", values: epic_type_ids } }]
             escaped = CGI.escape(::JSON.dump(params))
 
-            "#{api_v3_paths.work_packages}?filters=#{escaped}&pageSize=-1"
+            "#{api_v3_paths.work_packages}?filters=#{escaped}"
           end
 
           # The href embeds the epic type ids, so a type renamed into or out of the
