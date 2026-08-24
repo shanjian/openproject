@@ -534,6 +534,17 @@ RSpec.describe "Epic filter typeahead performance (diagnostic, delete after use)
     end
     synthetic_project_ids = Project.where("identifier LIKE 'perf-project-%'").pluck(:id)
 
+    # Project.insert_all bypasses every AR callback, so these projects have zero
+    # EnabledModule rows. Projects::Scopes::AllowedTo#allowed_to_enabled_module_join
+    # INNER JOINs enabled_modules on the permission's project_module (view_work_packages
+    # is registered under "work_package_tracking", config/initializers/permissions.rb) --
+    # without this, that join matches nothing and WorkPackage.visible excludes every
+    # synthetic project regardless of membership, silently testing an empty query.
+    puts "Enabling work_package_tracking on all synthetic projects..."
+    EnabledModule.insert_all(
+      synthetic_project_ids.map { |pid| { project_id: pid, name: "work_package_tracking" } }
+    )
+
     # WorkPackage.visible checks project membership+permission per user -- the synthetic
     # projects above are separate from `project` (which current_user already has a role
     # on via member_with_roles), so without this, .visible would exclude every synthetic
@@ -574,9 +585,13 @@ RSpec.describe "Epic filter typeahead performance (diagnostic, delete after use)
         { typeahead: { operator: "**", values: [term] } }
       ].to_json
 
+      # Braced deliberately: #call(params, valid_subset: false) takes params
+      # positionally. `.call(filters: filters_json)` would parse as all-keyword
+      # arguments under Ruby 3's keyword/positional separation, matching nothing
+      # (there's no `filters:` keyword param) and raising ArgumentError.
       update = API::V3::UpdateQueryFromV3ParamsService
                  .new(query, current_user)
-                 .call(filters: filters_json)
+                 .call({ filters: filters_json })
       raise "invalid query: #{query.errors.full_messages.join(', ')}" unless update.success?
 
       relation = query.results.work_packages.limit(Setting.per_page_options_array.first)
