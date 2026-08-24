@@ -81,4 +81,27 @@ describe('FilterSearchableMultiselectValueComponent', () => {
       expect(component.resourceType).toBeNull();
     });
   });
+
+  describe('autocompleterFn', () => {
+    it('delegates to OpAutocompleterService.loadFromUrl for a work-package-backed filter', () => {
+      const href = '/api/v3/work_packages?filters=%5B%7B%22type%22%3A%7B%22operator%22%3A%22%3D%22%2C%22values%22%3A%5B%221%22%5D%7D%7D%5D';
+      component.filter = filterWithType('[]WorkPackage', href);
+      component.ngOnInit();
+      const loadFromUrlSpy = spyOn(component.opAutocompleterService, 'loadFromUrl').and.returnValue(of([]));
+
+      component.autocompleterFn('epi').subscribe();
+
+      expect(loadFromUrlSpy).toHaveBeenCalledWith(href, 'epi', 'work_packages', [], 'typeahead', true);
+    });
+
+    it('falls back to the existing HAL-collection autocomplete for a non-work-package filter', (done) => {
+      component.filter = filterWithType('[]Version');
+      component.ngOnInit();
+
+      component.autocompleterFn('').subscribe((result) => {
+        expect(result).toEqual([]);
+        done();
+      });
+    });
+  });
 });
