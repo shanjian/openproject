@@ -1,7 +1,7 @@
 # Speed up work-package relation-filter autocomplete (Epic, Parent, Blocks, …)
 
 **Date:** 2026-08-23
-**Status:** Approved (revised after review — see "Review findings" below)
+**Status:** Implemented, with §3's migration reverted post-verification — see "Outcome" below
 
 ## Problem
 
@@ -329,6 +329,37 @@ decision if they become necessary, not something to decide unilaterally mid-impl
   falls back to `item.name` (= the link title), so chips should render as `#123 Epic name`,
   but this is exactly the kind of claim the browser has to confirm. The chip format change
   itself is intentional — part of the approved richer-row adoption.
+
+## Outcome
+
+§1/§2/§2a shipped as designed and are the real fix: Epic's own picker query runs in
+~217-249ms against a 100k-row synthetic table (down from the original full-representer,
+unbounded-fetch behavior), verified via `EXPLAIN ANALYZE` on the actual `Query::Results`
+pipeline (not a hand-built approximation — see the implementation plan's Task 5 for the
+methodology and full plans).
+
+§3's required verification gate did its job, but the answer came back negative. Across 5
+`EXPLAIN ANALYZE` plans — three with Epic's own `type_id = Epic` co-filter present, two
+without — Postgres never once chose either trigram index. The reason is structural, not a
+missed opportunity a bigger table or a different search term would fix: `Query::Results`
+composes the query as `<filters> AND EXISTS(<visibility CTE>)`, and Postgres's plan always
+fully materializes the visibility CTE across every visible row before evaluating the
+`ILIKE` typeahead conditions as a late join filter. An index on `subject`/`projects.name`
+is therefore unreachable by this query shape regardless of scale. Epic's queries stayed
+fast anyway only because its separate `type_id` filter is independently selective and
+reuses a pre-existing, unrelated index (`index_work_packages_on_type_id`) — masking the
+gap rather than the trigram indexes closing it. Without a comparable co-filter (the
+"no selective co-filter" run), the same search took ~1000ms by fully materializing and
+late-filtering the visible set.
+
+Per the project owner's explicit decision, the migration was reverted rather than shipped
+as dead weight — an index Postgres never uses costs write overhead and disk with no read
+benefit. This does not touch §1/§2/§2a, which remain the shipped fix. The open question
+this leaves — whether a filter in this family that genuinely lacks a selective co-filter
+(a global, cross-project typeahead search with no type or project constraint) needs a
+different mitigation — was not resolved and was not pursued further; it would require
+changing how `Query::Results` composes the visibility check with a filter's `WHERE`
+clause, a materially larger change than anything in this design.
 
 ## Out of scope
 

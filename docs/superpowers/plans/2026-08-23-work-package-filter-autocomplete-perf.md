@@ -6,6 +6,8 @@
 
 **Architecture:** Frontend-only behavior change (delegate `FilterSearchableMultiselectValueComponent`'s work-package-backed autocomplete to `OpAutocompleterService.loadFromUrl`, the same call the time-logging picker already uses) plus two small backend touches (delete a stray query param, add two trigram indexes). No new backend classes.
 
+**Outcome (post-Task 5):** the trigram indexes from Task 4 were verified via `EXPLAIN ANALYZE` (Task 5) to never be used by Postgres for this query shape — the visibility-check SQL structure makes them architecturally unreachable regardless of scale or search term — and were reverted per the project owner's decision. Tasks 1-3 (the frontend routing change + the pageSize fix) are the actual shipped fix and were unaffected. See Task 4 and Task 5 below for the full record.
+
 **Tech Stack:** Angular/TypeScript (frontend), Ruby/Rails + RSpec (backend), PostgreSQL migration.
 
 **Spec:** `docs/superpowers/specs/2026-08-23-work-package-filter-autocomplete-perf-design.md`
@@ -374,9 +376,14 @@ apply, matching every sibling filter in this family."
 
 ### Task 4: Add trigram indexes for the typeahead search
 
+**⚠️ Reverted after Task 5** — the indexes this task creates were proven never to be used
+by Postgres for the query shape they targeted (see Task 5 below and the design doc's
+"Outcome" section). Left in place below as the historical record of what was built and
+why the plan called for it; the revert is its own commit.
+
 **Files:**
-- Create: `db/migrate/20260823120000_add_trigram_indexes_for_typeahead_search.rb`
-- Create: `spec/db/indexes_spec.rb`
+- Create: `db/migrate/20260823120000_add_trigram_indexes_for_typeahead_search.rb` (later reverted)
+- Create: `spec/db/indexes_spec.rb` (later reverted)
 
 **Interfaces:**
 - Consumes: nothing new.
