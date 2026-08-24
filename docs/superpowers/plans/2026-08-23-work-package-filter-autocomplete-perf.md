@@ -44,7 +44,7 @@
 
 **Interfaces:**
 - Consumes: `QueryFilterInstanceResource.currentSchema.values.type` (existing HAL schema shape; already read the same way by `isVersionResource`/`isUserResource` at `filter-searchable-multiselect-value.component.ts:215-223`).
-- Produces: `private get isWorkPackageResource():boolean` and `resourceType:'work_packages'|null` — Task 2 reads both.
+- Produces: `private get isWorkPackageResource():boolean` and `resourceType` (typed `string|null`, unchanged declaration — narrowing it to `'work_packages'|null` was not part of what this task's steps asked for) — Task 2 reads both.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -175,7 +175,7 @@ Expected: PASS (all three `resourceType detection` cases).
 - [ ] **Step 5: Lint**
 
 Run: `cd frontend && npx eslint src/app/features/work-packages/components/filters/filter-searchable-multiselect-value/`
-Expected: no errors.
+Expected: no *new* errors — this directory has 10 pre-existing eslint errors on lines this branch doesn't touch; confirm the count doesn't increase.
 
 - [ ] **Step 6: Commit**
 
@@ -288,7 +288,7 @@ Expected: PASS — all five cases (three from Task 1, two new).
 - [ ] **Step 6: Lint**
 
 Run: `cd frontend && npx eslint src/app/features/work-packages/components/filters/filter-searchable-multiselect-value/`
-Expected: no errors.
+Expected: no *new* errors — this directory has 10 pre-existing eslint errors on lines this branch doesn't touch; confirm the count doesn't increase.
 
 - [ ] **Step 7: Commit**
 

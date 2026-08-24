@@ -201,6 +201,29 @@ without a subscriber), so leaving it would not actually issue the old heavy requ
 skip creating it anyway so the next reader doesn't have to re-derive that, and so a future
 subscriber can't silently resurrect the slow path.
 
+**Undocumented side effect — result ordering:** `OpAutocompleterService.createParams('work_packages')`
+also imposes `sortBy: '[["updatedAt","desc"]]'` on every request made through this path.
+This is a user-visible reordering of the option list — most-recently-updated work package
+first, not alphabetical and not relevance-ranked against the typed search term — that this
+design did not call out explicitly. No code change follows from this; it's just worth
+documenting since a reader diffing "what changed" would otherwise miss it.
+
+**Known tradeoff — typeahead also matches the (shared) project name:** for project-scoped
+filters in this family (Parent, Blocks, etc., whenever `filter.project` is set — the base
+`ByWorkPackageFilterDependencyRepresenter#href_callback` scopes their href to
+`work_packages_by_workspace(project.id)`), every candidate in the picker's pool belongs to
+the same single project. `TypeaheadFilter`'s `ILIKE` predicate matches against
+`projects.name` as well as `work_packages.subject` (see §3's "Review findings" discussion),
+so once real server-side search is in play, typing any substring of that one shared project
+name now matches every candidate in the pool — ordered by `updatedAt desc` per the point
+above, not by relevance. This is a real behavior change from the old client-side
+substring-on-subject-only filtering, which never looked at project name at all. Changing
+`TypeaheadFilter`'s search semantics to avoid this is a product decision, and it's already
+reserved for the user to make explicitly (see "Out of scope": narrowing the typeahead
+search contract is named there as a deliberate decision, not a default) — this paragraph
+records it as a disclosed, accepted tradeoff of shipping §2 as designed, not something this
+fix wave is authorized to change unilaterally in code.
+
 ### 2a. Remove `pageSize=-1` — required, not cosmetic, once §2 lands
 
 Today `&pageSize=-1` in `EpicFilterDependencyRepresenter#href_callback` is inert: the old
@@ -226,6 +249,18 @@ every other filter in the family already relies on implicitly (their hrefs never
 `pageSize` either). This makes Epic consistent with its siblings instead of pinned to a
 magic number that would drift from `per_page_options` if an admin ever changes it. Keep
 the `filters=` type-scoping query param — that part is load-bearing and must stay.
+
+To state the practical consequence plainly, not just the href shape: the *effective* page
+size for every picker in this family drops from the old frontend-forced
+`MAGIC_FILTER_AUTOCOMPLETE_PAGE_SIZE` (100) down to whatever `Setting.per_page_options_array.first`
+resolves to — **20** on a default/typical instance configuration. That is a real,
+user-visible behavior change (fewer rows loaded per page before the user scrolls or types
+further), not merely a cosmetic difference in how the URL is built. It is intentional and
+considered acceptable here because §2 replaces the old "fetch one large page, then filter
+client-side" behavior with real server-side search: the picker no longer depends on a big
+initial page to make the client-side substring filter useful, so a smaller page is
+sufficient and in fact desirable (smaller payload per keystroke). Still, it's a change
+worth naming explicitly rather than leaving implicit in the href diff.
 
 ### 3. Migration: trigram indexes, plus a required EXPLAIN gate (revised per P2)
 

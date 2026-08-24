@@ -92,6 +92,9 @@ describe('FilterSearchableMultiselectValueComponent', () => {
       component.autocompleterFn('epi').subscribe();
 
       expect(loadFromUrlSpy).toHaveBeenCalledWith(href, 'epi', 'work_packages', [], 'typeahead', true);
+      // Guards that the old, heavy loadCollection('') load can never fire for
+      // work-package-backed filters: initialRequest$ must stay unset in this branch.
+      expect(component.initialRequest$).toBeUndefined();
     });
 
     it('falls back to the existing HAL-collection autocomplete for a non-work-package filter', (done) => {
