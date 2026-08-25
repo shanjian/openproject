@@ -75,6 +75,27 @@ RSpec.describe "Marking notifications as read by opening the work package", :js 
     end
   end
 
+  describe "when the work package has more notifications than one API page" do
+    # The API defaults to the smallest of Setting.per_page_options_array, so a work
+    # package can easily hold more unread notifications than a single page returns.
+    let(:over_one_page) { Setting.per_page_options_array.min + 5 }
+
+    before do
+      create_list(:notification, over_one_page, recipient:, resource: work_package,
+                                                journal: work_package.journals.last)
+    end
+
+    it "marks all of them as read, not just the first page" do
+      full_view.visit!
+      full_view.ensure_page_loaded
+
+      retry_block(args: { tries: 8 }) do
+        remaining = Notification.where(recipient:, resource: work_package, read_ian: false).count
+        raise "Expected every notification to be marked read, #{remaining} left" unless remaining.zero?
+      end
+    end
+  end
+
   describe "when the user has no unread notifications for the work package" do
     before do
       notification.update!(read_ian: true)

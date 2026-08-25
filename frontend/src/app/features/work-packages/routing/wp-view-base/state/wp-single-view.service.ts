@@ -41,7 +41,7 @@ export class WpSingleViewService {
     .select((state) => state.notifications.filters)
     .pipe(
       filter((filters) => filters.length > 0),
-      switchMap((filters) => this.resourceService.collection({ filters })),
+      switchMap(() => this.resourceService.collection(this.params)),
     );
 
   selectNotificationsCount$ = this
@@ -64,7 +64,12 @@ export class WpSingleViewService {
     );
 
   get params():ApiV3ListParameters {
-    return { filters: this.query.getValue().notifications.filters };
+    return {
+      filters: this.query.getValue().notifications.filters,
+      // Every unread notification on this work package has to be marked read, not just
+      // the first API page. -1 is APIv3's magic value for the maximum page size.
+      pageSize: -1,
+    };
   }
 
   constructor(
@@ -106,7 +111,7 @@ export class WpSingleViewService {
   markAllAsRead():void {
     this
       .resourceService
-      .collection({ filters: this.store.getValue().notifications.filters })
+      .collection(this.params)
       .pipe(
         take(1),
       )
