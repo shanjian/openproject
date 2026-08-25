@@ -10,7 +10,8 @@ export type InAppNotificationFacet = 'unread'|'all';
 
 export interface IanCenterState {
   params:{
-    page:number;
+    // APIv3 paginates by page number, which it calls `offset`. 1-based.
+    offset:number;
     pageSize:number;
   };
   activeFacet:InAppNotificationFacet;
@@ -18,8 +19,11 @@ export interface IanCenterState {
 
   activeCollection:CollectionResponse;
 
-  /** Number of elements not showing after max values loaded */
-  notLoaded:number;
+  /** Total number of notifications matching the active facet and filters, as reported by the API */
+  total:number;
+
+  /** Whether an additional page is currently being fetched */
+  loadingMore:boolean;
 }
 
 export const IAN_FACET_FILTERS:Record<InAppNotificationFacet, ApiV3ListFilter[]> = {
@@ -31,12 +35,13 @@ export function createInitialState():IanCenterState {
   return {
     params: {
       pageSize: NOTIFICATIONS_MAX_SIZE,
-      page: 1,
+      offset: 1,
     },
     filters: {},
     activeCollection: { ids: [] },
     activeFacet: 'unread',
-    notLoaded: 0,
+    total: 0,
+    loadingMore: false,
   };
 }
 

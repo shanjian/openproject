@@ -29,12 +29,10 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnInit } from '@angular/core';
 import { I18nService } from 'core-app/core/i18n/i18n.service';
 import { filter, map } from 'rxjs/operators';
+import { combineLatest } from 'rxjs';
 import { StateService } from '@uirouter/angular';
 import { IanCenterService } from 'core-app/features/in-app-notifications/center/state/ian-center.service';
-import {
-  INotification,
-  NOTIFICATIONS_MAX_SIZE,
-} from 'core-app/core/state/in-app-notifications/in-app-notification.model';
+import { INotification } from 'core-app/core/state/in-app-notifications/in-app-notification.model';
 import { ApiV3Service } from 'core-app/core/apiv3/api-v3.service';
 import { PathHelperService } from 'core-app/core/path-helper/path-helper.service';
 import { IanBellService } from 'core-app/features/in-app-notifications/bell/state/ian-bell.service';
@@ -52,8 +50,6 @@ import {
   standalone: false,
 })
 export class InAppNotificationCenterComponent implements OnInit {
-  maxSize = NOTIFICATIONS_MAX_SIZE;
-
   hasMoreThanPageSize$ = this.storeService.hasMoreThanPageSize$;
 
   hasNotifications$ = this.storeService.hasNotifications$;
@@ -62,16 +58,19 @@ export class InAppNotificationCenterComponent implements OnInit {
 
   loading$ = this.storeService.loading$;
 
+  loadingMore$ = this.storeService.loadingMore$;
+
   totalCount$ = this.bellService.unread$;
 
-  totalCountWarning$ = this
-    .storeService
-    .notLoaded$
+  totalCountWarning$ = combineLatest([
+    this.storeService.loadedCount$,
+    this.storeService.notLoaded$,
+  ])
     .pipe(
-      filter((notLoaded) => notLoaded > 0),
-      map((notLoaded:number) => this.I18n.t(
+      filter(([, notLoaded]) => notLoaded > 0),
+      map(([loaded, notLoaded]:[number, number]) => this.I18n.t(
         'js.notifications.center.total_count_warning',
-        { newest_count: this.maxSize, more_count: notLoaded },
+        { newest_count: loaded, more_count: notLoaded },
       )),
     );
 
@@ -130,6 +129,8 @@ export class InAppNotificationCenterComponent implements OnInit {
     ),
     title: this.I18n.t('js.notifications.title'),
     button_close: this.I18n.t('js.button_close'),
+    load_more: this.I18n.t('js.notifications.center.load_more'),
+    loading_more: this.I18n.t('js.notifications.center.loading_more'),
     no_results: {
       at_all: this.I18n.t(
         'js.notifications.center.no_results.at_all',
@@ -162,6 +163,10 @@ export class InAppNotificationCenterComponent implements OnInit {
       filter: this.urlParams.get('filter'),
       name: this.urlParams.get('name'),
     });
+  }
+
+  loadMore():void {
+    this.storeService.loadMore();
   }
 
   noNotificationText(hasNotifications:boolean):string {

@@ -28,7 +28,7 @@
 
 import { Injectable, Injector } from '@angular/core';
 import { debounceTime, defaultIfEmpty, distinctUntilChanged, map, mapTo, switchMap, take, tap } from 'rxjs/operators';
-import { forkJoin, from, Observable, Subject } from 'rxjs';
+import { combineLatest, forkJoin, from, Observable, Subject } from 'rxjs';
 import { ID, Query } from '@datorama/akita';
 import { StateService } from '@uirouter/angular';
 
@@ -79,9 +79,25 @@ export class IanCenterService extends UntilDestroyedMixin {
 
   activeFacet$ = this.query.select('activeFacet');
 
-  notLoaded$ = this.query.select('notLoaded');
+  total$ = this.query.select('total');
+
+  loadingMore$ = this.query.select('loadingMore');
 
   activeCollection$ = this.query.select('activeCollection');
+
+  /** How many notifications have been fetched so far */
+  loadedCount$ = this.activeCollection$
+    .pipe(
+      map((collection) => collection.ids.length),
+      distinctUntilChanged(),
+    );
+
+  /** How many notifications match the current filters but have not been fetched yet */
+  notLoaded$ = combineLatest([this.total$, this.activeCollection$])
+    .pipe(
+      map(([total, collection]) => Math.max(0, total - collection.ids.length)),
+      distinctUntilChanged(),
+    );
 
   menuFrame = document.getElementById('notifications_sidemenu') as FrameElement;
 
@@ -159,6 +175,7 @@ export class IanCenterService extends UntilDestroyedMixin {
       .resourceService
       .fetchCollection(this.params, { handleErrors: false })
       .pipe(
+        tap((results) => { this.store.update({ total: results.total }); }),
         switchMap(
           (results) => from(this.sideLoadInvolvedWorkPackages(results._embedded.elements))
             .pipe(
@@ -205,6 +222,7 @@ export class IanCenterService extends UntilDestroyedMixin {
 
   setFilters(filters:INotificationPageQueryParameters):void {
     this.store.update({ filters });
+    this.resetPagination();
     this.onReload.pipe(take(1)).subscribe((collection) => {
       this.store.update({ activeCollection: collection });
     });
@@ -213,9 +231,73 @@ export class IanCenterService extends UntilDestroyedMixin {
 
   setFacet(facet:InAppNotificationFacet):void {
     this.store.update({ activeFacet: facet });
+    this.resetPagination();
     this.onReload.pipe(take(1)).subscribe((collection) => {
       this.store.update({ activeCollection: collection });
     });
+  }
+
+  /**
+   * Fetch the next page and append it to the notifications already shown.
+   */
+  loadMore():void {
+    const { params, loadingMore } = this.store.getValue();
+
+    if (loadingMore) {
+      return;
+    }
+
+    const offset = params.offset + 1;
+    // The request carries the filters as they are now. If they change while it is in
+    // flight, resetPagination bumps this token and the response is dropped rather than
+    // appended to a list it does not belong to.
+    const token = this.paginationToken;
+    this.store.update({ loadingMore: true });
+
+    this
+      .resourceService
+      .fetchCollection({ ...this.params, offset }, { handleErrors: false })
+      .pipe(
+        take(1),
+        switchMap(
+          (results) => from(this.sideLoadInvolvedWorkPackages(results._embedded.elements))
+            .pipe(mapTo(results)),
+        ),
+      )
+      .subscribe({
+        next: (results) => {
+          if (token !== this.paginationToken) {
+            return;
+          }
+
+          this.store.update((state) => ({
+            params: { ...state.params, offset },
+            activeCollection: {
+              ids: _.uniq([
+                ...state.activeCollection.ids,
+                ...results._embedded.elements.map((element) => element.id),
+              ]),
+            },
+            total: results.total,
+            loadingMore: false,
+          }));
+        },
+        error: () => {
+          if (token === this.paginationToken) {
+            this.store.update({ loadingMore: false });
+          }
+        },
+      });
+  }
+
+  /** Bumped whenever the list is reset, to invalidate a page request still in flight */
+  private paginationToken = 0;
+
+  private resetPagination():void {
+    this.paginationToken += 1;
+
+    const { params } = this.store.getValue();
+    this.store.update({ params: { ...params, offset: 1 }, loadingMore: false });
   }
 
   markAsRead(notifications:ID[]):void {
@@ -272,6 +354,7 @@ export class IanCenterService extends UntilDestroyedMixin {
     // update the UI state for increased AND decreased notifications, not only increased count
     // decreasing the notification count could happen when the user itself
     // marks notifications as read in the split view or on another tab
+    this.resetPagination();
     this.onReload.pipe(take(1)).subscribe((collection) => {
       // directly update the UI state in both cases (count increased or decreased)
       this.store.update({ activeCollection: collection });
@@ -287,7 +370,7 @@ export class IanCenterService extends UntilDestroyedMixin {
   @EffectCallback(notificationsMarkedRead)
   private reloadOnNotificationRead(action:ReturnType<typeof notificationsMarkedRead>) {
     if (action.all) {
-      this.store.update({ activeCollection: { ids: [] }, activeFacet: 'unread' });
+      this.store.update({ activeCollection: { ids: [] }, activeFacet: 'unread', total: 0 });
 
       // Reload the sidemenu frame
       void this.menuFrame.reload();
@@ -295,11 +378,12 @@ export class IanCenterService extends UntilDestroyedMixin {
       return;
     }
 
-    const { activeCollection } = this.query.getValue();
+    const { activeCollection, total } = this.query.getValue();
+    const ids = activeCollection.ids.filter((activeID) => !action.notifications.includes(activeID));
+
     this.store.update({
-      activeCollection: {
-        ids: activeCollection.ids.filter((activeID) => !action.notifications.includes(activeID)),
-      },
+      activeCollection: { ids },
+      total: Math.max(0, total - (activeCollection.ids.length - ids.length)),
     });
 
     if (!this.deviceService.isMobile && window.location.href.includes('details')) {
