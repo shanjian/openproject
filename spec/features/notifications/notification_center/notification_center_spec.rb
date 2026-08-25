@@ -120,10 +120,11 @@ RSpec.describe "Notification center",
         center.expect_bell_count ""
         center.open
 
-        # side menu items show full count of notifications (inbox has two more due to the "Created" notification)
-        side_menu.expect_item_with_count "Inbox", 257
-        side_menu.expect_item_with_count "Mentioned", 100
-        side_menu.expect_item_with_count "Watcher", 105
+        # Side menu items count work packages, not notification records, so that they
+        # line up with the rows the center renders.
+        side_menu.expect_item_with_count "Inbox", 2
+        side_menu.expect_item_with_count "Mentioned", 1
+        side_menu.expect_item_with_count "Watcher", 1
 
         # select watcher filter and mark all as read
         side_menu.click_item "Watcher"
@@ -132,8 +133,8 @@ RSpec.describe "Notification center",
         wait_for_network_idle
 
         center.expect_bell_count ""
-        side_menu.expect_item_with_count "Inbox", 152
-        side_menu.expect_item_with_count "Mentioned", 100
+        side_menu.expect_item_with_count "Inbox", 2
+        side_menu.expect_item_with_count "Mentioned", 1
         side_menu.expect_item_with_no_count "Watcher"
 
         # select a project and mark all as read
@@ -143,8 +144,8 @@ RSpec.describe "Notification center",
         wait_for_network_idle
 
         center.expect_bell_count ""
-        side_menu.expect_item_with_count "Inbox", 101
-        side_menu.expect_item_with_count "Mentioned", 100
+        side_menu.expect_item_with_count "Inbox", 1
+        side_menu.expect_item_with_count "Mentioned", 1
         side_menu.expect_no_item project2.name
 
         # select inbox and mark all as read
