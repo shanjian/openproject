@@ -234,7 +234,9 @@ export abstract class WorkPackageSingleViewBase extends UntilDestroyedMixin {
       );
 
     this.displayNotificationsButton$ = this.storeService.hasNotifications$;
-    this.storeService.setFilters(this.workPackage.id!);
+    // Opening a work package, in the split view or in the full view, counts as reading
+    // its notifications.
+    this.storeService.setFilters(this.workPackage.id!, true);
 
     // Set authorisation data
     this.authorisationService.initModelAuth('work_package', this.workPackage.$links);

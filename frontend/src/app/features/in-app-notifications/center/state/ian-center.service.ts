@@ -27,8 +27,8 @@
 //++
 
 import { Injectable, Injector } from '@angular/core';
-import { debounceTime, defaultIfEmpty, distinctUntilChanged, map, mapTo, switchMap, take, tap } from 'rxjs/operators';
-import { combineLatest, forkJoin, from, Observable, Subject } from 'rxjs';
+import { debounceTime, defaultIfEmpty, distinctUntilChanged, filter, map, mapTo, switchMap, take, tap } from 'rxjs/operators';
+import { combineLatest, EMPTY, forkJoin, from, Observable, Subject } from 'rxjs';
 import { ID, Query } from '@datorama/akita';
 import { StateService } from '@uirouter/angular';
 
@@ -99,7 +99,11 @@ export class IanCenterService extends UntilDestroyedMixin {
       distinctUntilChanged(),
     );
 
-  menuFrame = document.getElementById('notifications_sidemenu') as FrameElement;
+  // Resolved on demand: this service is a root singleton, so an element captured at
+  // construction time is null on pages without the sidemenu and stale after a Turbo visit.
+  get menuFrame():FrameElement|null {
+    return document.getElementById('notifications_sidemenu') as FrameElement|null;
+  }
 
   loading$:Observable<boolean> = this.query.selectLoading();
 
@@ -218,6 +222,48 @@ export class IanCenterService extends UntilDestroyedMixin {
     this.selectedWorkPackage$.subscribe((id:string) => {
       this.updateSelectedNotification(id);
     });
+
+    // Showing a work package in the split view counts as reading its notifications.
+    // The notifications may not be loaded yet when the URL already points at the work
+    // package, so wait for the first collection that actually contains them.
+    this.selectedWorkPackage$
+      .pipe(
+        filter((id):id is string => !!id),
+        switchMap((id) => {
+          if (this.autoReadSkipWorkPackageId === id) {
+            this.autoReadSkipWorkPackageId = null;
+            return EMPTY;
+          }
+
+          return this
+            .aggregatedCenterNotifications$
+            .pipe(
+              map((groups) => IanCenterService.unreadIdsFor(groups, id)),
+              filter((ids) => ids.length > 0),
+              take(1),
+            );
+        }),
+      )
+      .subscribe((notifications) => {
+        this.actions$.dispatch(
+          markNotificationsAsRead({ origin: this.id, notifications, auto: true }),
+        );
+      });
+  }
+
+  /** Work package the center navigated to on its own, which must not be auto-read */
+  private autoReadSkipWorkPackageId:string|null = null;
+
+  private static unreadIdsFor(groups:Record<string, INotification[]>, workPackageId:string):ID[] {
+    return Object
+      .values(groups)
+      .filter((group) => {
+        const resource = group[0]._links.resource;
+        return resource && idFromLink(resource.href) === workPackageId;
+      })
+      .flat()
+      .filter((notification) => !notification.readIAN)
+      .map((notification) => notification.id);
   }
 
   setFilters(filters:INotificationPageQueryParameters):void {
@@ -334,6 +380,9 @@ export class IanCenterService extends UntilDestroyedMixin {
           }
 
           const wpId = idFromLink(notifications[index][0]._links.resource.href);
+          // The user did not open this one, the center moved them here. Marking it read
+          // on their behalf would silently clear a notification they never looked at.
+          this.autoReadSkipWorkPackageId = wpId;
           this.openSplitScreen(wpId);
         }
       });
@@ -373,25 +422,35 @@ export class IanCenterService extends UntilDestroyedMixin {
       this.store.update({ activeCollection: { ids: [] }, activeFacet: 'unread', total: 0 });
 
       // Reload the sidemenu frame
-      void this.menuFrame.reload();
+      void this.menuFrame?.reload();
 
       return;
     }
 
-    const { activeCollection, total } = this.query.getValue();
-    const ids = activeCollection.ids.filter((activeID) => !action.notifications.includes(activeID));
+    const { activeCollection, activeFacet, total } = this.query.getValue();
 
-    this.store.update({
-      activeCollection: { ids },
-      total: Math.max(0, total - (activeCollection.ids.length - ids.length)),
-    });
+    if (activeFacet === 'unread') {
+      const ids = activeCollection.ids.filter((activeID) => !action.notifications.includes(activeID));
 
-    if (!this.deviceService.isMobile && window.location.href.includes('details')) {
+      this.store.update({
+        activeCollection: { ids },
+        total: Math.max(0, total - (activeCollection.ids.length - ids.length)),
+      });
+    } else {
+      // Read notifications still match the 'all' facet, so their rows stay in place. Hand
+      // out a new collection object so the entities are looked up again and the rows
+      // re-render in their read state.
+      this.store.update({ activeCollection: { ids: [...activeCollection.ids] } });
+    }
+
+    // An automatic read happened because the user opened the work package themselves.
+    // Advancing them to the next notification would take them away from what they opened.
+    if (!action.auto && !this.deviceService.isMobile && window.location.href.includes('details')) {
       this.showNextNotification();
     }
 
     // Reload the sidemenu frame
-    void this.menuFrame.reload();
+    void this.menuFrame?.reload();
   }
 
   private sideLoadInvolvedWorkPackages(elements:INotification[]):Promise<unknown> {

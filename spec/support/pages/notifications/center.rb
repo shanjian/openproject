@@ -54,7 +54,9 @@ module Pages
       end
 
       def show_all
-        click_button "All"
+        # The facet toggle is a segmented control rendered as links, not buttons.
+        page.find("a[href*='facet=all']").click
+        expect(page).to have_current_path(/facet=all/, wait: 10)
       end
 
       def item_title(notification)
