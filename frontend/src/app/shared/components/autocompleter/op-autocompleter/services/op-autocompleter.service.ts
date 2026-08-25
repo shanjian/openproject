@@ -105,16 +105,26 @@ export class OpAutocompleterService extends UntilDestroyedMixin {
 
   // A method for returning data based on a custom URL (i.e. in time logging we have a special endpoint for retrieving
   // work packages)
-  public loadFromUrl(url:string, matching:string|null, resource:TOpAutocompleterResource, filters?:IAPIFilter[], searchKey?:string, allowEmpty = false) {
+  // Callers whose picker needs different query params than the resource defaults (a leaner
+  // select, an explicit pageSize, ...) can pass them as `params`, which replaces createParams.
+  public loadFromUrl(
+    url:string,
+    matching:string|null,
+    resource:TOpAutocompleterResource,
+    filters?:IAPIFilter[],
+    searchKey?:string,
+    allowEmpty = false,
+    params?:Record<string, string>,
+  ) {
     // Exit early if the query string is empty as there is no typeahead
     if (!allowEmpty && (matching === null || matching.length === 0)) {
       return of([]);
     }
 
     const finalFilters:ApiV3FilterBuilder = this.createFilters(filters ?? [], matching || '', searchKey);
-    const params = this.createParams(resource);
+    const finalParams = params ?? this.createParams(resource);
 
-    const stringifiedBuiltOutUrl = addFiltersToPath(url, finalFilters, params).toString();
+    const stringifiedBuiltOutUrl = addFiltersToPath(url, finalFilters, finalParams).toString();
 
     return this.halResourceService
       .get(stringifiedBuiltOutUrl)
