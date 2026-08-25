@@ -57,6 +57,15 @@
         [textContent]="totalCountWarning$ | async"
         >
       </p>
+      <button
+        type="button"
+        class="button op-ian-center--load-more"
+        data-test-selector="op-ian-center--load-more"
+        [disabled]="(loadingMore$ | async) === true"
+        (click)="loadMore()"
+        [textContent]="(loadingMore$ | async) === true ? text.loading_more : text.load_more"
+        >
+      </button>
     }
   </div>
 </div>
