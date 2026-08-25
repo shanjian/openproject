@@ -248,6 +248,10 @@ export class IanCenterService extends UntilDestroyedMixin {
     }
 
     const offset = params.offset + 1;
+    // The request carries the filters as they are now. If they change while it is in
+    // flight, resetPagination bumps this token and the response is dropped rather than
+    // appended to a list it does not belong to.
+    const token = this.paginationToken;
     this.store.update({ loadingMore: true });
 
     this
@@ -262,6 +266,10 @@ export class IanCenterService extends UntilDestroyedMixin {
       )
       .subscribe({
         next: (results) => {
+          if (token !== this.paginationToken) {
+            return;
+          }
+
           this.store.update((state) => ({
             params: { ...state.params, offset },
             activeCollection: {
@@ -274,13 +282,22 @@ export class IanCenterService extends UntilDestroyedMixin {
             loadingMore: false,
           }));
         },
-        error: () => { this.store.update({ loadingMore: false }); },
+        error: () => {
+          if (token === this.paginationToken) {
+            this.store.update({ loadingMore: false });
+          }
+        },
       });
   }
 
+  /** Bumped whenever the list is reset, to invalidate a page request still in flight */
+  private paginationToken = 0;
+
   private resetPagination():void {
+    this.paginationToken += 1;
+
     const { params } = this.store.getValue();
-    this.store.update({ params: { ...params, offset: 1 } });
+    this.store.update({ params: { ...params, offset: 1 }, loadingMore: false });
   }
 
   markAsRead(notifications:ID[]):void {
