@@ -22,7 +22,10 @@ import {
   EffectHandler,
 } from 'core-app/core/state/effects/effect-handler.decorator';
 import { CurrentUserService } from 'core-app/core/current-user/current-user.service';
-import { Query } from '@datorama/akita';
+import { ID, Query } from '@datorama/akita';
+import { Observable } from 'rxjs';
+import { IHALCollection } from 'core-app/core/apiv3/types/hal-collection.type';
+import { INotification } from 'core-app/core/state/in-app-notifications/in-app-notification.model';
 
 @EffectHandler
 @Injectable()
@@ -38,7 +41,7 @@ export class WpSingleViewService {
     .select((state) => state.notifications.filters)
     .pipe(
       filter((filters) => filters.length > 0),
-      switchMap((filters) => this.resourceService.collection({ filters })),
+      switchMap(() => this.resourceService.collection(this.params)),
     );
 
   selectNotificationsCount$ = this
@@ -61,7 +64,12 @@ export class WpSingleViewService {
     );
 
   get params():ApiV3ListParameters {
-    return { filters: this.query.getValue().notifications.filters };
+    return {
+      filters: this.query.getValue().notifications.filters,
+      // Every unread notification on this work package has to be marked read, not just
+      // the first API page. -1 is APIv3's magic value for the maximum page size.
+      pageSize: -1,
+    };
   }
 
   constructor(
@@ -71,7 +79,11 @@ export class WpSingleViewService {
   ) {
   }
 
-  setFilters(workPackageId:string):void {
+  /**
+   * @param markAsRead Mark the work package's notifications as read once they are loaded.
+   *                   Opening a work package counts as reading it.
+   */
+  setFilters(workPackageId:string, markAsRead = false):void {
     const filters:ApiV3ListFilter[] = [
       ['readIAN', '=', false],
       ['resourceId', '=', [workPackageId]],
@@ -87,33 +99,50 @@ export class WpSingleViewService {
       }
     ));
 
-    this.reload();
+    this
+      .reload$()
+      .subscribe((collection) => {
+        if (markAsRead) {
+          this.markCollectionAsRead(collection._embedded.elements.map((el) => el.id), true);
+        }
+      });
   }
 
   markAllAsRead():void {
     this
       .resourceService
-      .collection({ filters: this.store.getValue().notifications.filters })
+      .collection(this.params)
       .pipe(
         take(1),
       )
       .subscribe((collection) => {
-        this.actions$.dispatch(
-          markNotificationsAsRead({ origin: this.id, notifications: collection.map((el) => el.id) }),
-        );
+        this.markCollectionAsRead(collection.map((el) => el.id), false);
       });
   }
 
-  reload() {
-    this
+  reload():void {
+    this.reload$().subscribe();
+  }
+
+  reload$():Observable<IHALCollection<INotification>> {
+    return this
       .currentUser$
       .isLoggedIn$
       .pipe(
         take(1),
         filter((loggedIn) => loggedIn),
         switchMap(() => this.resourceService.fetchCollection(this.params)),
-      )
-      .subscribe();
+      );
+  }
+
+  private markCollectionAsRead(notifications:ID[], auto:boolean):void {
+    if (notifications.length === 0) {
+      return;
+    }
+
+    this.actions$.dispatch(
+      markNotificationsAsRead({ origin: this.id, notifications, auto }),
+    );
   }
 
   /**

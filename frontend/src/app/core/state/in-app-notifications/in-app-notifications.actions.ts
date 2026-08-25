@@ -36,7 +36,8 @@ import { ApiV3ListFilter } from 'core-app/core/apiv3/paths/apiv3-list-resource.i
 
 export const markNotificationsAsRead = action(
   '[IAN] Mark notifications as read',
-  props<{ origin:string, notifications:ID[] }>(),
+  // `auto` marks reads that the user did not explicitly ask for, e.g. opening a work package.
+  props<{ origin:string, notifications:ID[], auto?:boolean }>(),
 );
 
 export const markNotificationsAsReadByFilters = action(
@@ -46,7 +47,7 @@ export const markNotificationsAsReadByFilters = action(
 
 export const notificationsMarkedRead = action(
   '[IAN] Notifications were marked as read',
-  props<{ origin:string, notifications:ID[], all:boolean }>(),
+  props<{ origin:string, notifications:ID[], all:boolean, auto?:boolean }>(),
 );
 
 export const notificationCountIncreased = action(

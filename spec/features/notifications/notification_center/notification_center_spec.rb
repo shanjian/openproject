@@ -393,11 +393,11 @@ RSpec.describe "Notification center",
 
         center.expect_number_of_notifications 2
 
-        # Click on first list item, which should be the youngest notification
+        # Click on first list item, which should be the youngest notification.
+        # Opening the work package marks every notification aggregated into that row as read.
         center.click_item notification4
 
         split_screen.expect_open
-        center.mark_notification_as_read notification4
         wait_for_network_idle
 
         retry_block do
@@ -415,7 +415,6 @@ RSpec.describe "Notification center",
         center.click_item notification3
 
         split_screen2.expect_open
-        center.mark_notification_as_read notification3
         wait_for_network_idle
         retry_block do
           notification3.reload

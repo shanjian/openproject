@@ -54,7 +54,11 @@ module Pages
       end
 
       def show_all
-        click_button "All"
+        # The facet toggle is a segmented control rendered as links, not buttons, and
+        # Primer renders each facet twice: a labelled variant and an icon-only one for
+        # narrow screens. Both carry the same href, so either will do.
+        page.first("a[href*='facet=all']").click
+        expect(page).to have_current_path(/facet=all/, wait: 10)
       end
 
       def item_title(notification)
