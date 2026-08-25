@@ -31,6 +31,9 @@
 module Notifications
   class Menu < Submenu
     ENTERPRISE_REASONS = %w[shared date_alert].freeze
+    DISTINCT_RESOURCES = Arel.sql("DISTINCT (notifications.resource_type, notifications.resource_id)").freeze
+    DISTINCT_RESOURCES_COUNT = Arel.sql("COUNT(#{DISTINCT_RESOURCES})").freeze
+    DATE_ALERT_REASONS = ::API::V3::Notifications::PropertyFactory::DATE_ALERT_REASONS
 
     include Rails.application.routes.url_helpers
 
@@ -88,21 +91,50 @@ module Notifications
                                                .where(:read_ian, "=", "f")
     end
 
+    # The notification center renders one row per work package, aggregating all of its
+    # notifications into that row. The counts shown next to the filters therefore have to
+    # count work packages as well, otherwise they promise more rows than the center shows.
     def filter_unread
-      query = base_query
-      query.results.count
+      base_query.results.reorder(nil).count(DISTINCT_RESOURCES)
     end
 
     def filter_unread_by_reason
       query = base_query
       query.group(:reason)
-      query.group_values
+
+      counts = distinct_resources_per_group(query).except(*DATE_ALERT_REASONS)
+
+      # The date alert reasons are folded into a single "dateAlert" entry. Summing their
+      # counts the way PropertyFactory.groups_for does would count a work package twice
+      # when it has both a start and a due date alert, so count across both reasons at once.
+      date_alerts = filter_unread_date_alerts
+      counts["dateAlert"] = date_alerts if date_alerts > 0
+
+      counts
+    end
+
+    def filter_unread_date_alerts
+      base_query
+        .results
+        .reorder(nil)
+        .where(reason: DATE_ALERT_REASONS)
+        .count(DISTINCT_RESOURCES)
     end
 
     def filter_unread_by_project
       query = base_query
       query.group(:project)
-      query.group_values
+
+      counts = distinct_resources_per_group(query)
+      projects = Project.where(id: counts.keys.compact).index_by(&:id)
+
+      counts.filter_map { |project_id, count| [projects[project_id], count] if projects[project_id] }.to_h
+    end
+
+    # Same as Queries::BaseQuery#group_values, but counting distinct resources instead of
+    # notification records.
+    def distinct_resources_per_group(query)
+      query.groups.pluck(query.group_by.name, DISTINCT_RESOURCES_COUNT).to_h
     end
 
     def query_params(filter, name)
