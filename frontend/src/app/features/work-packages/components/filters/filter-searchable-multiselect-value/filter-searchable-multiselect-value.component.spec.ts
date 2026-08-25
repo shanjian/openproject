@@ -9,6 +9,7 @@ import { CurrentProjectService } from 'core-app/core/current-project/current-pro
 import { CurrentUserService } from 'core-app/core/current-user/current-user.service';
 import { HalResourceNotificationService } from 'core-app/features/hal/services/hal-resource-notification.service';
 import { QueryFilterInstanceResource } from 'core-app/features/hal/resources/query-filter-instance-resource';
+import { MAGIC_FILTER_AUTOCOMPLETE_PAGE_SIZE } from 'core-app/core/apiv3/helpers/get-paginated-results';
 
 describe('FilterSearchableMultiselectValueComponent', () => {
   let fixture:ComponentFixture<FilterSearchableMultiselectValueComponent>;
@@ -91,10 +92,38 @@ describe('FilterSearchableMultiselectValueComponent', () => {
 
       component.autocompleterFn('epi').subscribe();
 
-      expect(loadFromUrlSpy).toHaveBeenCalledWith(href, 'epi', 'work_packages', [], 'typeahead', true);
+      expect(loadFromUrlSpy).toHaveBeenCalledWith(
+        href,
+        'epi',
+        'work_packages',
+        [],
+        'typeahead',
+        true,
+        component.workPackageParams,
+      );
       // Guards that the old, heavy loadCollection('') load can never fire for
       // work-package-backed filters: initialRequest$ must stay unset in this branch.
       expect(component.initialRequest$).toBeUndefined();
+    });
+
+    it('asks for the same number of candidates the picker offered before it used the service', () => {
+      // Regression: OpAutocompleterService sets no pageSize, so the endpoint fell back to
+      // Setting.per_page_options_array.min (20) and the dropdown lost 80% of its options.
+      component.filter = filterWithType('[]WorkPackage');
+      component.ngOnInit();
+
+      expect(component.workPackageParams.pageSize).toEqual(`${MAGIC_FILTER_AUTOCOMPLETE_PAGE_SIZE}`);
+    });
+
+    it('does not request the author, whose avatar the option template would then render', () => {
+      // The shared work_packages select feeds op-autocompleter's <op-principal> avatar.
+      // A filter value picker has no use for "who created this work package".
+      component.filter = filterWithType('[]WorkPackage');
+      component.ngOnInit();
+
+      expect(component.workPackageParams.select).not.toContain('elements/author');
+      // ... but elements/self must stay: compareByHref and saving the query both need it.
+      expect(component.workPackageParams.select).toContain('elements/self');
     });
 
     it('falls back to the existing HAL-collection autocomplete for a non-work-package filter', (done) => {

@@ -60,9 +60,30 @@ export class FilterSearchableMultiselectValueComponent extends UntilDestroyedMix
     },
   }, true);
 
+  // The params OpAutocompleterService derives for 'work_packages' are tuned for the
+  // work-package pickers (time logging, parent/child), not for a filter value picker:
+  //  * they select elements/author only so op-autocompleter's option template can render
+  //    the author's avatar, which says nothing about whether this is the value to filter on;
+  //  * they set no pageSize, so the endpoint falls back to Setting.per_page_options_array.min
+  //    (20) — far fewer candidates than the 100 this picker offered before it used the service.
+  // elements/self must stay: compareByHref and saving the query both rely on it.
+  readonly workPackageParams:Record<string, string> = {
+    select: 'elements/id,elements/self,elements/subject,elements/type,elements/project,elements/status',
+    sortBy: '[["updatedAt","desc"]]',
+    pageSize: `${MAGIC_FILTER_AUTOCOMPLETE_PAGE_SIZE}`,
+  };
+
   autocompleterFn = (searchTerm:string):Observable<HalResource[]> => (
     this.isWorkPackageResource
-      ? this.opAutocompleterService.loadFromUrl(this.allowedValuesLink, searchTerm, 'work_packages', [], 'typeahead', true)
+      ? this.opAutocompleterService.loadFromUrl(
+        this.allowedValuesLink,
+        searchTerm,
+        'work_packages',
+        [],
+        'typeahead',
+        true,
+        this.workPackageParams,
+      )
       : this.autocomplete(searchTerm)
   );
 
