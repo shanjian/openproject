@@ -60,18 +60,24 @@ export class FilterSearchableMultiselectValueComponent extends UntilDestroyedMix
     },
   }, true);
 
-  // The params OpAutocompleterService derives for 'work_packages' are tuned for the
-  // work-package pickers (time logging, parent/child), not for a filter value picker:
+  // Ask for exactly what the rendered option shows, and nothing else. The params
+  // OpAutocompleterService derives for 'work_packages' are tuned for the work-package
+  // pickers (time logging, parent/child), not for a filter value picker:
   //  * they select elements/author only so op-autocompleter's option template can render
   //    the author's avatar, which says nothing about whether this is the value to filter on;
   //  * they set no pageSize, so the endpoint falls back to Setting.per_page_options_array.min
   //    (20) — far fewer candidates than the 100 this picker offered before it used the service.
-  // elements/self must stay: compareByHref and saving the query both rely on it.
-  readonly workPackageParams:Record<string, string> = {
-    select: 'elements/id,elements/self,elements/subject,elements/type,elements/project,elements/status',
-    sortBy: '[["updatedAt","desc"]]',
-    pageSize: `${MAGIC_FILTER_AUTOCOMPLETE_PAGE_SIZE}`,
-  };
+  // elements/self must stay in either case: it carries the href that compareByHref and
+  // saving the query rely on, plus the title the plain option template shows as the name.
+  get workPackageParams():Record<string, string> {
+    return {
+      select: this.usesWorkPackageTemplate
+        ? 'elements/id,elements/self,elements/subject,elements/type,elements/project,elements/status'
+        : 'elements/id,elements/self,elements/subject',
+      sortBy: '[["updatedAt","desc"]]',
+      pageSize: `${MAGIC_FILTER_AUTOCOMPLETE_PAGE_SIZE}`,
+    };
+  }
 
   autocompleterFn = (searchTerm:string):Observable<HalResource[]> => (
     this.isWorkPackageResource
@@ -126,7 +132,7 @@ export class FilterSearchableMultiselectValueComponent extends UntilDestroyedMix
   }
 
   ngOnInit():void {
-    this.resourceType = this.isWorkPackageResource ? 'work_packages' : null;
+    this.resourceType = this.usesWorkPackageTemplate ? 'work_packages' : null;
 
     if (!this.isWorkPackageResource) {
       this.initialRequest$ = this
@@ -253,5 +259,14 @@ export class FilterSearchableMultiselectValueComponent extends UntilDestroyedMix
   private get isWorkPackageResource() {
     const type = _.get(this.filter.currentSchema, 'values.type', null) as string;
     return type && type.indexOf('WorkPackage') > 0;
+  }
+
+  // Declaring the 'work_packages' resource makes op-autocompleter render its rich work
+  // package option and chip templates -- type badge, project, #id, status. That detail
+  // earns its place in the "Work package ID" filter, where the id is the thing being
+  // picked; for Epic, Parent, Blocks and the rest of the family the subject alone names
+  // the value, so they use the plain label instead.
+  private get usesWorkPackageTemplate():boolean {
+    return !!this.isWorkPackageResource && this.filter.id === 'id';
   }
 }
