@@ -6,6 +6,7 @@
 <%= "=" * (("# " + @work_package.id.to_s + @work_package.subject).length + 4) %>
 = #<%= @work_package.id %> <%= @work_package.subject %> =
 <%= "=" * (("# " + @work_package.id.to_s + @work_package.subject).length + 4) %>
+<%= details_notifications_url(@work_package.id, tab: :activity) %>
 
 <%= I18n.t(:label_comment_added) %>:
 <%= strip_tags @journal.notes %>

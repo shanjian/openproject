@@ -5,6 +5,7 @@
 <%= work_package_subject_text_wrapper %>
 = #<%= @work_package.id %> <%= @work_package.subject %> =
 <%= work_package_subject_text_wrapper %>
+<%= details_notifications_url(@work_package.id, tab: :activity) %>
 
 <%= reminder_timestamp_text %>
 <%= reminder_note_text %>
