@@ -185,6 +185,12 @@ See COPYRIGHT and LICENSE files for more details.
             <div id="parent_work_package_candidates" class="autocomplete"></div>
           <% end %>
           <div class="form--field">
+            <%= styled_label_tag :work_package_epic_id, WorkPackage.human_attribute_name(:epic) %>
+            <div class="form--field-container">
+              <%= styled_text_field_tag "work_package[epic_id]", "", size: 10 %>
+            </div>
+          </div>
+          <div class="form--field">
             <%= styled_label_tag :work_package_start_date, WorkPackage.human_attribute_name(:start_date) %>
             <div class="form--field-container -visible-overflow">
               <%= angular_component_tag "opce-basic-single-date-picker",
