@@ -141,6 +141,10 @@ RSpec.describe WorkPackages::BulkController, with_settings: { journal_aggregatio
           it { assert_select "input", attributes: { name: "work_package[parent_id]" } }
         end
 
+        describe "#epic" do
+          it { assert_select "input", attributes: { name: "work_package[epic_id]" } }
+        end
+
         context "custom_field" do
           describe "#type" do
             it { assert_select "input", attributes: { name: "work_package[custom_field_values][#{custom_field1.id}]" } }
@@ -185,6 +189,10 @@ RSpec.describe WorkPackages::BulkController, with_settings: { journal_aggregatio
 
         describe "#parent" do
           it { assert_select "input", { attributes: { name: "work_package[parent_id]" } }, false }
+        end
+
+        describe "#epic" do
+          it { assert_select "input", attributes: { name: "work_package[epic_id]" } }
         end
 
         context "custom_field" do
@@ -434,6 +442,35 @@ RSpec.describe WorkPackages::BulkController, with_settings: { journal_aggregatio
           subject { work_packages.map(&:parent_id).uniq }
 
           it { is_expected.to contain_exactly(parent.id) }
+        end
+
+        describe "#epic" do
+          let(:epic_source_type) { create(:type, name: "Task") }
+          let(:epic_target_type) { create(:type, name: "Epic") }
+          let(:epic_project) { create(:project, types: [epic_source_type, epic_target_type]) }
+          let(:epic) do
+            create(:work_package,
+                   author: user,
+                   project: epic_project,
+                   type: epic_target_type)
+          end
+          let(:work_package_ids) do
+            create_list(:work_package, 2, author: user, project: epic_project, type: epic_source_type).map(&:id)
+          end
+
+          before do
+            create(:member, project: epic_project, principal: user, roles: [role])
+
+            put :update,
+                params: {
+                  ids: work_package_ids,
+                  work_package: { epic_id: epic.id }
+                }
+          end
+
+          subject { work_packages.map(&:epic_id).uniq }
+
+          it { is_expected.to contain_exactly(epic.id) }
         end
 
         describe "#custom_fields" do
