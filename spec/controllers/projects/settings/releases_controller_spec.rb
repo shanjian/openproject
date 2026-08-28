@@ -31,6 +31,8 @@
 require "spec_helper"
 
 RSpec.describe Projects::Settings::ReleasesController do
+  include Redmine::I18n
+
   shared_let(:user) { create(:admin) }
   shared_let(:project) { create(:project) }
   shared_let(:other_project) { create(:project) }
@@ -57,6 +59,20 @@ RSpec.describe Projects::Settings::ReleasesController do
     it "renders the Releases page with a new-release action" do
       expect(response.body).to include("Releases")
       expect(response.body).to include(new_project_version_path(project, kind: "release"))
+    end
+
+    context "when a release has been released" do
+      let(:released_at) { Time.zone.parse("2026-01-15 14:30") }
+
+      before do
+        release.update!(status: "closed", released_at:)
+        get :show, params: { project_id: project.id }
+      end
+
+      it "shows the release date and time" do
+        expect(response.body).to include(I18n.t("activerecord.attributes.version.released_at"))
+        expect(response.body).to include(format_time(released_at))
+      end
     end
   end
 

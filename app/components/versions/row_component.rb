@@ -70,6 +70,10 @@ module Versions
       t("version_status_#{version.status}")
     end
 
+    def released_at
+      helpers.format_time(version.released_at)
+    end
+
     def sharing
       helpers.format_version_sharing(version.sharing)
     end

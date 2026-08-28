@@ -38,6 +38,13 @@ See COPYRIGHT and LICENSE files for more details.
       <%= t(:label_release_readiness_done) %>: <%= "#{closed_count} / #{total_count}" %> (<%= percent %>%)
     <% end %>
   <% end %>
+  <% if version.released_at %>
+    <% box.with_row(test_selector: "release-released-at") do %>
+      <%= render(Primer::Beta::Text.new(font_size: :normal)) do %>
+        <%= Version.human_attribute_name(:released_at) %>: <%= format_time(version.released_at) %>
+      <% end %>
+    <% end %>
+  <% end %>
 <% end %>
 
 <%= render(Primer::Beta::BorderBox.new(test_selector: "release-work-packages")) do |box| %>

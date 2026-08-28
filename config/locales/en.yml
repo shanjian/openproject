@@ -1692,6 +1692,7 @@ en:
       version:
         effective_date: "Finish date"
         kind: "Kind"
+        released_at: "Released at"
         sharing: "Sharing"
       wiki_content:
         text: "Text"
