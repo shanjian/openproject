@@ -36,6 +36,11 @@ class Version < ApplicationRecord
   has_many :work_packages, dependent: :nullify
   acts_as_customizable
 
+  # Releases can be closed either through the dedicated release flow (Versions::ReleaseService)
+  # or, like any other version, by editing the Status field directly - stamping released_at
+  # here rather than in the service catches both paths.
+  before_save :track_released_at, if: :release?
+
   VERSION_STATUSES = %w(open locked closed).freeze
   VERSION_SHARINGS = %w(none descendants hierarchy tree system).freeze
   # Discriminates versions used as Sprints (the existing behaviour) from those managed
@@ -256,6 +261,14 @@ class Version < ApplicationRecord
   # (e.g. a sprint's version_id would become a release), breaking that isolation.
   def validate_kind_unchanged
     errors.add :kind, :unchangeable if kind_changed?
+  end
+
+  # Clears released_at on any transition away from "closed" so a reopened release doesn't
+  # keep showing a stale release time.
+  def track_released_at
+    return unless status_changed?
+
+    self.released_at = status == "closed" ? Time.current : nil
   end
 
   # Returns the average estimated time of assigned issues

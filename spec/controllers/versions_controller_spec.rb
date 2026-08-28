@@ -31,6 +31,8 @@
 require "spec_helper"
 
 RSpec.describe VersionsController do
+  include Redmine::I18n
+
   let(:user) { create(:admin) }
   let(:project) { create(:public_project) }
   let(:version1) { create(:version, project:, effective_date: nil) }
@@ -268,12 +270,14 @@ RSpec.describe VersionsController do
       end
 
       context "when the release has already been released" do
+        let(:released_at) { Time.zone.parse("2026-01-15 14:30") }
         let(:release) do
-          create(:version, project:, kind: "release", status: "closed", released_at: Time.zone.parse("2026-01-15 14:30"))
+          travel_to(released_at) { create(:version, project:, kind: "release", status: "closed") }
         end
 
         it "shows when it was released" do
           expect(response.body).to include(Version.human_attribute_name(:released_at))
+          expect(response.body).to include(format_time(released_at))
         end
       end
     end

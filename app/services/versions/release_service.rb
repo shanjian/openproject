@@ -55,7 +55,7 @@ module Versions
 
       ApplicationRecord.transaction do
         apply_strategy(strategy, target_version)
-        @version.update!(status: "closed", released_at: Time.current)
+        @version.update!(status: "closed")
       end
 
       ServiceResult.success(result: @version)

@@ -65,7 +65,7 @@ RSpec.describe Projects::Settings::ReleasesController do
       let(:released_at) { Time.zone.parse("2026-01-15 14:30") }
 
       before do
-        release.update!(status: "closed", released_at:)
+        travel_to(released_at) { release.update!(status: "closed") }
         get :show, params: { project_id: project.id }
       end
 
