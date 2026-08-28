@@ -312,6 +312,13 @@ export class WorkPackageSingleViewComponent extends UntilDestroyedMixin implemen
     return `#${this.workPackage.id || ''}`;
   }
 
+  /*
+   * Returns the path to the work package full view
+   */
+  public get idPath():string {
+    return this.PathHelper.workPackagePath(this.workPackage.id ?? '');
+  }
+
   public showSwitchToProjectBanner():boolean {
     return !this.isNewResource && this.projectContext && !this.projectContext.matches;
   }
