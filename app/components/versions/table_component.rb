@@ -31,8 +31,10 @@
 module Versions
   class TableComponent < ::TableComponent
     options :project
+    options release_view: false
 
-    columns :name, :project, :start_date, :effective_date, :description, :status, :sharing, :wiki_page_title
+    columns :name, :project, :start_date, :effective_date, :description, :status, :released_at, :sharing,
+            :wiki_page_title
 
     def sortable?
       true
@@ -46,12 +48,20 @@ module Versions
       %i[name desc]
     end
 
+    # The Release feature is the only thing that ever sets released_at (see
+    # Versions::ReleaseService), so the column is noise on the Sprints table where it would
+    # always be blank - only show it when explicitly rendering the Releases page.
+    def skip_column?(column)
+      column == :released_at && !release_view
+    end
+
     def sortable_columns_correlation
       {
         "name" => "versions.name",
         "start_date" => "versions.start_date",
         "effective_date" => "versions.effective_date",
-        "status" => "versions.status"
+        "status" => "versions.status",
+        "released_at" => "versions.released_at"
       }.with_indifferent_access
     end
 

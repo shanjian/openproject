@@ -76,6 +76,14 @@ RSpec.describe Versions::ReleaseService do
         expect(release.reload.status).to eq("closed")
         expect(linked_releases(incomplete_wp)).to contain_exactly(release.id.to_s)
       end
+
+      it "records when the release happened" do
+        freeze_time do
+          service.call(strategy: "force")
+
+          expect(release.reload.released_at).to eq(Time.current)
+        end
+      end
     end
 
     context "with strategy 'decouple'" do
@@ -137,6 +145,7 @@ RSpec.describe Versions::ReleaseService do
 
         expect(result).to be_failure
         expect(release.reload.status).to eq("open")
+        expect(release.released_at).to be_nil
       end
     end
 

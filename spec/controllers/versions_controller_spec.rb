@@ -262,6 +262,20 @@ RSpec.describe VersionsController do
       it "renders the release hub readiness section" do
         expect(response.body).to include(I18n.t(:label_release_readiness))
       end
+
+      it "does not show a released-at date for a release that has not been released yet" do
+        expect(response.body).not_to include(Version.human_attribute_name(:released_at))
+      end
+
+      context "when the release has already been released" do
+        let(:release) do
+          create(:version, project:, kind: "release", status: "closed", released_at: Time.zone.parse("2026-01-15 14:30"))
+        end
+
+        it "shows when it was released" do
+          expect(response.body).to include(Version.human_attribute_name(:released_at))
+        end
+      end
     end
   end
 
