@@ -92,6 +92,47 @@ RSpec.describe Version do
       it { expect(build(:version, kind: "sprint")).to be_sprint }
       it { expect(build(:version, kind: "sprint")).not_to be_release }
     end
+
+    describe "released_at tracking" do
+      context "for a release" do
+        let(:release) { create(:version, kind: "release", status: "open") }
+
+        it "is set when the status is changed to closed, however that happens" do
+          freeze_time do
+            release.update!(status: "closed")
+
+            expect(release.released_at).to eq(Time.current)
+          end
+        end
+
+        it "is cleared when a closed release is reopened" do
+          release.update!(status: "closed")
+
+          release.update!(status: "open")
+
+          expect(release.released_at).to be_nil
+        end
+
+        it "is untouched by saving other attributes while already closed" do
+          release.update!(status: "closed")
+          released_at = release.released_at
+
+          release.update!(description: "Updated")
+
+          expect(release.reload.released_at).to eq(released_at)
+        end
+      end
+
+      context "for a sprint" do
+        let(:sprint) { create(:version, kind: "sprint", status: "open") }
+
+        it "is never set, since sprints are not released" do
+          sprint.update!(status: "closed")
+
+          expect(sprint.released_at).to be_nil
+        end
+      end
+    end
   end
 
   describe "validations" do
