@@ -261,6 +261,15 @@ Rails.application.reloader.to_prepare do
                      permissible_on: :project,
                      require: :member
 
+      # Lets project admins create labels for their own project, under that project's own
+      # prefix. Scoped to the project's own options: system labels stay admin-only.
+      map.permission :manage_project_labels,
+                     {
+                       "projects/settings/labels": %i[index create update destroy]
+                     },
+                     permissible_on: :project,
+                     require: :member
+
       map.permission :add_subprojects,
                      { projects: %i[new create] },
                      permissible_on: :project,

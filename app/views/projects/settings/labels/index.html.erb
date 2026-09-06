@@ -1,0 +1,89 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+++#%>
+
+<% html_title t(:label_project_settings), t(:label_label_plural) %>
+
+<%=
+  render(Primer::OpenProject::PageHeader.new) do |header|
+    header.with_title { t(:label_label_plural) }
+    header.with_description { t("project_labels.description") }
+    header.with_breadcrumbs(
+      [{ href: project_overview_path(@project.id), text: @project.name },
+       { href: project_settings_general_path(@project), text: t(:label_project_settings) },
+       t(:label_label_plural)]
+    )
+  end
+%>
+
+<% if @label_field.nil? %>
+  <%= render(Primer::Beta::Blankslate.new) do |blankslate|
+        blankslate.with_heading(tag: :h2).with_content(t("project_labels.not_enabled"))
+      end %>
+<% elsif @project.label_prefix.blank? %>
+  <%= render(Primer::Beta::Blankslate.new) do |blankslate|
+        blankslate.with_heading(tag: :h2).with_content(t("project_labels.no_prefix"))
+      end %>
+<% else %>
+  <%= styled_form_tag(project_settings_labels_path(@project), method: :post) do %>
+    <%= styled_label_tag "custom_option_value", t("project_labels.new_label") %>
+    <%= styled_text_field_tag "custom_option[value]", nil,
+                              autocomplete: "off",
+                              placeholder: "#{@project.label_prefix}-Example" %>
+    <%= styled_button_tag t(:button_create), class: "-primary" %>
+  <% end %>
+
+  <h3><%= t("project_labels.owned_heading", prefix: @project.label_prefix) %></h3>
+  <% if @project_labels.empty? %>
+    <p class="form--field-instructions"><%= t("project_labels.none_yet") %></p>
+  <% else %>
+    <ul class="generic-table--container">
+      <% @project_labels.each do |label| %>
+        <li>
+          <%= form_tag(project_settings_label_path(@project, label), method: :patch, class: "op-inline-form") do %>
+            <%= styled_text_field_tag "custom_option[value]", label.value, autocomplete: "off" %>
+            <%= styled_button_tag t(:button_save) %>
+          <% end %>
+          <%= link_to t(:button_delete),
+                      project_settings_label_path(@project, label),
+                      method: :delete,
+                      data: { confirm: t(:text_are_you_sure) } %>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+
+  <h3><%= t("project_labels.system_heading") %></h3>
+  <p class="form--field-instructions"><%= t("project_labels.system_hint") %></p>
+  <ul>
+    <% @system_labels.each do |label| %>
+      <li><%= label.value %></li>
+    <% end %>
+  </ul>
+<% end %>

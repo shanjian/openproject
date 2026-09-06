@@ -27,42 +27,35 @@
 #
 # See COPYRIGHT and LICENSE files for more details.
 #++
+require "spec_helper"
 
-module CustomFields
-  class BaseContract < ::ModelContract
-    include RequiresAdminGuard
+RSpec.describe CustomField, "project value settings" do
+  subject(:field) { create(:list_wp_custom_field, possible_values: %w[A]) }
 
-    attribute :admin_only
-    attribute :allow_project_values
-    attribute :option_pattern
-    attribute :option_pattern_description
-    attribute :allow_non_open_versions
-    attribute :content_right_to_left
-    attribute :custom_field_section_id
-    attribute :default_value
-    attribute :editable
-    attribute :field_format
-    attribute :formula
-    attribute :has_comment
-    attribute :is_filter
-    attribute :is_for_all
-    attribute :is_required do
-      validate_non_true_for_some_formats
-    end
-    attribute :max_length
-    attribute :min_length
-    attribute :multi_value
-    attribute :name
-    attribute :possible_values
-    attribute :regexp
-    attribute :searchable
-    attribute :type
-    attribute :version_kind
+  it "refuses to allow project values without a naming pattern" do
+    field.allow_project_values = true
 
-    def validate_non_true_for_some_formats
-      return unless %w[bool calculated_value].include?(field_format)
+    expect(field).not_to be_valid
+    expect(field.errors[:allow_project_values]).to be_present
+  end
 
-      errors.add(:is_required, :cannot_be_true) if is_required == true
-    end
+  it "allows project values once a pattern is set" do
+    field.option_pattern = '\A[A-Z][A-Z0-9]{1,5}-[A-Z][A-Za-z0-9]*\z'
+    field.allow_project_values = true
+
+    expect(field).to be_valid
+  end
+
+  # An unbalanced bracket saved here would otherwise raise RegexpError later, at label
+  # creation, in a different screen.
+  it "rejects a malformed pattern where it is entered" do
+    field.option_pattern = '\A(ML|AD-'
+
+    expect(field).not_to be_valid
+    expect(field.errors[:option_pattern]).to be_present
+  end
+
+  it "leaves the pattern optional when project values are off" do
+    expect(field).to be_valid
   end
 end

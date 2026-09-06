@@ -335,6 +335,7 @@ Rails.application.routes.draw do
         end
         resource :repository, only: %i[show], controller: "repository"
         resource :versions, only: %i[show]
+        resources :labels, only: %i[index create update destroy]
         resource :releases, only: %i[show]
         resource :storage, only: %i[show], controller: "storage"
         get :types, to: redirect("projects/%{project_id}/settings/work_packages/types")

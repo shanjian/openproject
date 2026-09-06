@@ -272,6 +272,15 @@ en:
       error_requeue: "Job experienced an error but is retrying. The error was: %{message}"
       cancelled_due_to: "Job was cancelled due to error: %{message}"
 
+  project_labels:
+    description: "Labels this project owns, created under its own prefix. System labels are shared by every project and are managed by an administrator."
+    not_enabled: "Project-owned labels are not enabled on any field. An administrator enables them on the label custom field."
+    no_prefix: "This project has no label prefix, so it cannot own labels yet. An administrator sets one under Administration."
+    new_label: "New label"
+    owned_heading: "Labels owned by this project (%{prefix}-)"
+    none_yet: "This project owns no labels yet."
+    system_heading: "Shared labels"
+    system_hint: "Managed by an administrator and usable in every project. Shown here so you can see which names are taken."
   label_prefixes:
     description: "Each project owns labels under its own prefix. A project without one cannot own labels. Prefixes are two to six upper case letters or digits, and no two projects may share one."
     no_candidate: "No prefix can be derived from this identifier — set one by hand."
@@ -373,6 +382,13 @@ en:
     edit: "Edit custom action %{name}"
     execute: "Execute %{name}"
 
+  custom_options:
+    project_labels:
+      errors:
+        unauthorised: "You are not allowed to manage labels in this project."
+        field_not_open: "This field does not accept project-owned labels."
+        no_prefix: "This project has no label prefix, so it cannot own labels. An administrator sets one under Administration."
+        not_owned: "That label does not belong to this project."
   custom_fields:
     admin:
       custom_field_projects:
@@ -436,6 +452,9 @@ en:
     calculated_field_not_editable: "Non-editable attribute. This value is calculated automatically."
     no_role_assigment: "No role assignment"
     instructions:
+      allow_project_values: "Let project administrators add values for their own project. Each such value must carry that projects label prefix, and is only applicable in that project."
+      option_pattern: "A regular expression every value must match, e.g. \\A[A-Z][A-Z0-9]{1,5}-[A-Z][A-Za-z0-9]*\\z. Checked when a value is created or renamed, so existing values are not affected."
+      option_pattern_description: "Shown to users when a value is rejected. Describe the rule in words rather than showing them the expression."
       is_required:
         all: "Mark the custom field as required. This will make it mandatory to fill in the field when creating new resources. Existing resources will not require a value when being updated."
         project: "Required attributes need to be filled out by the user on project creation if the field is active ('For all projects' set or copying from a project/template in which the field is active). Existing projects will not require a value when being updated."
@@ -1433,6 +1452,9 @@ en:
         actions: "Actions"
       custom_field:
         allow_non_open_versions: "Allow non-open versions"
+        allow_project_values: "Allow project-owned values"
+        option_pattern: "Value naming pattern"
+        option_pattern_description: "Naming pattern description"
         default_value: "Default value"
         editable: "Editable"
         field_format: "Format"
@@ -1860,6 +1882,10 @@ en:
             one: "%{name} is used in project attribute calculation %{links}."
             other: "%{name} is used in project attribute calculations: %{links}."
           attributes:
+            allow_project_values:
+              requires_option_pattern: "cannot be enabled until a label naming pattern is set."
+            option_pattern:
+              invalid: "is not a valid regular expression."
             formula:
               blank: "Formula can't be blank."
               invalid: "Formula is invalid."
@@ -3430,6 +3456,7 @@ en:
   label_attachment_plural: "Attachments"
   label_attribute: "Attribute"
   label_attribute_plural: "Attributes"
+  label_label_plural: "Labels"
   label_label_prefixes: "Label prefixes"
   label_ldap_auth_source_new: "New LDAP connection"
   label_ldap_auth_source: "LDAP connection"
@@ -4460,6 +4487,7 @@ en:
   permission_log_time: "Log time for other users"
   permission_manage_forums: "Manage forums"
   permission_manage_categories: "Manage work package categories"
+  permission_manage_project_labels: "Manage project labels"
   permission_manage_dashboards: "Manage dashboards"
   permission_manage_work_package_relations: "Manage work package relations"
   permission_manage_members: "Manage members"

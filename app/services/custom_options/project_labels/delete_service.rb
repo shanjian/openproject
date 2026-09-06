@@ -27,42 +27,22 @@
 #
 # See COPYRIGHT and LICENSE files for more details.
 #++
+module CustomOptions
+  module ProjectLabels
+    class DeleteService < BaseService
+      def call(option:)
+        reason = guard || ownership_failure(option)
+        return guard_failure(reason) if reason
 
-module CustomFields
-  class BaseContract < ::ModelContract
-    include RequiresAdminGuard
+        CustomOptions::DestroyService.new(option:).call
+      end
 
-    attribute :admin_only
-    attribute :allow_project_values
-    attribute :option_pattern
-    attribute :option_pattern_description
-    attribute :allow_non_open_versions
-    attribute :content_right_to_left
-    attribute :custom_field_section_id
-    attribute :default_value
-    attribute :editable
-    attribute :field_format
-    attribute :formula
-    attribute :has_comment
-    attribute :is_filter
-    attribute :is_for_all
-    attribute :is_required do
-      validate_non_true_for_some_formats
-    end
-    attribute :max_length
-    attribute :min_length
-    attribute :multi_value
-    attribute :name
-    attribute :possible_values
-    attribute :regexp
-    attribute :searchable
-    attribute :type
-    attribute :version_kind
+      private
 
-    def validate_non_true_for_some_formats
-      return unless %w[bool calculated_value].include?(field_format)
-
-      errors.add(:is_required, :cannot_be_true) if is_required == true
+      # A system label belongs to the admin path, not this one.
+      def ownership_failure(option)
+        :not_owned unless option.project_id == project.id
+      end
     end
   end
 end

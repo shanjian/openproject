@@ -74,6 +74,8 @@ class CustomField < ApplicationRecord
   validate :validate_field_format_inclusion
   validate :validate_default_value
   validate :validate_regex
+  validate :validate_option_pattern
+  validate :validate_option_pattern_present_when_allowing_project_values
 
   validates :min_length, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :max_length, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
@@ -138,6 +140,28 @@ class CustomField < ApplicationRecord
     ensure
       self.is_required = required_field
     end
+  end
+
+  # The pattern is admin-supplied free text handed to Regexp.new, so an unbalanced bracket
+  # saved here would raise RegexpError later, at label creation, in a different screen.
+  # Validate it where it is entered.
+  def validate_option_pattern
+    return if option_pattern.blank?
+
+    Regexp.new(option_pattern)
+    true
+  rescue RegexpError
+    errors.add(:option_pattern, :invalid)
+  end
+
+  # Enabling project values without a naming rule would let a project create labels under no
+  # constraint at all, and the rollout would depend on running its phases in order. Make the
+  # order impossible to get wrong instead.
+  def validate_option_pattern_present_when_allowing_project_values
+    return unless allow_project_values?
+    return if option_pattern.present?
+
+    errors.add(:allow_project_values, :requires_option_pattern)
   end
 
   def validate_regex

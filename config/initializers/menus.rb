@@ -794,6 +794,11 @@ Redmine::MenuManager.map :project_menu do |menu|
           User.current.allowed_in_project?(:select_custom_fields, project)
       }
     },
+    labels: {
+      caption: :label_label_plural,
+      action: :index,
+      if: ->(project) { User.current.allowed_in_project?(:manage_project_labels, project) }
+    },
     versions: { caption: :label_version_plural },
     releases: {
       caption: :label_release_plural,

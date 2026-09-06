@@ -123,11 +123,16 @@ module CustomFields
       end
 
       def delete_option
-        if @custom_option.destroy
-          num_deleted = delete_custom_values! @custom_option
+        # Through the shared service so the option and its values go in one transaction.
+        # This path used to destroy the option and only then delete the values, with nothing
+        # wrapping the two - a failure in between left work packages holding values pointing
+        # at a row that no longer existed.
+        value = @custom_option.value
+        call = ::CustomOptions::DestroyService.new(option: @custom_option).call
 
+        if call.success?
           flash[:notice] = I18n.t(
-            :notice_custom_options_deleted, option_value: @custom_option.value, num_deleted:
+            :notice_custom_options_deleted, option_value: value, num_deleted: call.result
           )
         else
           flash[:error] = @custom_option.errors.full_messages
