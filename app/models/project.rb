@@ -100,6 +100,12 @@ class Project < ApplicationRecord
   has_one :wiki, dependent: :destroy
   has_many :budgets, dependent: :destroy
   has_many :notification_settings, dependent: :destroy
+  # Labels this project owns. Deliberately not dependent: :destroy - CustomOption aborts
+  # destroy when it is the last option on its field, which would leave a row for the foreign
+  # key to trip over. See #remove_owned_labels.
+  # rubocop:disable Rails/HasManyOrHasOneDependent -- deliberate, see #remove_owned_labels
+  has_many :custom_options, inverse_of: :project
+  # rubocop:enable Rails/HasManyOrHasOneDependent
   has_many :project_storages, dependent: :destroy, class_name: "Storages::ProjectStorage"
   has_many :storages, through: :project_storages
   has_many :phases, class_name: "Project::Phase", dependent: :destroy
@@ -212,6 +218,17 @@ class Project < ApplicationRecord
             format: { with: /\A(?!^\d+\z)[a-z0-9\-_]+\z/ },
             if: ->(p) { p.identifier_changed? && p.identifier.present? }
 
+  # The prefix every label this project owns must carry. Anchored: an unanchored fragment
+  # would accept any string containing a valid prefix.
+  validates :label_prefix,
+            format: { with: LabelNaming::PREFIX_FORMAT },
+            uniqueness: { case_sensitive: true },
+            allow_nil: true
+
+  normalizes :label_prefix, with: ->(prefix) { prefix.presence }
+
+  before_destroy :remove_owned_labels, prepend: true
+
   validates_associated :repository, :wiki
 
   friendly_id :identifier, use: :finders
@@ -282,6 +299,34 @@ class Project < ApplicationRecord
     name
   end
 
+  # Removes the labels this project owns, before the foreign key on custom_options.project_id
+  # can reject the delete.
+  #
+  # Two behaviours, and the split matters:
+  #
+  #   * An option still referenced by a work package in ANOTHER project is PROMOTED to
+  #     system level, not deleted. Deleting it would damage data belonging to a project that
+  #     has nothing to do with this deletion. The option id does not change, so every stored
+  #     value stays valid.
+  #   * Anything else is deleted along with its custom values, using delete_all rather than
+  #     destroy_all so CustomOption#assure_at_least_one_option cannot abort and leave a row
+  #     behind. That invariant is a field-level concern and must not block deleting a
+  #     project.
+  #
+  # Returns the promoted options so a caller can report them; promotion is deliberately not
+  # silent.
+  def remove_owned_labels
+    owned = CustomOption.where(project_id: id).pluck(:id, :custom_field_id)
+    return [] if owned.empty?
+
+    referenced, unreferenced = owned.partition { |option_id, field_id| label_used_elsewhere?(option_id, field_id) }
+
+    promote_owned_labels(referenced)
+    delete_owned_labels(unreferenced)
+
+    referenced.map(&:first)
+  end
+
   def workspace_label
     case workspace_type
     when "program"
@@ -348,5 +393,34 @@ class Project < ApplicationRecord
     @allowed_actions ||= allowed_permissions.flat_map do |permission|
       OpenProject::AccessControl.allowed_actions(permission)
     end
+  end
+
+  private
+
+  def label_used_elsewhere?(option_id, custom_field_id)
+    CustomValue
+      .where(custom_field_id:, value: option_id.to_s, customized_type: "WorkPackage")
+      .where.not(customized_id: WorkPackage.where(project_id: id).select(:id))
+      .exists?
+  end
+
+  def promote_owned_labels(referenced)
+    return if referenced.empty?
+
+    CustomOption.where(id: referenced.map(&:first)).update_all(project_id: nil)
+  end
+
+  def delete_owned_labels(unreferenced)
+    return if unreferenced.empty?
+
+    # custom_values.value holds the option id as text and the column is shared by every field
+    # format, so the field and the value must stay PAIRED. Two independent IN clauses would
+    # form a cross product and delete an integer field's value 99 because some field owned an
+    # option with id 99.
+    unreferenced.group_by(&:last).each do |custom_field_id, rows|
+      CustomValue.where(custom_field_id:, value: rows.map { |option_id, _| option_id.to_s }).delete_all
+    end
+
+    CustomOption.where(id: unreferenced.map(&:first)).delete_all
   end
 end

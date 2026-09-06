@@ -1445,6 +1445,10 @@ en:
         searchable: "Searchable"
         admin_only: "Admin-only"
         version_kind: "Version kind"
+      custom_option:
+        default_value: "Default value"
+        project: "Owning project"
+        value: "Value"
       custom_value:
         value: "Value"
       design_color:
@@ -1859,6 +1863,15 @@ en:
               format: "%{message}"
             required:
               cannot_be_true: "cannot be set to true."
+        custom_option:
+          attributes:
+            base:
+              project_has_no_label_prefix: "The project has no label prefix, so it cannot own labels. An administrator sets one under Administration."
+            default_value:
+              only_system_labels: "can only be set on labels shared by all projects."
+            value:
+              must_carry_project_prefix: "must start with this project's label prefix, %{prefix}-."
+              shadows_system_label: "is already used by a label shared by all projects."
         custom_fields_project:
           attributes:
             project_ids:
