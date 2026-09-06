@@ -115,6 +115,33 @@ RSpec.describe CustomOption, "label governance" do
     end
   end
 
+  describe "the structural label format" do
+    # LABEL_FORMAT was defined and never used: only start_with? and the admin pattern ran,
+    # so a permissive pattern - or none - let a bare prefix through.
+    it "rejects a bare prefix with no name" do
+      expect(project_label("AT-")).not_to be_valid
+    end
+
+    it "rejects a lower case name" do
+      expect(project_label("AT-lower")).not_to be_valid
+    end
+
+    it "still rejects it when the field pattern is permissive" do
+      field.update_column(:option_pattern, ".*")
+
+      expect(project_label("AT-")).not_to be_valid
+    end
+
+    it "shows the pattern description rather than a regular expression" do
+      field.update_columns(option_pattern: '\A[A-Z]{2}-ONLY\z',
+                           option_pattern_description: "Only AT-ONLY is allowed here")
+      option = project_label("AT-Something")
+      option.valid?
+
+      expect(option.errors[:value].join).to include("Only AT-ONLY is allowed here")
+    end
+  end
+
   describe "cross-tier shadowing" do
     it "refuses a project label named after a system label" do
       system_label("AT-Reserved")
@@ -123,6 +150,27 @@ RSpec.describe CustomOption, "label governance" do
 
       expect(option).not_to be_valid
       expect(option.errors[:value]).to be_present
+    end
+
+    # The symmetric case. Checking one direction only leaves an admin free to create or
+    # rename a system label onto an existing project label - the same ambiguity, and no
+    # index can catch it, because the collision spans both tiers.
+    it "refuses a system label named after an existing project label" do
+      project_label("AT-Taken").tap(&:save!)
+
+      option = build(:custom_option, custom_field: field, value: "AT-Taken")
+
+      expect(option).not_to be_valid
+      expect(option.errors[:value]).to be_present
+    end
+
+    it "refuses renaming a system label onto an existing project label" do
+      project_label("AT-Taken").tap(&:save!)
+      existing = system_label("ML-Something")
+
+      existing.value = "AT-Taken"
+
+      expect(existing).not_to be_valid
     end
   end
 

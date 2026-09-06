@@ -35,12 +35,13 @@
 class Projects::Settings::LabelsController < Projects::SettingsController
   menu_item :settings_labels
 
-  before_action :find_label_field
+  before_action :find_label_fields
+  before_action :require_label_field, only: %i[create update destroy]
   before_action :find_option, only: %i[update destroy]
 
   def index
-    @project_labels = project_labels
-    @system_labels = system_labels
+    @labels_by_field = @label_fields.index_with { |field| owned_labels(field) }
+    @system_labels_by_field = @label_fields.index_with { |field| field.custom_options.system_level.order(:value) }
   end
 
   def create
@@ -79,36 +80,40 @@ class Projects::Settings::LabelsController < Projects::SettingsController
     redirect_to project_settings_labels_path(@project)
   end
 
-  # There may be several project-aware list fields in principle; the screen manages all of
-  # them, and in practice that is the one Labels field.
-  def find_label_field
-    @label_field = WorkPackageCustomField
-                     .where(field_format: "list", allow_project_values: true)
-                     .order(:name)
-                     .first
+  # Every project-aware list field, not just the first. The admin form can enable the flag
+  # on any work package list field, and picking one alphabetically would leave the others'
+  # labels unmanageable.
+  def find_label_fields
+    @label_fields = WorkPackageCustomField
+                      .where(field_format: "list", allow_project_values: true)
+                      .order(:name)
+                      .to_a
+  end
+
+  # The mutating actions resolve their field from the submitted option or parameter. Without
+  # this they passed nil into the service, whose guard dereferences it - a 500 rather than a
+  # message, on an instance where nobody has enabled the feature yet.
+  def require_label_field
+    @label_field = @label_fields.find { |field| field.id == submitted_field_id } || @label_fields.first
+    return if @label_field
+
+    flash[:error] = I18n.t("project_labels.not_enabled")
+    redirect_to project_settings_labels_path(@project)
+  end
+
+  def submitted_field_id
+    return params[:custom_field_id].to_i if params[:custom_field_id].present?
+
+    CustomOption.where(id: params[:id]).pick(:custom_field_id)
   end
 
   def find_option
-    @option = label_field_options.find_by(id: params[:id])
+    @option = @label_field.custom_options.find_by(id: params[:id])
     render_404 if @option.nil?
   end
 
-  def label_field_options
-    @label_field ? @label_field.custom_options : CustomOption.none
-  end
-
-  # Shown read-only for reference, so a project admin can see a name is already taken
-  # globally before trying to create it.
-  def system_labels
-    return [] if @label_field.nil?
-
-    @label_field.custom_options.system_level.order(:value)
-  end
-
-  def project_labels
-    return [] if @label_field.nil?
-
-    @label_field.custom_options.where(project_id: @project.id).order(:value)
+  def owned_labels(field)
+    field.custom_options.where(project_id: @project.id).order(:value)
   end
 
   def label_params

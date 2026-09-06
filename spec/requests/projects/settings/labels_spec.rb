@@ -75,7 +75,7 @@ RSpec.describe "Project labels settings", :skip_csrf, type: :rails_request do
       expect(option.reload.value).to eq "AT-Renamed"
     end
 
-    it "will not rename a shared label" do
+    it "does not rename a shared label" do
       system_label = field.custom_options.system_level.first
 
       patch project_settings_label_path(project, system_label), params: { custom_option: { value: "AT-Hijack" } }
@@ -97,6 +97,58 @@ RSpec.describe "Project labels settings", :skip_csrf, type: :rails_request do
       get project_settings_labels_path(project)
 
       expect(response.body).to include(I18n.t("project_labels.no_prefix"))
+    end
+  end
+
+  describe "when no field accepts project values" do
+    current_user { manager }
+
+    before { field.update_column(:allow_project_values, false) }
+
+    it "says so rather than rendering an empty screen" do
+      get project_settings_labels_path(project)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(I18n.t("project_labels.not_enabled"))
+    end
+
+    # The mutating actions used to hand nil to the service, whose guard dereferences it -
+    # a 500 on an instance where nobody has enabled the feature yet.
+    it "redirects rather than raising when a label is submitted" do
+      post project_settings_labels_path(project), params: { custom_option: { value: "AT-Bounce" } }
+
+      expect(response).to have_http_status(:redirect)
+      expect(field.custom_options.where(project:)).to be_empty
+    end
+  end
+
+  describe "with more than one project-aware field" do
+    shared_let(:second_field) do
+      create(:list_wp_custom_field, name: "Zulu labels", multi_value: true, possible_values: %w[ZZ-Shared])
+    end
+
+    current_user { manager }
+
+    before do
+      second_field.update_columns(allow_project_values: true,
+                                  option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Z][A-Za-z0-9]*\z')
+    end
+
+    # The screen used to manage only the alphabetically first field, leaving the others'
+    # labels unreachable even though the admin form can enable any of them.
+    it "lists every one of them" do
+      get project_settings_labels_path(project)
+
+      expect(response.body).to include(field.name)
+      expect(response.body).to include(second_field.name)
+    end
+
+    it "creates the label on the field it was submitted for" do
+      post project_settings_labels_path(project),
+           params: { custom_field_id: second_field.id, custom_option: { value: "AT-Zulu" } }
+
+      expect(second_field.custom_options.where(project:).pluck(:value)).to include("AT-Zulu")
+      expect(field.custom_options.where(project:)).to be_empty
     end
   end
 

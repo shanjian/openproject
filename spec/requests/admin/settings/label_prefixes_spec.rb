@@ -107,6 +107,47 @@ RSpec.describe "Admin label prefixes", :skip_csrf, type: :rails_request do
     end
   end
 
+  describe "changing a prefix that already has labels" do
+    current_user { create(:admin) }
+
+    shared_let(:field) do
+      create(:list_wp_custom_field, name: "Labels", multi_value: true, possible_values: %w[ML-Shared])
+    end
+
+    before do
+      field.update_columns(allow_project_values: true,
+                           option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Z][A-Za-z0-9]*\z')
+      archtech.update_column(:label_prefix, "AT")
+    end
+
+    # Without this the labels keep a prefix the project no longer has: unrenameable, since
+    # the naming rule would reject their own value, and the freed prefix could be handed to
+    # another project which then creates colliding names.
+    it "renames the project's own labels to the new prefix" do
+      label = create(:custom_option, custom_field: field, value: "AT-Bounce", project: archtech)
+
+      submit(archtech.id => "ARCH")
+
+      expect(archtech.reload.label_prefix).to eq "ARCH"
+      expect(label.reload.value).to eq "ARCH-Bounce"
+    end
+
+    it "refuses to clear a prefix while the project owns labels" do
+      create(:custom_option, custom_field: field, value: "AT-Bounce", project: archtech)
+
+      submit(archtech.id => "")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(archtech.reload.label_prefix).to eq "AT"
+    end
+
+    it "still allows clearing a prefix when no labels exist" do
+      submit(archtech.id => "")
+
+      expect(archtech.reload.label_prefix).to be_nil
+    end
+  end
+
   context "as a project admin" do
     current_user { create(:user) }
 

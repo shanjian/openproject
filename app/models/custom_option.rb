@@ -83,17 +83,25 @@ class CustomOption < ApplicationRecord
   # A project label may not take the name of a system label: two same-named labels resolving
   # differently by project would defeat the point of a shared taxonomy. Postgres cannot
   # express this as a unique index, because it spans both tiers.
+  # Cross-tier collisions are blocked in BOTH directions. Checking only one leaves the
+  # symmetric case open: an admin creating or renaming a system label onto an existing
+  # project label produces exactly the ambiguity the rule exists to prevent, and no unique
+  # index can catch it - the case spans both tiers.
   def validate_does_not_shadow_system_option
-    return if system_level?
     return unless value_check_needed?
 
-    shadowed = CustomOption
-                 .system_level
-                 .where(custom_field_id:)
-                 .where.not(id:)
-                 .where("LOWER(value) = ?", value.downcase)
+    if system_level?
+      errors.add(:value, :shadowed_by_project_label) if colliding_options(:project_level).exists?
+    elsif colliding_options(:system_level).exists?
+      errors.add(:value, :shadows_system_label)
+    end
+  end
 
-    errors.add(:value, :shadows_system_label) if shadowed.exists?
+  def colliding_options(tier)
+    scope = CustomOption.where(custom_field_id:).where.not(id:)
+    scope = tier == :system_level ? scope.system_level : scope.where.not(project_id: nil)
+
+    scope.where("LOWER(value) = ?", value.downcase)
   end
 
   def validate_value_matches_option_pattern
@@ -102,11 +110,25 @@ class CustomOption < ApplicationRecord
     pattern = custom_field&.option_pattern
     return if pattern.blank?
 
-    errors.add(:value, :invalid) unless Regexp.new(pattern, timeout: 1).match?(value)
+    return if Regexp.new(pattern, timeout: 1).match?(value)
+
+    add_pattern_mismatch_error
   rescue RegexpError
     # The pattern is validated where it is entered; an invalid one must not make every
     # label unsaveable with an error pointing at the label.
     Rails.logger.error("CustomField ##{custom_field_id} has an invalid option_pattern")
+  end
+
+  # option_pattern_description exists precisely so a user is not shown a regular expression.
+  # Fall back to the generic message only when an admin left it blank.
+  def add_pattern_mismatch_error
+    description = custom_field.option_pattern_description
+
+    if description.present?
+      errors.add(:value, :does_not_match_pattern, description:)
+    else
+      errors.add(:value, :invalid)
+    end
   end
 
   # A project label must carry its own project's prefix. A project with no prefix cannot own
@@ -115,11 +137,13 @@ class CustomOption < ApplicationRecord
     return if system_level?
     return unless value_check_needed?
 
-    if project&.label_prefix.blank?
-      errors.add(:base, :project_has_no_label_prefix)
-    elsif !LabelNaming.prefixed_with?(value, project.label_prefix)
-      errors.add(:value, :must_carry_project_prefix, prefix: project.label_prefix)
-    end
+    prefix = project&.label_prefix
+    return errors.add(:base, :project_has_no_label_prefix) if prefix.blank?
+    return errors.add(:value, :must_carry_project_prefix, prefix:) unless LabelNaming.prefixed_with?(value, prefix)
+
+    # The structural rule, independent of the admin-supplied option_pattern. Without it a
+    # permissive pattern - or none at all - would accept "AT-" or "AT-lower".
+    errors.add(:value, :invalid_label_format) unless LabelNaming::LABEL_FORMAT.match?(value)
   end
 
   # A default is applied in every project, so a project-owned option must never be one:

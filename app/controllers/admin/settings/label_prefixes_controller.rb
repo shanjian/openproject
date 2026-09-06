@@ -48,16 +48,16 @@ module Admin::Settings
     end
 
     def update
-      updated = assign_prefixes
+      failed = assign_prefixes
 
-      if updated.all?(&:valid?)
+      if failed.empty?
         flash[:notice] = I18n.t(:notice_successful_update)
         redirect_to action: :show
       else
         @projects = Project.order(:name)
         @candidates = candidates_for(@projects)
-        @failed = updated.reject(&:valid?)
-        flash.now[:error] = failure_message(@failed)
+        @failed = failed
+        flash.now[:error] = failure_message(failed)
         render :show, status: :unprocessable_entity
       end
     end
@@ -65,8 +65,11 @@ module Admin::Settings
     private
 
     # One transaction: a partial save would leave an admin guessing which rows took.
+    # Returns the projects that FAILED. Re-checking with valid? afterwards would re-run
+    # validations and discard errors added by hand, so a refused change looked like a
+    # success.
     def assign_prefixes
-      updated = []
+      failed = []
 
       Project.transaction do
         prefix_params.each do |project_id, attributes|
@@ -75,13 +78,46 @@ module Admin::Settings
 
           project.label_prefix = attributes[:label_prefix]
           next if project.label_prefix == project.label_prefix_was
+          next if save_with_owned_labels?(project)
 
-          updated << project
-          raise ActiveRecord::Rollback unless project.save
+          failed << project
+          raise ActiveRecord::Rollback
         end
       end
 
-      updated
+      failed
+    end
+
+    # A prefix is not just a naming rule: it is the namespace this project's existing labels
+    # already sit in. Changing or clearing it without touching them leaves every owned label
+    # carrying a prefix the project no longer has - unrenameable, because the naming rule
+    # would then reject its own value - and frees the old prefix for another project, which
+    # could create colliding names in a namespace that still has labels in it.
+    #
+    # So the labels move with the prefix, and clearing is refused while any exist.
+    def save_with_owned_labels?(project)
+      owned = CustomOption.where(project_id: project.id)
+
+      if project.label_prefix.blank? && owned.exists?
+        project.errors.add(:label_prefix, :cannot_be_cleared_with_labels, count: owned.count)
+        return false
+      end
+
+      return false unless project.save
+
+      rename_owned_labels(project, owned)
+      true
+    end
+
+    def rename_owned_labels(project, owned)
+      old_prefix = project.label_prefix_previously_was
+      return if old_prefix.blank? || project.label_prefix.blank?
+
+      owned.find_each do |option|
+        next unless option.value.start_with?("#{old_prefix}-")
+
+        option.update_column(:value, option.value.sub(/\A#{Regexp.escape(old_prefix)}-/, "#{project.label_prefix}-"))
+      end
     end
 
     def prefix_params

@@ -1903,6 +1903,9 @@ en:
             value:
               must_carry_project_prefix: "must start with this project's label prefix, %{prefix}-."
               shadows_system_label: "is already used by a label shared by all projects."
+              shadowed_by_project_label: "is already used by a label owned by a project. Rename or promote that one first."
+              invalid_label_format: "must look like PREFIX-Name, e.g. AT-Bounce."
+              does_not_match_pattern: "%{description}"
         custom_fields_project:
           attributes:
             project_ids:
@@ -1976,6 +1979,8 @@ en:
           foreign_wps_reference_version: "Work packages in non descendant projects reference versions of the project or its descendants."
           cannot_be_assigned_to_artifact_work_package: "The chosen user is not allowed to be assigned to work packages."
           attributes:
+            label_prefix:
+              cannot_be_cleared_with_labels: "cannot be cleared while this project owns %{count} label(s). Delete or promote them first."
             base:
               archive_permission_missing_on_subprojects: "You do not have the permissions required to archive all sub-projects. Please contact an administrator."
               project_initiation_request_disabled: "Project initiation request is disabled. It must be enabled to create the artifact work package."
