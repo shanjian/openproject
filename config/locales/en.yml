@@ -2074,6 +2074,8 @@ en:
         work_package:
           is_not_a_valid_target_for_time_entries: "Work package #%{id} is not a valid target for reassigning the time entries."
           attributes:
+            base:
+              label_not_applicable: "%{field}: a label was applied that this project cannot use."
             id:
               format: "%{message}"
               cannot_add_child_because_of_lack_of_permission: "Cannot add child because you don't have permissions to edit the selected work package."

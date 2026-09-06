@@ -52,6 +52,7 @@ module WorkPackages
     end
 
     validate :validate_no_reopen_on_closed_version
+    validate :validate_applied_labels
 
     attribute :project_id
 
@@ -251,6 +252,50 @@ module WorkPackages
     def valid?(context = :saving_custom_fields) = super
 
     private
+
+    # Enforces that a user may only APPLY a label the project has access to.
+    #
+    # Scoping the picker is not enforcement: the API accepts any option id that exists, and
+    # project copy runs with a contract whose #valid? returns true unconditionally.
+    #
+    # Only NEWLY ADDED values are checked. SetAttributesService marks the whole field for
+    # validation whenever it appears in the params, so reading the work package's label
+    # values would see everything it now holds - and reject an unrelated edit to a work
+    # package that moved projects, which is exactly what retention exists to prevent. The
+    # split is already made one layer down: acts_as_customizable builds genuinely new values
+    # as new records and leaves untouched ones on their persisted rows.
+    def validate_applied_labels
+      project = model.project
+      return if project.nil?
+
+      scoped_label_fields.each do |custom_field|
+        next if labels_added_to(custom_field).empty?
+        next if labels_added_to(custom_field).all? { |value| applicable_label_ids(custom_field, project).include?(value) }
+
+        errors.add(:base, :label_not_applicable, field: custom_field.name)
+      end
+    end
+
+    def scoped_label_fields
+      model.available_custom_fields.select do |custom_field|
+        custom_field.field_format == "list" && custom_field.allow_project_values?
+      end
+    end
+
+    # New records only - see the note on validate_applied_labels.
+    def labels_added_to(custom_field)
+      @labels_added_to ||= {}
+      @labels_added_to[custom_field.id] ||= model
+        .custom_values_for_custom_field(custom_field, all: true)
+        .select { |custom_value| custom_value.new_record? && custom_value.value.present? }
+        .map { |custom_value| custom_value.value.to_s }
+    end
+
+    def applicable_label_ids(custom_field, project)
+      @applicable_label_ids ||= {}
+      @applicable_label_ids[custom_field.id] ||=
+        custom_field.custom_options.applicable_in(project).pluck(:id).map(&:to_s)
+    end
 
     def validate_after_soonest_start(date_attribute)
       return if model.schedule_manually?

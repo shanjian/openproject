@@ -157,7 +157,11 @@ module Projects::Copy
     end
 
     def custom_value_attributes(source_work_package, user_cf_ids)
-      source_work_package.custom_value_attributes.to_h do |id, value|
+      # custom_value_attributes_for, not custom_value_attributes: this hash is passed as an
+      # override and WINS the merge in CopyService#copied_attributes, so filtering there
+      # alone would never run on a project copy - the one path where no contract validation
+      # catches an inapplicable label.
+      source_work_package.custom_value_attributes_for(target).to_h do |id, value|
         if user_cf_ids.include?(id) && !target.users.detect { |u| u.id.to_s == value }
           [id, nil]
         else

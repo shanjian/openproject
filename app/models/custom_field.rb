@@ -155,6 +155,27 @@ class CustomField < ApplicationRecord
     is_required?
   end
 
+  # What may be APPLIED here, as opposed to what exists.
+  #
+  # possible_values_options answers a different question - what exists to filter by - and
+  # query filters call it (Queries::Filters::Shared::CustomFields::Base#allowed_values), so
+  # it must keep returning everything. One method cannot answer both: applying is scoped,
+  # reading is not.
+  #
+  # Only the project-aware list case narrows. Everything else delegates unchanged, which is
+  # not politeness: options_for_list is reached for three formats, since `user` and
+  # `version` both register edit_as: "list", and it branches on version? to build grouped
+  # options. A list-only implementation would strip version grouping and break user fields.
+  def applicable_values_options(obj = nil, options: {})
+    project = deduce_project(obj)
+
+    if field_format == "list" && allow_project_values? && project
+      applicable_list_values_options(project)
+    else
+      possible_values_options(obj, options:)
+    end
+  end
+
   def possible_values_options(obj = nil, options: {})
     case field_format
     when "user"
@@ -446,6 +467,10 @@ class CustomField < ApplicationRecord
 
   def possible_list_values_options
     possible_values.map { |option| [option.value, option.id.to_s] }
+  end
+
+  def applicable_list_values_options(project)
+    custom_options.applicable_in(project).map { |option| [option.value, option.id.to_s] }
   end
 
   def possible_values_from_arg(arg)

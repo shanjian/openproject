@@ -78,13 +78,25 @@ class WorkPackages::CopyService < BaseServices::BaseCallable
       .call(**copied_attributes(work_package, attribute_overrides).merge(send_notifications:).symbolize_keys)
   end
 
+  # The two callers name the target differently: project copy passes a project object, bulk
+  # copy threads a project_id. A resolver understanding one form filters against the SOURCE
+  # project on the other path - correct in a test written for project copy, leaking on every
+  # bulk copy. The final fallback matters too: a same-project copy overrides neither key and
+  # must keep its labels rather than lose them to a nil target.
+  def copy_target_project(overwritten_attributes)
+    overwritten_attributes["project"] ||
+      (overwritten_attributes["project_id"] && Project.find_by(id: overwritten_attributes["project_id"])) ||
+      work_package.project
+  end
+
   def copied_attributes(work_package, override)
     overwritten_attributes = override.stringify_keys
 
     attributes = work_package
                    .attributes
                    .slice(*writable_work_package_attributes(work_package))
-                   .merge("custom_field_values" => work_package.custom_value_attributes)
+                   .merge("custom_field_values" =>
+                            work_package.custom_value_attributes_for(copy_target_project(overwritten_attributes)))
                    .merge(overwritten_attributes)
 
     if overwritten_attributes.has_key?("start_date") &&

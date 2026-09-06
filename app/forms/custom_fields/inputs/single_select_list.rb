@@ -33,7 +33,7 @@ class CustomFields::Inputs::SingleSelectList < CustomFields::Inputs::Base::Autoc
     # autocompleter does not set key with blank value if nothing is selected or input is cleared
     # in order to let acts_as_customizable handle the clearing of the value, we need to set the value to blank via a hidden field
     # which sends blank if autocompleter is cleared
-    custom_value_form.hidden(**input_attributes.merge(value: ""))
+    custom_value_form.hidden(**input_attributes, value: "")
 
     custom_value_form.autocompleter(**input_attributes) do |list|
       list_items.each do |item|
@@ -63,7 +63,7 @@ class CustomFields::Inputs::SingleSelectList < CustomFields::Inputs::Base::Autoc
         }
       end
     else
-      @custom_field.custom_options.map do |custom_option|
+      applicable_custom_options.map do |custom_option|
         {
           label: custom_option.value,
           value: custom_option.id,
@@ -93,5 +93,19 @@ class CustomFields::Inputs::SingleSelectList < CustomFields::Inputs::Base::Autoc
     else
       @custom_field.default_value&.to_i
     end
+  end
+
+  # Only the options this project may APPLY, plus any already stored on the record so a work
+  # package that moved projects keeps showing - and keeps - its labels. Falls back to every
+  # option for fields that are not project-aware, which is all of them today.
+  def applicable_custom_options
+    return @custom_field.custom_options unless @custom_field.allow_project_values?
+
+    project = @object.project if @object.respond_to?(:project)
+    return @custom_field.custom_options if project.nil?
+
+    stored = [@custom_value&.value.presence].compact
+    @custom_field.custom_options.where(id: stored)
+                 .or(@custom_field.custom_options.applicable_in(project))
   end
 end

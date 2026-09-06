@@ -35,7 +35,7 @@ module AssignableCustomFieldValues
     def assignable_custom_field_values(custom_field)
       case custom_field.field_format
       when "list"
-        custom_field.possible_values
+        assignable_list_custom_field_values(custom_field)
       when "version"
         assignable_version_custom_field_values(custom_field)
       when "department"
@@ -44,6 +44,46 @@ module AssignableCustomFieldValues
     end
 
     private
+
+    # Narrows ONLY for project-aware list fields, and only where a project can be resolved.
+    #
+    # This concern is shared: WorkPackages::BaseContract, Projects::BaseContract and
+    # Users::BaseContract all include it. Scoping every list field would change project
+    # attributes and user attributes too, and Users::BaseContract has no project at all, so
+    # the scoping would have nothing to scope by and would empty every list-format user
+    # field. Gating on allow_project_values - false for every field that exists today -
+    # makes the default exactly the current behaviour.
+    def assignable_list_custom_field_values(custom_field)
+      project = custom_field_customized_project
+      return custom_field.possible_values unless custom_field.allow_project_values? && project
+
+      applicable = custom_field.custom_options.applicable_in(project)
+
+      # Options already stored on the record stay selectable even when the project can no
+      # longer apply them - a work package that moved projects keeps its labels, and editing
+      # anything else about it must not silently drop them. Mirrors the version branch below.
+      retained = assigned_list_custom_field_values(custom_field)
+      return applicable.to_a if retained.empty?
+
+      (applicable.to_a + retained).uniq
+    end
+
+    def assigned_list_custom_field_values(custom_field)
+      customized = version_custom_field_customized
+      return [] unless customized
+
+      ids = customized
+              .custom_values_for_custom_field(custom_field)
+              .filter_map { |custom_value| custom_value.value.presence }
+      return [] if ids.empty?
+
+      CustomOption.where(id: ids).to_a
+    end
+
+    def custom_field_customized_project
+      customized = version_custom_field_customized
+      customized.project if customized.respond_to?(:project)
+    end
 
     def assignable_version_custom_field_values(custom_field)
       assignable = assignable_versions(only_open: !custom_field.allow_non_open_versions?,
