@@ -272,6 +272,10 @@ en:
       error_requeue: "Job experienced an error but is retrying. The error was: %{message}"
       cancelled_due_to: "Job was cancelled due to error: %{message}"
 
+  label_prefixes:
+    description: "Each project owns labels under its own prefix. A project without one cannot own labels. Prefixes are two to six upper case letters or digits, and no two projects may share one."
+    no_candidate: "No prefix can be derived from this identifier — set one by hand."
+    suggested: "Suggested: %{prefix}"
   ldap_auth_sources:
     ldap_error: "LDAP-Error: %{error_message}"
     ldap_auth_failed: "Could not authenticate at the LDAP-Server."
@@ -1516,6 +1520,7 @@ en:
         description: "Description"
         enabled_modules: "Enabled modules"
         identifier: "Identifier"
+        label_prefix: "Label prefix"
         latest_activity_at: "Latest activity at"
         parent: "Subproject of"
         project_creation_wizard_enabled: "Project initiation request"
@@ -3423,6 +3428,7 @@ en:
   label_attachment_plural: "Attachments"
   label_attribute: "Attribute"
   label_attribute_plural: "Attributes"
+  label_label_prefixes: "Label prefixes"
   label_ldap_auth_source_new: "New LDAP connection"
   label_ldap_auth_source: "LDAP connection"
   label_ldap_auth_source_plural: "LDAP connections"

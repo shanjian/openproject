@@ -438,6 +438,12 @@ Redmine::MenuManager.map :admin_menu do |menu|
             caption: :label_project_life_cycle,
             parent: :admin_projects_settings
 
+  menu.push :label_prefixes_settings,
+            { controller: "/admin/settings/label_prefixes", action: :show },
+            if: ->(_) { User.current.admin? },
+            caption: :label_label_prefixes,
+            parent: :admin_projects_settings
+
   menu.push :project_custom_fields_settings,
             { controller: "/admin/settings/project_custom_fields", action: :index },
             if: ->(_) { User.current.admin? },
