@@ -65,11 +65,12 @@ RSpec.describe "Projects", "creation",
     # Step 2: Fill in project details
     expect(page).to have_text("2 of 2")
     fill_in "Name", with: "Foo bar"
+    fill_in "Identifier", with: "foobar"
     click_on "Complete"
 
     expect_and_dismiss_flash type: :success, message: "Successful creation."
 
-    expect(page).to have_current_path /\/projects\/foo-bar\/?/
+    expect(page).to have_current_path /\/projects\/foobar\/?/
     expect(page).to have_content "Foo bar"
   end
 
@@ -130,16 +131,18 @@ RSpec.describe "Projects", "creation",
     # Step 1: Select workspace type (blank project)
     click_on "Continue"
 
-    # Step 2: Fill in project details
+    # Step 2: Fill in project details, reusing the identifier of the shared_let project.
+    # Because the identifier is given explicitly, acts_as_url does not silently suffix it
+    # (see OpenProject::ActsAsUrl::Adapter::OpActiveRecord#ensure_unique_url!) - the
+    # uniqueness validation has to surface instead.
     fill_in "Name", with: "Foo project"
+    fill_in "Identifier", with: "foo-project"
     click_on "Complete"
 
-    expect_and_dismiss_flash type: :success, message: "Successful creation."
+    expect_and_dismiss_flash type: :error, message: /^Creation failed/
 
-    expect(page).to have_current_path /\/projects\/foo-project-1\/?/
-
-    project = Project.last
-    expect(project.identifier).to eq "foo-project-1"
+    expect(page).to have_field "Identifier", validation_error: "has already been taken."
+    expect(Project.where(name: "Foo project").count).to eq 1
   end
 
   it "does not create a project when the name is not present" do
