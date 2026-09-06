@@ -303,7 +303,7 @@ class PermittedParams
 
   def new_project
     params
-      .expect(project: %i[name description parent_id workspace_type])
+      .expect(project: %i[name identifier description parent_id workspace_type])
       .merge(custom_field_values(:project))
   end
 

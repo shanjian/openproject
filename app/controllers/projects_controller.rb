@@ -104,6 +104,8 @@ class ProjectsController < ApplicationController
   end
 
   def create
+    return reject_blank_identifier if permitted_params.new_project[:identifier].blank?
+
     if from_template?
       create_from_template
     else
@@ -251,6 +253,32 @@ class ProjectsController < ApplicationController
       flash.now[:error] = I18n.t(:notice_unsuccessful_create_with_reason, reason: service_call.message)
       render action: :new, status: :unprocessable_entity, layout: "no_menu"
     end
+  end
+
+  # The creation form marks the identifier required, but nothing downstream can enforce it:
+  # Primer deliberately never renders a native `required` attribute (it would trigger
+  # browser validation, which it considers inaccessible), and acts_as_url fills a blank
+  # identifier from the project name during validation - so a contract only ever sees a
+  # populated value. The submitted parameter is the last point at which "blank" is still
+  # visible, which is why this guard lives here rather than in a contract.
+  #
+  # Deliberately scoped to the form: the API, seeders and project copying do not pass
+  # through here and keep the slug-from-name fallback.
+  def reject_blank_identifier
+    attributes = permitted_params.new_project.to_h.except("custom_field_values")
+
+    @new_project = Project.new(attributes)
+    @new_project.errors.add(:identifier, :blank)
+    params[:step] = 2
+
+    flash.now[:error] = blank_identifier_message(@new_project)
+
+    render action: :new, status: :unprocessable_entity, layout: "no_menu"
+  end
+
+  def blank_identifier_message(project)
+    I18n.t(:notice_unsuccessful_create_with_reason,
+           reason: project.errors.full_messages.join(", "))
   end
 
   def set_wizard_step!(project)

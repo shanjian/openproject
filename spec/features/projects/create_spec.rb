@@ -65,11 +65,12 @@ RSpec.describe "Projects", "creation",
     # Step 2: Fill in project details
     expect(page).to have_text("2 of 2")
     fill_in "Name", with: "Foo bar"
+    fill_in "Identifier", with: "foobar"
     click_on "Complete"
 
     expect_and_dismiss_flash type: :success, message: "Successful creation."
 
-    expect(page).to have_current_path /\/projects\/foo-bar\/?/
+    expect(page).to have_current_path /\/projects\/foobar\/?/
     expect(page).to have_content "Foo bar"
   end
 
@@ -130,16 +131,18 @@ RSpec.describe "Projects", "creation",
     # Step 1: Select workspace type (blank project)
     click_on "Continue"
 
-    # Step 2: Fill in project details
+    # Step 2: Fill in project details, reusing the identifier of the shared_let project.
+    # Because the identifier is given explicitly, acts_as_url does not silently suffix it
+    # (see OpenProject::ActsAsUrl::Adapter::OpActiveRecord#ensure_unique_url!) - the
+    # uniqueness validation has to surface instead.
     fill_in "Name", with: "Foo project"
+    fill_in "Identifier", with: "foo-project"
     click_on "Complete"
 
-    expect_and_dismiss_flash type: :success, message: "Successful creation."
+    expect_and_dismiss_flash type: :error, message: /^Creation failed/
 
-    expect(page).to have_current_path /\/projects\/foo-project-1\/?/
-
-    project = Project.last
-    expect(project.identifier).to eq "foo-project-1"
+    expect(page).to have_field "Identifier", validation_error: "has already been taken."
+    expect(Project.where(name: "Foo project").count).to eq 1
   end
 
   it "does not create a project when the name is not present" do
@@ -150,8 +153,10 @@ RSpec.describe "Projects", "creation",
     # Step 1: Select workspace type (blank project)
     click_on "Continue"
 
-    # Step 2: Try to complete without name
+    # Step 2: Try to complete without name. The identifier is supplied so that the blank
+    # name is what fails - a blank identifier is rejected earlier, in the controller.
     expect(page).to have_text("2 of 2")
+    fill_in "Identifier", with: "nameless"
     click_on "Complete"
 
     expect_and_dismiss_flash type: :error, message: /^Creation failed/
@@ -187,6 +192,7 @@ RSpec.describe "Projects", "creation",
       # Step 2: Fill in project details
       expect(page).to have_text("2 of 3")
       fill_in "Name", with: "Foo bar"
+      fill_in "Identifier", with: "foobar"
       click_on "Continue"
 
       # Step 3: Fill in custom fields
@@ -250,6 +256,7 @@ RSpec.describe "Projects", "creation",
       # Step 2: Fill in project details
       expect(page).to have_text("2 of 3")
       fill_in "Name", with: "Foo bar"
+      fill_in "Identifier", with: "foobar"
       click_on "Continue"
 
       # Step 3: Fill in custom fields
@@ -277,13 +284,17 @@ RSpec.describe "Projects", "creation",
     end
   end
 
-  it "hides the active field and the identifier" do
+  # The identifier used to be hidden here too, but it is now offered on the details step
+  # so that projects get a deliberate short code instead of a slug of their name. Asserting
+  # its absence on step 1 would pass for the wrong reason - everything on step 2 is
+  # display:none until you continue - so that coverage lives in the request spec
+  # (spec/requests/projects/creation_identifier_spec.rb) instead.
+  it "hides the active field" do
     visit new_project_path
 
     expect(page).to have_heading "New project"
 
     expect(page).to have_no_content "Active"
-    expect(page).to have_no_content "Identifier"
   end
 
   context "with optional and required custom fields" do
@@ -335,6 +346,7 @@ RSpec.describe "Projects", "creation",
         # Step 2: Project details - skip to step 3
         expect(page).to have_text("2 of 3")
         fill_in "Name", with: "Test Project"
+        fill_in "Identifier", with: "testproj"
         click_on "Continue"
 
         # Step 3: Custom fields
@@ -365,6 +377,7 @@ RSpec.describe "Projects", "creation",
         # Step 2: Fill in name
         expect(page).to have_text("2 of 3")
         fill_in "Name", with: "Test Project"
+        fill_in "Identifier", with: "testproj"
         click_on "Continue"
 
         # Step 3: Try to complete without required custom field
@@ -395,6 +408,7 @@ RSpec.describe "Projects", "creation",
 
         # Step 2: Fill in project details
         fill_in "Name", with: "Foo bar"
+        fill_in "Identifier", with: "foobar"
         click_on "Continue"
 
         # Step 3: Fill in required custom field
@@ -542,6 +556,7 @@ RSpec.describe "Projects", "creation",
       # The bug causes this to show "2 of 3" incorrectly
       expect(page).to have_text("2 of 2")
       fill_in "Name", with: "Project without step 3"
+      fill_in "Identifier", with: "nostep3"
 
       # Should have Complete button (not Continue) since this is the last step
       expect(page).to have_button("Complete")
@@ -574,6 +589,7 @@ RSpec.describe "Projects", "creation",
 
       # Step 2: Fill in project details
       fill_in "Name", with: "Test Subproject"
+      fill_in "Identifier", with: "testsub"
 
       # Open parent field autocompleter
       expect(page).to have_combo_box "Subproject of"
