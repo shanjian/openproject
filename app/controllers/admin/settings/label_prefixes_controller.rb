@@ -72,8 +72,9 @@ module Admin::Settings
       failed = []
 
       Project.transaction do
-        # All project rows are locked before any label save can acquire a field lock. This
-        # keeps the project -> field order even when one request changes several projects.
+        # The project rows that are actually changing are locked before any label save can
+        # acquire a field lock, so the project -> field order holds even when one request
+        # changes several projects.
         locked_projects.each_value do |project, attributes|
           next if project.nil?
 
@@ -89,12 +90,27 @@ module Admin::Settings
       failed
     end
 
-    def ordered_prefix_params
-      prefix_params.sort_by { |project_id, _| project_id.to_i }
+    # Sorted by id so concurrent requests take their project locks in the same order, and
+    # narrowed to the rows that actually change first.
+    #
+    # The screen renders a field for EVERY project, so it submits every project. Locking all
+    # of them would take a row lock on the whole table to change one prefix, and every one of
+    # those locks would be discarded by the unchanged check below. Reading the stored value
+    # unlocked to decide that is safe: skipping a submission that matches what the form
+    # rendered is correct last-writer-wins for a value the admin did not set out to change.
+    #
+    # Locking a subset keeps the deadlock guarantee, because every request still takes what
+    # it does lock in id order.
+    def changed_prefix_params
+      stored = Project.where(id: prefix_params.keys).pluck(:id, :label_prefix).to_h
+
+      prefix_params
+        .sort_by { |project_id, _| project_id.to_i }
+        .reject { |project_id, attributes| stored[project_id.to_i] == attributes[:label_prefix].presence }
     end
 
     def locked_projects
-      ordered_prefix_params.to_h do |project_id, attributes|
+      changed_prefix_params.to_h do |project_id, attributes|
         [project_id, [Project.lock.find_by(id: project_id), attributes]]
       end
     end

@@ -170,6 +170,28 @@ RSpec.describe "Admin label prefixes", :skip_csrf, type: :rails_request do
       expect(archtech.reload.label_prefix).to be_nil
     end
 
+    # The screen submits a field for every project, so locking everything submitted would
+    # take a row lock on the whole table to change one prefix - and every one of those locks
+    # is discarded by the unchanged check.
+    it "locks only the projects whose prefix actually changes" do
+      others = Array.new(3) { |i| create(:project, name: "Other #{i}", identifier: "otherp#{i}") }
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        statements << payload[:sql].to_s
+      end
+
+      begin
+        submit(([archtech] + others).to_h { |p| [p.id, p == archtech ? "AAA" : ""] })
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      locks = statements.count { |sql| sql.include?('"projects"') && sql.match?(/FOR UPDATE/i) }
+
+      expect(archtech.reload.label_prefix).to eq "AAA"
+      expect(locks).to eq 1
+    end
+
     it "locks the project before checking for owned labels when clearing a prefix" do
       archtech.update_column(:label_prefix, "AT")
       statements = []
