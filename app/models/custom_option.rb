@@ -65,6 +65,12 @@ class CustomOption < ApplicationRecord
   # around_save it would be taken after validation, which is the wrong side of the race.
   CROSS_TIER_LOCK_NAMESPACE = 8_314_201
 
+  def self.acquire_cross_tier_lock(custom_field_id)
+    connection.execute(
+      "SELECT pg_advisory_xact_lock(#{CROSS_TIER_LOCK_NAMESPACE}, #{custom_field_id.to_i})"
+    )
+  end
+
   scope :system_level, -> { where(project_id: nil) }
 
   # The set a project may APPLY. Ownership decides it: a project's own labels plus the
@@ -119,9 +125,7 @@ class CustomOption < ApplicationRecord
   def acquire_cross_tier_lock?
     return false unless project_id.present? || custom_field&.allow_project_values?
 
-    self.class.connection.execute(
-      "SELECT pg_advisory_xact_lock(#{CROSS_TIER_LOCK_NAMESPACE}, #{custom_field_id.to_i})"
-    )
+    self.class.acquire_cross_tier_lock(custom_field_id)
     true
   end
 

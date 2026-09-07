@@ -121,6 +121,32 @@ RSpec.describe Project, "label governance" do
       expect(CustomValue.where(custom_field: field, value: option.id.to_s)).to be_present
     end
 
+    it "locks the project and field before promoting an option" do
+      option = owned_label("AT-Locked")
+      foreign = create(:work_package, project: elsewhere)
+      tag(foreign, option)
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        statements << payload[:sql].to_s
+      end
+
+      begin
+        owner.destroy!
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      project_lock = statements.index { |sql| sql.include?("\"projects\"") && sql.match?(/FOR UPDATE/i) }
+      field_lock = statements.index { |sql| sql.include?("pg_advisory_xact_lock") }
+      promotion = statements.index { |sql| sql.match?(/UPDATE .*custom_options/i) && sql.include?("project_id") }
+
+      expect(project_lock).not_to be_nil
+      expect(field_lock).not_to be_nil
+      expect(promotion).not_to be_nil
+      expect(project_lock).to be < field_lock
+      expect(field_lock).to be < promotion
+    end
+
     it "succeeds even when the option is the last one on its field" do
       lonely_field = create(:list_wp_custom_field, name: "Lonely", possible_values: %w[Only])
       lonely_field.custom_options.update_all(project_id: owner.id)

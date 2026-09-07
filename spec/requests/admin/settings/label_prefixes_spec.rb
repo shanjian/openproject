@@ -169,6 +169,27 @@ RSpec.describe "Admin label prefixes", :skip_csrf, type: :rails_request do
 
       expect(archtech.reload.label_prefix).to be_nil
     end
+
+    it "locks the project before checking for owned labels when clearing a prefix" do
+      archtech.update_column(:label_prefix, "AT")
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        statements << payload[:sql].to_s
+      end
+
+      begin
+        submit(archtech.id => "")
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      project_lock = statements.index { |sql| sql.include?("\"projects\"") && sql.match?(/FOR UPDATE/i) }
+      owned_check = statements.index { |sql| sql.include?("\"custom_options\"") && sql.match?(/SELECT 1 AS one/i) }
+
+      expect(project_lock).not_to be_nil
+      expect(owned_check).not_to be_nil
+      expect(project_lock).to be < owned_check
+    end
   end
 
   context "as a project admin" do

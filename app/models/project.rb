@@ -322,6 +322,8 @@ class Project < ApplicationRecord
     # shared taxonomy.
     return [] unless persisted?
 
+    lock_owned_label_rows
+
     owned = CustomOption.where(project_id: id).pluck(:id, :custom_field_id)
     return [] if owned.empty?
 
@@ -403,6 +405,20 @@ class Project < ApplicationRecord
   end
 
   private
+
+  # CustomOption writes lock the project before their field. Take the same first lock here,
+  # then acquire every affected field lock in a stable order before taking the ownership
+  # snapshot. This prevents both stale promotion decisions and field -> project cycles.
+  def lock_owned_label_rows
+    self.class.lock.find(id)
+
+    field_ids = CustomOption
+                .where(project_id: id)
+                .distinct
+                .order(:custom_field_id)
+                .pluck(:custom_field_id)
+    field_ids.each { |field_id| CustomOption.acquire_cross_tier_lock(field_id) }
+  end
 
   def label_used_elsewhere?(option_id, custom_field_id)
     CustomValue

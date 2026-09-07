@@ -181,9 +181,7 @@ class CustomField < ApplicationRecord
   end
 
   def acquire_cross_tier_lock
-    self.class.connection.execute(
-      "SELECT pg_advisory_xact_lock(#{CustomOption::CROSS_TIER_LOCK_NAMESPACE}, #{id.to_i})"
-    )
+    CustomOption.acquire_cross_tier_lock(id)
   end
 
   def validate_option_pattern_present_when_allowing_project_values

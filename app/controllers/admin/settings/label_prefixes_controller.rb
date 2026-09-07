@@ -72,8 +72,9 @@ module Admin::Settings
       failed = []
 
       Project.transaction do
-        prefix_params.each do |project_id, attributes|
-          project = Project.find_by(id: project_id)
+        # All project rows are locked before any label save can acquire a field lock. This
+        # keeps the project -> field order even when one request changes several projects.
+        locked_projects.each_value do |project, attributes|
           next if project.nil?
 
           project.label_prefix = attributes[:label_prefix]
@@ -88,6 +89,16 @@ module Admin::Settings
       failed
     end
 
+    def ordered_prefix_params
+      prefix_params.sort_by { |project_id, _| project_id.to_i }
+    end
+
+    def locked_projects
+      ordered_prefix_params.to_h do |project_id, attributes|
+        [project_id, [Project.lock.find_by(id: project_id), attributes]]
+      end
+    end
+
     # A prefix is not just a naming rule: it is the namespace this project's existing labels
     # already sit in. Changing or clearing it without touching them leaves every owned label
     # carrying a prefix the project no longer has - unrenameable, because the naming rule
@@ -96,7 +107,7 @@ module Admin::Settings
     #
     # So the labels move with the prefix, and clearing is refused while any exist.
     def save_with_owned_labels?(project)
-      owned = CustomOption.where(project_id: project.id)
+      owned = CustomOption.where(project_id: project.id).order(:custom_field_id, :id)
 
       if project.label_prefix.blank? && owned.exists?
         project.errors.add(:label_prefix, :cannot_be_cleared_with_labels, count: owned.count)
