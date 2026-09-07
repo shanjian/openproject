@@ -39,7 +39,7 @@ RSpec.describe CustomOptions::ProjectLabels::CreateService do
   shared_let(:manager) { create(:user, member_with_roles: { project => role }) }
   shared_let(:outsider) { create(:user) }
 
-  before { field.update_columns(allow_project_values: true, option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Z][A-Za-z0-9]*\z') }
+  before { field.update_columns(allow_project_values: true, option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Za-z0-9]+([-_][A-Za-z0-9]+)*\z') }
 
   def create_label(value, user: manager, in_project: project)
     described_class.new(user:, project: in_project, custom_field: field).call(value:)

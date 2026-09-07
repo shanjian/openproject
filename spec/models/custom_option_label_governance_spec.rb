@@ -41,7 +41,7 @@ RSpec.describe CustomOption, "label governance" do
   # baseline the whole file needs.
   before do
     field.update_columns(allow_project_values: true,
-                         option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Z][A-Za-z0-9]*\z')
+                         option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Za-z0-9]+([-_][A-Za-z0-9]+)*\z')
   end
 
   def system_label(value) = create(:custom_option, custom_field: field, value:)
@@ -130,14 +130,30 @@ RSpec.describe CustomOption, "label governance" do
       expect(project_label("AT-")).not_to be_valid
     end
 
-    it "rejects a lower case name" do
-      expect(project_label("AT-lower")).not_to be_valid
+    it "accepts a lower case name" do
+      expect(project_label("AT-bounce")).to be_valid
     end
 
-    it "still rejects it when the field pattern is permissive" do
+    it "accepts a name beginning with a digit" do
+      expect(project_label("AT-2fa")).to be_valid
+    end
+
+    it "accepts a multi word name" do
+      expect(project_label("AT-bounce-handling")).to be_valid
+      expect(project_label("AT-Bounce_v2")).to be_valid
+    end
+
+    # The floor holds on its own, which is the whole point of checking it separately from
+    # the admin pattern. Allowing "-" inside a name does not make a dangling or doubled
+    # separator legal, and the prefix is still ended by the FIRST hyphen.
+    it "still applies when the field pattern is permissive" do
       field.update_column(:option_pattern, ".*")
 
       expect(project_label("AT-")).not_to be_valid
+      expect(project_label("AT-bounce-")).not_to be_valid
+      expect(project_label("AT--bounce")).not_to be_valid
+      expect(project_label("AT-bounce handling")).not_to be_valid
+      expect(project_label("AT-bounce-handling")).to be_valid
     end
 
     it "shows the pattern description rather than a regular expression" do
@@ -272,7 +288,7 @@ RSpec.describe CustomOption, "label governance" do
 
   describe "option_pattern" do
     it "rejects a value that does not match the field's pattern" do
-      field.update_column(:option_pattern, '\A[A-Z][A-Z0-9]{1,5}-[A-Z][A-Za-z0-9]*\z')
+      field.update_column(:option_pattern, '\A[A-Z][A-Z0-9]{1,5}-[A-Za-z0-9]+([-_][A-Za-z0-9]+)*\z')
 
       expect(build(:custom_option, custom_field: field.reload, value: "nope")).not_to be_valid
     end

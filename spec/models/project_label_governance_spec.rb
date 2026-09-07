@@ -39,7 +39,7 @@ RSpec.describe Project, "label governance" do
   # them.
   before do
     field.update_columns(allow_project_values: true,
-                         option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Z][A-Za-z0-9]*\z')
+                         option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Za-z0-9]+([-_][A-Za-z0-9]+)*\z')
   end
 
   describe "label_prefix" do

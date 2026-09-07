@@ -13,7 +13,7 @@ through a system admin, while keeping the shared taxonomy under system-admin con
 - **System labels** (`custom_options.project_id IS NULL`) — created by a system admin,
   applicable everywhere.
 - **Project labels** (`project_id` set) — created by a project admin, named
-  `<PREFIX>-Name` under that project's own prefix, applicable only in that project.
+  `<PREFIX>-name` under that project's own prefix, applicable only in that project.
 - **Applying** a label is scoped. **Seeing** one already on a work package is not.
 
 ## Before starting
@@ -104,7 +104,7 @@ site has to remember:
 ```ruby
 PREFIX_FRAGMENT = /[A-Z][A-Z0-9]{1,5}/
 PREFIX_FORMAT   = /\A#{PREFIX_FRAGMENT}\z/                        # Project#label_prefix
-LABEL_FORMAT    = /\A#{PREFIX_FRAGMENT}-[A-Z][A-Za-z0-9]*\z/      # CustomOption#value
+LABEL_FORMAT    = /\A#{PREFIX_FRAGMENT}-[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*\z/  # CustomOption#value
 ```
 
 - Validate `label_prefix` against `PREFIX_FORMAT`.

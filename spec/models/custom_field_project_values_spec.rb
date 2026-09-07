@@ -40,7 +40,7 @@ RSpec.describe CustomField, "project value settings" do
   end
 
   it "allows project values once a pattern is set" do
-    field.option_pattern = '\A[A-Z][A-Z0-9]{1,5}-[A-Z][A-Za-z0-9]*\z'
+    field.option_pattern = '\A[A-Z][A-Z0-9]{1,5}-[A-Za-z0-9]+([-_][A-Za-z0-9]+)*\z'
     field.allow_project_values = true
 
     expect(field).to be_valid
@@ -60,7 +60,7 @@ RSpec.describe CustomField, "project value settings" do
 
     before do
       field.update_columns(allow_project_values: true,
-                           option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Z][A-Za-z0-9]*\z')
+                           option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Za-z0-9]+([-_][A-Za-z0-9]+)*\z')
     end
 
     # Disabling the flag does not just stop new labels: existing project-owned options stay

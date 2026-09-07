@@ -313,7 +313,7 @@ blocking a project deletion on a field-level concern.
 
 ## Where a prefix comes from
 
-A project label must be named `<PREFIX>-Name`, where `<PREFIX>` is the project's own
+A project label must be named `<PREFIX>-name`, where `<PREFIX>` is the project's own
 `label_prefix`.
 
 ```
@@ -426,7 +426,7 @@ Two jobs worth separating: **shape** (every label parses the same way, so sortin
 domains and type-ahead narrows predictably) and **vocabulary** (which prefixes exist).
 
 ```
-\A[A-Z][A-Z0-9]{1,5}-[A-Z][A-Za-z0-9]*\z    # <PREFIX>-Name
+\A[A-Z][A-Z0-9]{1,5}-[A-Za-z0-9]+([-_][A-Za-z0-9]+)*\z    # <PREFIX>-name
 ```
 
 The prefix half of that pattern is **the same expression the seeding step accepts**, and it
@@ -443,6 +443,16 @@ PREFIX = /[A-Z][A-Z0-9]{1,5}/      # used by both the prefix and the label valid
 Six characters rather than four because the real identifiers require it: normalising
 `web-ext` yields `WEBEXT`. Digits are allowed because nothing in the data rules them out and
 forbidding them would reject a project code like `L10N`.
+
+The **name** half is deliberately case-insensitive. An earlier revision required it to begin
+with a capital, which rejected `AT-bounce` — the spelling people reach for first — for no
+reason the taxonomy cares about. What carries meaning is the prefix, and the prefix is
+uppercase by its own format; insisting on `AT-Bounce` only buys a rejection message. Words
+may be separated by `-` or `_`, so `AT-bounce-handling` reads as a phrase rather than
+`AT-bounceHandling`, and that stays unambiguous because the prefix is matched with
+`start_with?("AT-")` — the *first* hyphen ends the prefix however many follow it. A name may
+begin with a digit, `AT-2fa`. Still refused: a bare prefix `AT-`, and a dangling or doubled
+separator, `AT-bounce-` or `AT--bounce`.
 
 ### Do not reuse `custom_fields.regexp`
 
@@ -987,8 +997,9 @@ first implementation checked only the project-onto-system direction, leaving an 
 to rename a *system* label onto an existing project label. Both directions are now checked.
 
 **The structural label format is enforced separately from `option_pattern`.** `LABEL_FORMAT`
-was specified here and then never applied, so a permissive pattern — or none — accepted
-`AT-` and `AT-lower`. It is now checked independently of the admin-configurable rule.
+was specified here and then never applied, so a permissive pattern — or none — accepted a
+bare prefix, `AT-`. It is now checked independently of the admin-configurable rule, which
+means `option_pattern` can only make the shape *stricter*, never looser.
 
 **Disabling `allow_project_values` is refused while owned options exist.** Turning it off
 does not merely stop new labels: existing owned options stay attached to their project while

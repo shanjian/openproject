@@ -453,7 +453,7 @@ en:
     no_role_assigment: "No role assignment"
     instructions:
       allow_project_values: "Let project administrators add values for their own project. Each such value must carry that projects label prefix, and is only applicable in that project."
-      option_pattern: "A regular expression every value must match, e.g. \\A[A-Z][A-Z0-9]{1,5}-[A-Z][A-Za-z0-9]*\\z. Checked when a value is created or renamed, so existing values are not affected."
+      option_pattern: "A regular expression every value must match, e.g. \\A[A-Z][A-Z0-9]{1,5}-[A-Za-z0-9]+([-_][A-Za-z0-9]+)*\\z. Checked when a value is created or renamed, so existing values are not affected."
       option_pattern_description: "Shown to users when a value is rejected. Describe the rule in words rather than showing them the expression."
       is_required:
         all: "Mark the custom field as required. This will make it mandatory to fill in the field when creating new resources. Existing resources will not require a value when being updated."
@@ -1906,7 +1906,7 @@ en:
               must_carry_project_prefix: "must start with this project's label prefix, %{prefix}-."
               shadows_system_label: "is already used by a label shared by all projects."
               shadowed_by_project_label: "is already used by a label owned by a project. Rename or promote that one first."
-              invalid_label_format: "must look like PREFIX-Name, e.g. AT-Bounce."
+              invalid_label_format: "must look like PREFIX-name, e.g. AT-bounce or AT-bounce-handling."
               does_not_match_pattern: "%{description}"
         custom_fields_project:
           attributes:
