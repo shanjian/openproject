@@ -37,6 +37,13 @@ RSpec.describe CustomOption, "label governance" do
   shared_let(:project) { create(:project, label_prefix: "AT") }
   shared_let(:other_project) { create(:project, label_prefix: "ADT") }
 
+  # A project-owned option is only valid on a field that accepts them, so this is the
+  # baseline the whole file needs.
+  before do
+    field.update_columns(allow_project_values: true,
+                         option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Z][A-Za-z0-9]*\z')
+  end
+
   def system_label(value) = create(:custom_option, custom_field: field, value:)
   def project_label(value, owner: project) = build(:custom_option, custom_field: field, value:, project: owner)
 
@@ -81,8 +88,9 @@ RSpec.describe CustomOption, "label governance" do
       expect(option.errors[:base]).to be_present
     end
 
-    it "does not impose a prefix on system labels" do
-      expect(build(:custom_option, custom_field: field, value: "anything at all")).to be_valid
+    it "does not impose the project's prefix on system labels" do
+      # ML- is nobody's project prefix; the field's pattern still applies to both tiers
+      expect(build(:custom_option, custom_field: field, value: "ML-Anything")).to be_valid
     end
   end
 
@@ -179,7 +187,6 @@ RSpec.describe CustomOption, "label governance" do
     # project-admin services, the system-admin path saving custom_options_attributes as
     # nested attributes on the field, promotion, and seeds.
     it "is taken when the system-admin nested-attributes path saves an option" do
-      field.update_columns(allow_project_values: true, option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Z][A-Za-z0-9]*\z')
       allow(described_class.connection).to receive(:execute).and_call_original
 
       field.update!(custom_options_attributes: { "0" => { value: "ML-Nested" } })
@@ -218,6 +225,32 @@ RSpec.describe CustomOption, "label governance" do
       option = build(:custom_option, custom_field: field, value: "ARCH-Fresh", project: stale)
 
       expect(option).to be_valid
+    end
+  end
+
+  describe "lock ordering" do
+    # The prefix-change path necessarily takes the project row first: it saves the project,
+    # then saves each renamed label. Taking the field lock first here made a
+    # field -> project versus project -> field cycle. What prevents the deadlock is that
+    # both paths take the locks in the SAME order, so that order is the thing to pin.
+    it "locks the owning project before the field" do
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        statements << payload[:sql].to_s
+      end
+
+      begin
+        project_label("AT-Ordered").save!
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      project_lock = statements.index { |sql| sql.match?(/FOR UPDATE/i) }
+      field_lock = statements.index { |sql| sql.include?("pg_advisory_xact_lock") }
+
+      expect(field_lock).not_to be_nil
+      expect(project_lock).not_to be_nil
+      expect(project_lock).to be < field_lock
     end
   end
 

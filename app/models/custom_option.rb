@@ -41,6 +41,7 @@ class CustomOption < ApplicationRecord
   validate :validate_value_unique_within_tier
   validate :validate_does_not_shadow_system_option
   validate :validate_value_matches_option_pattern
+  validate :validate_field_allows_project_values
   validate :validate_project_prefix
   validate :validate_default_is_system_level
 
@@ -79,41 +80,49 @@ class CustomOption < ApplicationRecord
 
   def system_level? = project_id.nil?
 
+  # ONE global lock order: project row, then field advisory lock. Never the reverse.
+  #
+  # The prefix-change path necessarily takes the project row first - it saves the project,
+  # then saves each renamed label, which reaches this method. Taking the field lock first
+  # here produced a field -> project versus project -> field cycle. Ordering both paths the
+  # same way removes the cycle rather than retrying around it.
   def acquire_write_locks
     return unless value_check_needed?
 
-    acquire_cross_tier_lock
     lock_owning_project
+    return unless acquire_cross_tier_lock?
+
+    # Read committed field state, but only when a lock was actually taken. Reloading the
+    # association unconditionally replaces the in-memory field and costs it its `touch: true`
+    # on save, so every ordinary option edit would stop invalidating the field's caches.
+    association(:custom_field).reload
   end
 
-  # Gated on the flag: cross-tier collisions are only possible on a field that has both
-  # tiers.
-  def acquire_cross_tier_lock
-    return unless custom_field&.allow_project_values?
-
-    self.class.connection.execute(
-      "SELECT pg_advisory_xact_lock(#{CROSS_TIER_LOCK_NAMESPACE}, #{custom_field_id.to_i})"
-    )
-
-    lock_owning_project
-  end
-
-  # NOT gated on the flag: the prefix rule applies to every project-owned option, so the
+  # Not gated on the flag: the prefix rule applies to every project-owned option, so the
   # committed prefix must be read whatever the field's configuration.
   #
   # The field lock serialises label writes against each other, but not against a PREFIX
-  # change, which is a write to a different table. Without this, a request that loaded the
-  # project while its prefix was AT can validate "AT-Bounce" against that stale in-memory
-  # value after another request has committed the prefix as ADT.
-  #
-  # Locking the project row makes the two serialise: this blocks while a prefix change is in
-  # flight, then re-reads the committed value, and a prefix change blocks on the same row
-  # while a label is being written.
+  # change, which writes a different table. Locking the project row makes the two serialise:
+  # this blocks while a prefix change is in flight and then re-reads the committed value,
+  # and a prefix change blocks on the same row while a label is being written.
   def lock_owning_project
     return if project_id.nil?
 
     association(:project).reload
     project&.lock!
+  end
+
+  # Taken for any project-owned option, and for any option on a field that currently allows
+  # them. The first case matters even when the in-memory field says the flag is off: that
+  # read may be stale, and CustomField's disable check takes this same lock, so both sides
+  # serialise. Returns whether it was taken.
+  def acquire_cross_tier_lock?
+    return false unless project_id.present? || custom_field&.allow_project_values?
+
+    self.class.connection.execute(
+      "SELECT pg_advisory_xact_lock(#{CROSS_TIER_LOCK_NAMESPACE}, #{custom_field_id.to_i})"
+    )
+    true
   end
 
   protected
@@ -184,6 +193,17 @@ class CustomOption < ApplicationRecord
     else
       errors.add(:value, :invalid)
     end
+  end
+
+  # Reads the field state reloaded under the lock, so a writer that loaded the field while
+  # project values were enabled cannot insert an owned option after an admin has committed
+  # disabling them.
+  def validate_field_allows_project_values
+    return if system_level?
+    return unless value_check_needed?
+    return if custom_field&.allow_project_values?
+
+    errors.add(:base, :field_does_not_allow_project_values)
   end
 
   # A project label must carry its own project's prefix. A project with no prefix cannot own

@@ -1899,6 +1899,7 @@ en:
           attributes:
             base:
               project_has_no_label_prefix: "The project has no label prefix, so it cannot own labels. An administrator sets one under Administration."
+              field_does_not_allow_project_values: "This field no longer accepts project-owned labels."
             default_value:
               only_system_labels: "can only be set on labels shared by all projects."
             value:

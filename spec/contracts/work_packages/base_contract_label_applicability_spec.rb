@@ -108,8 +108,9 @@ RSpec.describe WorkPackages::BaseContract, "label applicability" do
   end
 
   it "does not constrain a field that is not project-aware" do
+    option = theirs # created while the field still accepts project-owned values
     field.update_column(:allow_project_values, false)
 
-    expect(create_wp([theirs.id.to_s])).to be_success
+    expect(create_wp([option.id.to_s])).to be_success
   end
 end

@@ -35,6 +35,13 @@ RSpec.describe Project, "label governance" do
     create(:list_wp_custom_field, name: "Labels", multi_value: true, possible_values: %w[ML-Shared])
   end
 
+  # These examples create project-owned labels, which are only valid on a field that accepts
+  # them.
+  before do
+    field.update_columns(allow_project_values: true,
+                         option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Z][A-Za-z0-9]*\z')
+  end
+
   describe "label_prefix" do
     it "accepts a well-formed prefix" do
       expect(build(:project, label_prefix: "AT")).to be_valid

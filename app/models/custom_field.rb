@@ -167,10 +167,23 @@ class CustomField < ApplicationRecord
     return unless persisted?
     return unless allow_project_values_changed?(from: true, to: false)
 
+    # Counting without the lock is a check that a concurrent writer can invalidate: it can
+    # hold the field lock, have already decided the field was enabled, and insert an owned
+    # option after this count returns zero. CustomOption takes the same lock, so acquiring it
+    # here makes the two serialise - the count then sees either no writer, or its committed
+    # row.
+    acquire_cross_tier_lock
+
     owned = custom_options.where.not(project_id: nil).count
     return if owned.zero?
 
     errors.add(:allow_project_values, :cannot_be_disabled_with_owned_options, count: owned)
+  end
+
+  def acquire_cross_tier_lock
+    self.class.connection.execute(
+      "SELECT pg_advisory_xact_lock(#{CustomOption::CROSS_TIER_LOCK_NAMESPACE}, #{id.to_i})"
+    )
   end
 
   def validate_option_pattern_present_when_allowing_project_values
