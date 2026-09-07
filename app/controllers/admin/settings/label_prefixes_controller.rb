@@ -105,19 +105,31 @@ module Admin::Settings
 
       return false unless project.save
 
-      rename_owned_labels(project, owned)
-      true
+      rename_owned_labels?(project, owned)
     end
 
-    def rename_owned_labels(project, owned)
+    # Saved, not update_column. Skipping validations here would let a rename produce a
+    # duplicate - AT-Bounce and ADT-Bounce both becoming ADT-Bounce - or a value that fails
+    # the length, pattern or cross-tier rules, and would skip the field's touch callback so
+    # caches would keep serving the old names.
+    def rename_owned_labels?(project, owned)
       old_prefix = project.label_prefix_previously_was
-      return if old_prefix.blank? || project.label_prefix.blank?
+      return true if old_prefix.blank? || project.label_prefix.blank?
 
-      owned.find_each do |option|
-        next unless option.value.start_with?("#{old_prefix}-")
+      owned.all? { |option| rename_owned_label?(project, option, old_prefix) }
+    end
 
-        option.update_column(:value, option.value.sub(/\A#{Regexp.escape(old_prefix)}-/, "#{project.label_prefix}-"))
-      end
+    def rename_owned_label?(project, option, old_prefix)
+      return true unless option.value.start_with?("#{old_prefix}-")
+
+      option.value = option.value.sub(/\A#{Regexp.escape(old_prefix)}-/, "#{project.label_prefix}-")
+      return true if option.save
+
+      # `message:` is reserved by ActiveModel::Errors - it replaces the template rather than
+      # interpolating - so the reason is passed under its own key.
+      project.errors.add(:label_prefix, :rename_would_break_label,
+                         label: option.value_was, reason: option.errors.full_messages.join(", "))
+      false
     end
 
     def prefix_params

@@ -1981,6 +1981,7 @@ en:
           attributes:
             label_prefix:
               cannot_be_cleared_with_labels: "cannot be cleared while this project owns %{count} label(s). Delete or promote them first."
+              rename_would_break_label: "cannot be changed: renaming %{label} would fail (%{reason})."
             base:
               archive_permission_missing_on_subprojects: "You do not have the permissions required to archive all sub-projects. Please contact an administrator."
               project_initiation_request_disabled: "Project initiation request is disabled. It must be enabled to create the artifact work package."

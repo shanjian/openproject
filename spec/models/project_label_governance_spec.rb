@@ -81,6 +81,17 @@ RSpec.describe Project, "label governance" do
       CustomValue.create!(customized: work_package, custom_field: field, value: option.id.to_s)
     end
 
+    # where(project_id: nil) selects the SYSTEM options, so an unsaved project running
+    # before_destroy would delete the shared taxonomy of the whole instance.
+    it "does nothing for an unsaved project" do
+      field.custom_options.create!(value: "SYS-Kept")
+      before = field.custom_options.count
+
+      expect(described_class.new.destroy).to be_truthy
+
+      expect(field.custom_options.reload.count).to eq before
+    end
+
     it "deletes an option nothing else references, along with its values" do
       option = owned_label("AT-Local")
       wp = create(:work_package, project: owner)

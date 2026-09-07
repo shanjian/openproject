@@ -44,7 +44,25 @@ class CustomOption < ApplicationRecord
   validate :validate_project_prefix
   validate :validate_default_is_system_level
 
+  before_validation :acquire_cross_tier_lock, on: %i[create update]
   before_destroy :assure_at_least_one_option
+
+  # Serialises writes per field so the cross-tier shadowing check cannot race.
+  #
+  # That rule has no database backstop: the two partial unique indexes cover system-vs-system
+  # and project-vs-project, and the cross-tier case spans both - a single index would also
+  # forbid two projects owning same-named labels, which is legitimate. Model validations are
+  # not atomic, so two concurrent writes can both pass.
+  #
+  # It lives here rather than in a service because there is more than one writer: the
+  # project-admin services, the system-admin path saving custom_options_attributes as nested
+  # attributes on the field, promotion during project deletion, and seeds. Guarding one of
+  # them leaves the race open for the rest.
+  #
+  # before_validation, not around_save: ActiveRecord wraps validation and the write in one
+  # transaction, so acquiring the lock here holds it across the check AND the insert. From
+  # around_save it would be taken after validation, which is the wrong side of the race.
+  CROSS_TIER_LOCK_NAMESPACE = 8_314_201
 
   scope :system_level, -> { where(project_id: nil) }
 
@@ -60,6 +78,15 @@ class CustomOption < ApplicationRecord
   alias :name :to_s
 
   def system_level? = project_id.nil?
+
+  def acquire_cross_tier_lock
+    return unless custom_field&.allow_project_values?
+    return unless value_check_needed?
+
+    self.class.connection.execute(
+      "SELECT pg_advisory_xact_lock(#{CROSS_TIER_LOCK_NAMESPACE}, #{custom_field_id.to_i})"
+    )
+  end
 
   protected
 

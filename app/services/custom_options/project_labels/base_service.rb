@@ -36,8 +36,6 @@
 module CustomOptions
   module ProjectLabels
     class BaseService
-      ADVISORY_LOCK_NAMESPACE = 8_314_201
-
       def initialize(user:, project:, custom_field:)
         @user = user
         @project = project
@@ -61,18 +59,11 @@ module CustomOptions
         ServiceResult.failure(message: I18n.t("custom_options.project_labels.errors.#{reason}"))
       end
 
-      # Serialises creation per field. The shadowing rule is a model validation with no
-      # database backstop - the two partial unique indexes cover system-vs-system and
-      # project-vs-project, and the cross-tier case spans both, which no single index can
-      # express without also forbidding two projects owning same-named labels. Model
-      # validations are not atomic, so without this two concurrent writes both pass.
+      # The cross-tier lock itself lives on CustomOption, so every writer takes it - this
+      # path, the system-admin nested-attributes path, promotion and seeds. Guarding it here
+      # only would have left the race open for the others.
       def with_field_lock(&)
-        CustomOption.transaction do
-          CustomOption.connection.execute(
-            "SELECT pg_advisory_xact_lock(#{ADVISORY_LOCK_NAMESPACE}, #{custom_field.id.to_i})"
-          )
-          yield
-        end
+        CustomOption.transaction(&)
       end
     end
   end

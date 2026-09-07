@@ -174,6 +174,30 @@ RSpec.describe CustomOption, "label governance" do
     end
   end
 
+  describe "the cross-tier lock" do
+    # It lives on the model, not in a service, because there is more than one writer: the
+    # project-admin services, the system-admin path saving custom_options_attributes as
+    # nested attributes on the field, promotion, and seeds.
+    it "is taken when the system-admin nested-attributes path saves an option" do
+      field.update_columns(allow_project_values: true, option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Z][A-Za-z0-9]*\z')
+      allow(described_class.connection).to receive(:execute).and_call_original
+
+      field.update!(custom_options_attributes: { "0" => { value: "ML-Nested" } })
+
+      expect(described_class.connection)
+        .to have_received(:execute).with(/pg_advisory_xact_lock/).at_least(:once)
+    end
+
+    it "is not taken for fields that are not project-aware" do
+      plain = create(:list_wp_custom_field, possible_values: %w[A])
+      allow(described_class.connection).to receive(:execute).and_call_original
+
+      plain.custom_options.create!(value: "B")
+
+      expect(described_class.connection).not_to have_received(:execute).with(/pg_advisory_xact_lock/)
+    end
+  end
+
   describe "defaults" do
     it "refuses to make a project label the default" do
       option = project_label("AT-Migration")

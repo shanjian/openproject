@@ -132,6 +132,29 @@ RSpec.describe "Admin label prefixes", :skip_csrf, type: :rails_request do
       expect(label.reload.value).to eq "ARCH-Bounce"
     end
 
+    # update_column would have written these silently: a rename can collide, exceed the
+    # length limit, or fail the pattern, and skips the field's touch callback so caches
+    # keep serving the old names.
+    it "refuses a rename that would collide with an existing label" do
+      create(:custom_option, custom_field: field, value: "AT-Bounce", project: archtech)
+      webext.update_column(:label_prefix, "ARCH")
+      create(:custom_option, custom_field: field, value: "ARCH-Bounce", project: webext.reload)
+
+      submit(archtech.id => "ARCH")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(archtech.reload.label_prefix).to eq "AT"
+    end
+
+    it "refuses a rename that would produce an invalid value" do
+      create(:custom_option, custom_field: field, value: "AT-B", project: archtech)
+      field.update_column(:option_pattern, '\AAT-[A-Z]\z')
+
+      submit(archtech.id => "ARCH")
+
+      expect(archtech.reload.label_prefix).to eq "AT"
+    end
+
     it "refuses to clear a prefix while the project owns labels" do
       create(:custom_option, custom_field: field, value: "AT-Bounce", project: archtech)
 

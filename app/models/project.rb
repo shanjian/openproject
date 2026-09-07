@@ -316,6 +316,12 @@ class Project < ApplicationRecord
   # Returns the promoted options so a caller can report them; promotion is deliberately not
   # silent.
   def remove_owned_labels
+    # An unsaved project has a nil id, and `where(project_id: nil)` selects the SYSTEM
+    # options - every shared label in the instance. Project.new.destroy runs before_destroy
+    # like any other, so without this guard building a project and discarding it deletes the
+    # shared taxonomy.
+    return [] unless persisted?
+
     owned = CustomOption.where(project_id: id).pluck(:id, :custom_field_id)
     return [] if owned.empty?
 
