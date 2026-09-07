@@ -37,6 +37,12 @@ RSpec.describe CustomValue::ListStrategy do
   let(:customized) { instance_double(Project) }
 
   before do
+    # Materialise the fixture before spying. Creating a list custom field creates its
+    # options, and CustomOption validates uniqueness with a query - setup calls would
+    # otherwise be recorded against the "does not hit the database" assertions below,
+    # which are about parse_value/typed_value.
+    custom_field
+
     allow(CustomOption).to receive(:where).and_call_original
   end
 

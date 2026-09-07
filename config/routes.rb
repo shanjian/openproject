@@ -335,6 +335,7 @@ Rails.application.routes.draw do
         end
         resource :repository, only: %i[show], controller: "repository"
         resource :versions, only: %i[show]
+        resources :labels, only: %i[index create update destroy]
         resource :releases, only: %i[show]
         resource :storage, only: %i[show], controller: "storage"
         get :types, to: redirect("projects/%{project_id}/settings/work_packages/types")
@@ -709,6 +710,8 @@ Rails.application.routes.draw do
       resource :progress_tracking, controller: "/admin/settings/progress_tracking", only: %i[show update]
       resource :projects, controller: "/admin/settings/projects_settings", only: %i[show update]
       resource :new_project, controller: "/admin/settings/new_project_settings", only: %i[show update]
+      resource :label_prefixes, controller: "/admin/settings/label_prefixes", only: %i[show update]
+
       resources :project_phase_definitions,
                 controller: "/admin/settings/project_phase_definitions",
                 except: :show do

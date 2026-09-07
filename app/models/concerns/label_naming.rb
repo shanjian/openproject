@@ -28,41 +28,26 @@
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-module CustomFields
-  class BaseContract < ::ModelContract
-    include RequiresAdminGuard
+# Naming rules shared by Project#label_prefix and CustomOption#value.
+#
+# The fragment is defined once and both anchored forms derived from it. Keeping the fragment
+# unanchored is necessary - it is embedded before a hyphen in LABEL_FORMAT - but using it
+# unanchored to validate a prefix would accept any string CONTAINING a valid prefix, so
+# "TOOLONG" would pass by matching its first six characters. Hence the derived constants:
+# no call site has to remember to anchor.
+module LabelNaming
+  PREFIX_FRAGMENT = /[A-Z][A-Z0-9]{1,5}/
+  PREFIX_FORMAT = /\A#{PREFIX_FRAGMENT}\z/
+  # The shape a project label is expected to take. Admins may set a stricter
+  # custom_fields.option_pattern on top of this; this is the structural rule.
+  LABEL_FORMAT = /\A#{PREFIX_FRAGMENT}-[A-Z][A-Za-z0-9]*\z/
 
-    attribute :admin_only
-    attribute :allow_project_values
-    attribute :option_pattern
-    attribute :option_pattern_description
-    attribute :allow_non_open_versions
-    attribute :content_right_to_left
-    attribute :custom_field_section_id
-    attribute :default_value
-    attribute :editable
-    attribute :field_format
-    attribute :formula
-    attribute :has_comment
-    attribute :is_filter
-    attribute :is_for_all
-    attribute :is_required do
-      validate_non_true_for_some_formats
-    end
-    attribute :max_length
-    attribute :min_length
-    attribute :multi_value
-    attribute :name
-    attribute :possible_values
-    attribute :regexp
-    attribute :searchable
-    attribute :type
-    attribute :version_kind
+  module_function
 
-    def validate_non_true_for_some_formats
-      return unless %w[bool calculated_value].include?(field_format)
+  # A project label must carry its own project's prefix, e.g. "AT-" for ArchTech.
+  def prefixed_with?(value, prefix)
+    return false if value.blank? || prefix.blank?
 
-      errors.add(:is_required, :cannot_be_true) if is_required == true
-    end
+    value.start_with?("#{prefix}-")
   end
 end

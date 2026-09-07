@@ -126,7 +126,10 @@ module Projects
     end
 
     def skipped_attributes
-      %w[id created_at updated_at name identifier active templated lft rgt]
+      # label_prefix is unique, so copying it would either fail or give two projects the same
+      # prefix. A copy starts without one: it has no labels yet, and the prefix is a
+      # deliberate choice an admin confirms.
+      %w[id created_at updated_at name identifier active templated lft rgt label_prefix]
     end
 
     def source_attributes

@@ -147,7 +147,7 @@ module CustomFieldsHelper
       base_options << [I18n.t(unset_label), "none"]
     end
 
-    possible_values = custom_field.possible_values_options(project)
+    possible_values = custom_field.applicable_values_options(project)
     options = if custom_field.version?
                 grouped_options_for_select(possible_values.group_by(&:last).to_a)
               else

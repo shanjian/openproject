@@ -74,6 +74,9 @@ class CustomField < ApplicationRecord
   validate :validate_field_format_inclusion
   validate :validate_default_value
   validate :validate_regex
+  validate :validate_option_pattern
+  validate :validate_option_pattern_present_when_allowing_project_values
+  validate :validate_project_values_not_disabled_with_owned_options
 
   validates :min_length, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :max_length, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
@@ -140,6 +143,54 @@ class CustomField < ApplicationRecord
     end
   end
 
+  # The pattern is admin-supplied free text handed to Regexp.new, so an unbalanced bracket
+  # saved here would raise RegexpError later, at label creation, in a different screen.
+  # Validate it where it is entered.
+  def validate_option_pattern
+    return if option_pattern.blank?
+
+    Regexp.new(option_pattern)
+    true
+  rescue RegexpError
+    errors.add(:option_pattern, :invalid)
+  end
+
+  # Enabling project values without a naming rule would let a project create labels under no
+  # constraint at all, and the rollout would depend on running its phases in order. Make the
+  # order impossible to get wrong instead.
+  # Turning the flag off does not merely stop new project labels being created: every
+  # existing project-owned option stays attached to its project, while applicability falls
+  # back to "all options" - so one project's private labels become applicable in every other
+  # project, and the settings screen that could remove them hides the field. Same shape as
+  # clearing a prefix while labels exist, and refused for the same reason.
+  def validate_project_values_not_disabled_with_owned_options
+    return unless persisted?
+    return unless allow_project_values_changed?(from: true, to: false)
+
+    # Counting without the lock is a check that a concurrent writer can invalidate: it can
+    # hold the field lock, have already decided the field was enabled, and insert an owned
+    # option after this count returns zero. CustomOption takes the same lock, so acquiring it
+    # here makes the two serialise - the count then sees either no writer, or its committed
+    # row.
+    acquire_cross_tier_lock
+
+    owned = custom_options.where.not(project_id: nil).count
+    return if owned.zero?
+
+    errors.add(:allow_project_values, :cannot_be_disabled_with_owned_options, count: owned)
+  end
+
+  def acquire_cross_tier_lock
+    CustomOption.acquire_cross_tier_lock(id)
+  end
+
+  def validate_option_pattern_present_when_allowing_project_values
+    return unless allow_project_values?
+    return if option_pattern.present?
+
+    errors.add(:allow_project_values, :requires_option_pattern)
+  end
+
   def validate_regex
     Regexp.new(regexp) if has_regexp?
     true
@@ -153,6 +204,27 @@ class CustomField < ApplicationRecord
 
   def required?
     is_required?
+  end
+
+  # What may be APPLIED here, as opposed to what exists.
+  #
+  # possible_values_options answers a different question - what exists to filter by - and
+  # query filters call it (Queries::Filters::Shared::CustomFields::Base#allowed_values), so
+  # it must keep returning everything. One method cannot answer both: applying is scoped,
+  # reading is not.
+  #
+  # Only the project-aware list case narrows. Everything else delegates unchanged, which is
+  # not politeness: options_for_list is reached for three formats, since `user` and
+  # `version` both register edit_as: "list", and it branches on version? to build grouped
+  # options. A list-only implementation would strip version grouping and break user fields.
+  def applicable_values_options(obj = nil, options: {})
+    project = deduce_project(obj)
+
+    if field_format == "list" && allow_project_values? && project
+      applicable_list_values_options(project)
+    else
+      possible_values_options(obj, options:)
+    end
   end
 
   def possible_values_options(obj = nil, options: {})
@@ -446,6 +518,10 @@ class CustomField < ApplicationRecord
 
   def possible_list_values_options
     possible_values.map { |option| [option.value, option.id.to_s] }
+  end
+
+  def applicable_list_values_options(project)
+    custom_options.applicable_in(project).map { |option| [option.value, option.id.to_s] }
   end
 
   def possible_values_from_arg(arg)

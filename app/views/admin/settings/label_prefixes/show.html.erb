@@ -1,0 +1,85 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<% html_title t(:label_administration), t(:label_label_prefixes) %>
+
+<%=
+  render(Primer::OpenProject::PageHeader.new) do |header|
+    header.with_title { t(:label_label_prefixes) }
+    header.with_description { t("label_prefixes.description") }
+    header.with_breadcrumbs(
+      [{ href: admin_index_path, text: t("label_administration") },
+       { href: admin_settings_general_path, text: t(:label_system_settings) },
+       t(:label_label_prefixes)]
+    )
+  end
+%>
+
+<%= styled_form_tag(admin_settings_label_prefixes_path, method: :put) do %>
+  <div class="generic-table--container">
+    <div class="generic-table--results-container">
+      <table class="generic-table">
+        <colgroup>
+          <col opHighlightCol>
+          <col opHighlightCol>
+          <col opHighlightCol>
+        </colgroup>
+        <thead>
+          <tr>
+            <th><%= Project.model_name.human %></th>
+            <th><%= Project.human_attribute_name(:identifier) %></th>
+            <th><%= Project.human_attribute_name(:label_prefix) %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @projects.each do |project| %>
+            <tr>
+              <td><%= link_to project.name, project_path(project) %></td>
+              <td><span class="op-mono"><%= project.identifier %></span></td>
+              <td>
+                <%= text_field_tag "projects[#{project.id}][label_prefix]",
+                                   project.label_prefix,
+                                   size: 10,
+                                   autocomplete: "off",
+                                   placeholder: @candidates[project.id] %>
+                <% if project.label_prefix.blank? %>
+                  <span class="form--field-instructions">
+                    <%= @candidates[project.id].present? ? t("label_prefixes.suggested", prefix: @candidates[project.id]) : t("label_prefixes.no_candidate") %>
+                  </span>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p><%= styled_button_tag t(:button_save), class: "-primary -with-icon icon-checkmark" %></p>
+<% end %>

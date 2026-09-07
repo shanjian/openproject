@@ -87,6 +87,28 @@ module CustomFields
         )
       end
 
+      if show_project_values_fields?
+        details_form.check_box(
+          name: :allow_project_values,
+          label: label(:allow_project_values),
+          caption: I18n.t("custom_fields.instructions.allow_project_values")
+        )
+
+        details_form.text_field(
+          name: :option_pattern,
+          label: label(:option_pattern),
+          caption: I18n.t("custom_fields.instructions.option_pattern"),
+          input_width: :medium
+        )
+
+        details_form.text_field(
+          name: :option_pattern_description,
+          label: label(:option_pattern_description),
+          caption: I18n.t("custom_fields.instructions.option_pattern_description"),
+          input_width: :large
+        )
+      end
+
       if show_formula_field?
         details_form.pattern_input(
           name: :formula,
@@ -255,6 +277,12 @@ module CustomFields
 
     def show_min_max_field?
       %w[list bool date user version link hierarchy weighted_item_list calculated_value].exclude?(model.field_format)
+    end
+
+    # Only list fields can carry project-owned values, and only work package fields are in
+    # scope for this feature.
+    def show_project_values_fields?
+      model.is_a?(WorkPackageCustomField) && model.field_format == "list"
     end
 
     def show_regex_field?

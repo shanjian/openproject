@@ -27,42 +27,30 @@
 #
 # See COPYRIGHT and LICENSE files for more details.
 #++
+module CustomOptions
+  module ProjectLabels
+    class UpdateService < BaseService
+      def call(option:, value:)
+        reason = guard || ownership_failure(option)
+        return guard_failure(reason) if reason
 
-module CustomFields
-  class BaseContract < ::ModelContract
-    include RequiresAdminGuard
+        with_field_lock do
+          # Only the value is writable. project_id and custom_field_id are pinned: a
+          # permitted-parameter slip letting either through would turn "edit my label" into
+          # "move this option into another project, or onto another field", which no other
+          # validation would catch - the option would be perfectly valid in its new home.
+          option.value = value
+          raise ActiveRecord::Rollback unless option.save
+        end
 
-    attribute :admin_only
-    attribute :allow_project_values
-    attribute :option_pattern
-    attribute :option_pattern_description
-    attribute :allow_non_open_versions
-    attribute :content_right_to_left
-    attribute :custom_field_section_id
-    attribute :default_value
-    attribute :editable
-    attribute :field_format
-    attribute :formula
-    attribute :has_comment
-    attribute :is_filter
-    attribute :is_for_all
-    attribute :is_required do
-      validate_non_true_for_some_formats
-    end
-    attribute :max_length
-    attribute :min_length
-    attribute :multi_value
-    attribute :name
-    attribute :possible_values
-    attribute :regexp
-    attribute :searchable
-    attribute :type
-    attribute :version_kind
+        option.errors.empty? ? ServiceResult.success(result: option) : ServiceResult.failure(errors: option.errors)
+      end
 
-    def validate_non_true_for_some_formats
-      return unless %w[bool calculated_value].include?(field_format)
+      private
 
-      errors.add(:is_required, :cannot_be_true) if is_required == true
+      def ownership_failure(option)
+        :not_owned unless option.project_id == project.id
+      end
     end
   end
 end

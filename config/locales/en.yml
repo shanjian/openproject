@@ -272,6 +272,19 @@ en:
       error_requeue: "Job experienced an error but is retrying. The error was: %{message}"
       cancelled_due_to: "Job was cancelled due to error: %{message}"
 
+  project_labels:
+    description: "Labels this project owns, created under its own prefix. System labels are shared by every project and are managed by an administrator."
+    not_enabled: "Project-owned labels are not enabled on any field. An administrator enables them on the label custom field."
+    no_prefix: "This project has no label prefix, so it cannot own labels yet. An administrator sets one under Administration."
+    new_label: "New label"
+    owned_heading: "Labels owned by this project (%{prefix}-)"
+    none_yet: "This project owns no labels yet."
+    system_heading: "Shared labels"
+    system_hint: "Managed by an administrator and usable in every project. Shown here so you can see which names are taken."
+  label_prefixes:
+    description: "Each project owns labels under its own prefix. A project without one cannot own labels. Prefixes are two to six upper case letters or digits, and no two projects may share one."
+    no_candidate: "No prefix can be derived from this identifier — set one by hand."
+    suggested: "Suggested: %{prefix}"
   ldap_auth_sources:
     ldap_error: "LDAP-Error: %{error_message}"
     ldap_auth_failed: "Could not authenticate at the LDAP-Server."
@@ -369,6 +382,13 @@ en:
     edit: "Edit custom action %{name}"
     execute: "Execute %{name}"
 
+  custom_options:
+    project_labels:
+      errors:
+        unauthorised: "You are not allowed to manage labels in this project."
+        field_not_open: "This field does not accept project-owned labels."
+        no_prefix: "This project has no label prefix, so it cannot own labels. An administrator sets one under Administration."
+        not_owned: "That label does not belong to this project."
   custom_fields:
     admin:
       custom_field_projects:
@@ -432,6 +452,9 @@ en:
     calculated_field_not_editable: "Non-editable attribute. This value is calculated automatically."
     no_role_assigment: "No role assignment"
     instructions:
+      allow_project_values: "Let project administrators add values for their own project. Each such value must carry that projects label prefix, and is only applicable in that project."
+      option_pattern: "A regular expression every value must match, e.g. \\A[A-Z][A-Z0-9]{1,5}-[A-Z][A-Za-z0-9]*\\z. Checked when a value is created or renamed, so existing values are not affected."
+      option_pattern_description: "Shown to users when a value is rejected. Describe the rule in words rather than showing them the expression."
       is_required:
         all: "Mark the custom field as required. This will make it mandatory to fill in the field when creating new resources. Existing resources will not require a value when being updated."
         project: "Required attributes need to be filled out by the user on project creation if the field is active ('For all projects' set or copying from a project/template in which the field is active). Existing projects will not require a value when being updated."
@@ -1429,6 +1452,9 @@ en:
         actions: "Actions"
       custom_field:
         allow_non_open_versions: "Allow non-open versions"
+        allow_project_values: "Allow project-owned values"
+        option_pattern: "Value naming pattern"
+        option_pattern_description: "Naming pattern description"
         default_value: "Default value"
         editable: "Editable"
         field_format: "Format"
@@ -1445,6 +1471,10 @@ en:
         searchable: "Searchable"
         admin_only: "Admin-only"
         version_kind: "Version kind"
+      custom_option:
+        default_value: "Default value"
+        project: "Owning project"
+        value: "Value"
       custom_value:
         value: "Value"
       design_color:
@@ -1512,6 +1542,7 @@ en:
         description: "Description"
         enabled_modules: "Enabled modules"
         identifier: "Identifier"
+        label_prefix: "Label prefix"
         latest_activity_at: "Latest activity at"
         parent: "Subproject of"
         project_creation_wizard_enabled: "Project initiation request"
@@ -1851,6 +1882,11 @@ en:
             one: "%{name} is used in project attribute calculation %{links}."
             other: "%{name} is used in project attribute calculations: %{links}."
           attributes:
+            allow_project_values:
+              requires_option_pattern: "cannot be enabled until a label naming pattern is set."
+              cannot_be_disabled_with_owned_options: "cannot be turned off while %{count} project-owned value(s) exist. Delete or promote them first."
+            option_pattern:
+              invalid: "is not a valid regular expression."
             formula:
               blank: "Formula can't be blank."
               invalid: "Formula is invalid."
@@ -1859,6 +1895,19 @@ en:
               format: "%{message}"
             required:
               cannot_be_true: "cannot be set to true."
+        custom_option:
+          attributes:
+            base:
+              project_has_no_label_prefix: "The project has no label prefix, so it cannot own labels. An administrator sets one under Administration."
+              field_does_not_allow_project_values: "This field no longer accepts project-owned labels."
+            default_value:
+              only_system_labels: "can only be set on labels shared by all projects."
+            value:
+              must_carry_project_prefix: "must start with this project's label prefix, %{prefix}-."
+              shadows_system_label: "is already used by a label shared by all projects."
+              shadowed_by_project_label: "is already used by a label owned by a project. Rename or promote that one first."
+              invalid_label_format: "must look like PREFIX-Name, e.g. AT-Bounce."
+              does_not_match_pattern: "%{description}"
         custom_fields_project:
           attributes:
             project_ids:
@@ -1932,6 +1981,9 @@ en:
           foreign_wps_reference_version: "Work packages in non descendant projects reference versions of the project or its descendants."
           cannot_be_assigned_to_artifact_work_package: "The chosen user is not allowed to be assigned to work packages."
           attributes:
+            label_prefix:
+              cannot_be_cleared_with_labels: "cannot be cleared while this project owns %{count} label(s). Delete or promote them first."
+              rename_would_break_label: "cannot be changed: renaming %{label} would fail (%{reason})."
             base:
               archive_permission_missing_on_subprojects: "You do not have the permissions required to archive all sub-projects. Please contact an administrator."
               project_initiation_request_disabled: "Project initiation request is disabled. It must be enabled to create the artifact work package."
@@ -2056,6 +2108,8 @@ en:
         work_package:
           is_not_a_valid_target_for_time_entries: "Work package #%{id} is not a valid target for reassigning the time entries."
           attributes:
+            base:
+              label_not_applicable: "%{field}: a label was applied that this project cannot use."
             id:
               format: "%{message}"
               cannot_add_child_because_of_lack_of_permission: "Cannot add child because you don't have permissions to edit the selected work package."
@@ -3410,6 +3464,8 @@ en:
   label_attachment_plural: "Attachments"
   label_attribute: "Attribute"
   label_attribute_plural: "Attributes"
+  label_label_plural: "Labels"
+  label_label_prefixes: "Label prefixes"
   label_ldap_auth_source_new: "New LDAP connection"
   label_ldap_auth_source: "LDAP connection"
   label_ldap_auth_source_plural: "LDAP connections"
@@ -4439,6 +4495,7 @@ en:
   permission_log_time: "Log time for other users"
   permission_manage_forums: "Manage forums"
   permission_manage_categories: "Manage work package categories"
+  permission_manage_project_labels: "Manage project labels"
   permission_manage_dashboards: "Manage dashboards"
   permission_manage_work_package_relations: "Manage work package relations"
   permission_manage_members: "Manage members"

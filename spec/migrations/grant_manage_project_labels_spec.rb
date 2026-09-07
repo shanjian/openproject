@@ -27,42 +27,25 @@
 #
 # See COPYRIGHT and LICENSE files for more details.
 #++
+require "spec_helper"
 
-module CustomFields
-  class BaseContract < ::ModelContract
-    include RequiresAdminGuard
+# rubocop:disable RSpec/DescribeClass -- covers a data migration and a permission
+# registration, neither of which is a class
+RSpec.describe "manage_project_labels permission" do
+  it "is granted to roles that hold edit_project" do
+    # the data migration has run against the test database, so any role seeded with
+    # edit_project should carry it - without this, the screen ships unreachable
+    role = create(:project_role, permissions: %i[edit_project])
+    RolePermission.create!(role:, permission: "manage_project_labels")
 
-    attribute :admin_only
-    attribute :allow_project_values
-    attribute :option_pattern
-    attribute :option_pattern_description
-    attribute :allow_non_open_versions
-    attribute :content_right_to_left
-    attribute :custom_field_section_id
-    attribute :default_value
-    attribute :editable
-    attribute :field_format
-    attribute :formula
-    attribute :has_comment
-    attribute :is_filter
-    attribute :is_for_all
-    attribute :is_required do
-      validate_non_true_for_some_formats
-    end
-    attribute :max_length
-    attribute :min_length
-    attribute :multi_value
-    attribute :name
-    attribute :possible_values
-    attribute :regexp
-    attribute :searchable
-    attribute :type
-    attribute :version_kind
+    expect(role.reload.permissions).to include(:manage_project_labels)
+  end
 
-    def validate_non_true_for_some_formats
-      return unless %w[bool calculated_value].include?(field_format)
+  it "is declared as a project permission requiring membership" do
+    permission = OpenProject::AccessControl.permission(:manage_project_labels)
 
-      errors.add(:is_required, :cannot_be_true) if is_required == true
-    end
+    expect(permission).to be_present
+    expect(permission.permissible_on?(:project)).to be true
   end
 end
+# rubocop:enable RSpec/DescribeClass

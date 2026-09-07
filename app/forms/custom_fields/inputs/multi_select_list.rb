@@ -68,7 +68,7 @@ class CustomFields::Inputs::MultiSelectList < CustomFields::Inputs::Base::Autoco
         }
       end
     else
-      @custom_field.custom_options.map do |custom_option|
+      applicable_custom_options.map do |custom_option|
         {
           label: custom_option.value,
           value: custom_option.id,
@@ -90,5 +90,19 @@ class CustomFields::Inputs::MultiSelectList < CustomFields::Inputs::Base::Autoco
     else
       custom_option.default_value?
     end
+  end
+
+  # Only the options this project may APPLY, plus any already stored on the record so a work
+  # package that moved projects keeps showing - and keeps - its labels. Falls back to every
+  # option for fields that are not project-aware, which is all of them today.
+  def applicable_custom_options
+    return @custom_field.custom_options unless @custom_field.allow_project_values?
+
+    project = @object.project if @object.respond_to?(:project)
+    return @custom_field.custom_options if project.nil?
+
+    stored = custom_values.filter_map { |custom_value| custom_value.value.presence }
+    @custom_field.custom_options.where(id: stored)
+                 .or(@custom_field.custom_options.applicable_in(project))
   end
 end

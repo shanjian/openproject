@@ -28,41 +28,34 @@
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-module CustomFields
-  class BaseContract < ::ModelContract
-    include RequiresAdminGuard
+# Grants manage_project_labels to every role that already holds edit_project.
+#
+# Role permissions are seeded only on a fresh install - BasicData::ModelSeeder#applicable?
+# is `model_class.none?` - so a new permission never reaches an existing installation.
+# Without this, the project settings screen ships and no role can open it.
+#
+# edit_project is the chosen boundary: the people who already administer a project. Written
+# as raw inserts rather than through the model so it does not depend on RolePermission's
+# current shape.
+class GrantManageProjectLabels < ActiveRecord::Migration[8.1]
+  PERMISSION = "manage_project_labels"
+  SOURCE = "edit_project"
 
-    attribute :admin_only
-    attribute :allow_project_values
-    attribute :option_pattern
-    attribute :option_pattern_description
-    attribute :allow_non_open_versions
-    attribute :content_right_to_left
-    attribute :custom_field_section_id
-    attribute :default_value
-    attribute :editable
-    attribute :field_format
-    attribute :formula
-    attribute :has_comment
-    attribute :is_filter
-    attribute :is_for_all
-    attribute :is_required do
-      validate_non_true_for_some_formats
-    end
-    attribute :max_length
-    attribute :min_length
-    attribute :multi_value
-    attribute :name
-    attribute :possible_values
-    attribute :regexp
-    attribute :searchable
-    attribute :type
-    attribute :version_kind
+  def up
+    execute <<~SQL.squish
+      INSERT INTO role_permissions (role_id, permission, created_at, updated_at)
+      SELECT DISTINCT source.role_id, '#{PERMISSION}', NOW(), NOW()
+      FROM role_permissions source
+      WHERE source.permission = '#{SOURCE}'
+        AND NOT EXISTS (
+          SELECT 1 FROM role_permissions existing
+          WHERE existing.role_id = source.role_id
+            AND existing.permission = '#{PERMISSION}'
+        )
+    SQL
+  end
 
-    def validate_non_true_for_some_formats
-      return unless %w[bool calculated_value].include?(field_format)
-
-      errors.add(:is_required, :cannot_be_true) if is_required == true
-    end
+  def down
+    execute "DELETE FROM role_permissions WHERE permission = '#{PERMISSION}'"
   end
 end

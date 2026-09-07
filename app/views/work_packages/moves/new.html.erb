@@ -205,7 +205,7 @@ See COPYRIGHT and LICENSE files for more details.
               <div class="form--field">
                 <%= blank_custom_field_label_tag("", custom_field) %>
                 <div class="form--field-container">
-                  <%= custom_field_tag_for_bulk_edit("", custom_field, @project) %>
+                  <%= custom_field_tag_for_bulk_edit("", custom_field, @target_project) %>
                 </div>
               </div>
             <% end %>

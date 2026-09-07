@@ -625,6 +625,26 @@ class WorkPackage < ApplicationRecord
     [project_id, type_id]
   end
 
+  # custom_value_attributes, with labels the target project cannot apply removed.
+  #
+  # Copying carries list option ids across verbatim on both paths, and neither is covered by
+  # the ordinary create/update lifecycle - project copy runs under CopyProjectContract, whose
+  # #valid? returns true unconditionally, so this filter is the ONLY protection there.
+  #
+  # Field-aware, not value-aware: custom_value_attributes is a bare custom_field_id => value
+  # map and custom_values.value is untyped text shared by every format, so dropping "values
+  # that look like inapplicable option ids" would delete an integer field holding 99 because
+  # some project owned option id 99.
+  def custom_value_attributes_for(target_project)
+    return custom_value_attributes if target_project.nil?
+
+    fields = available_custom_fields.index_by(&:id)
+
+    custom_value_attributes.to_h do |custom_field_id, value|
+      [custom_field_id, applicable_custom_value(fields[custom_field_id], value, target_project)]
+    end
+  end
+
   protected
 
   def <=>(other)
@@ -794,5 +814,18 @@ class WorkPackage < ApplicationRecord
     stored_meetings = meetings.to_a
     yield
     stored_meetings.each(&:touch_and_save_journals)
+  end
+
+  def applicable_custom_value(field, value, target_project)
+    return value unless project_scoped_label_field?(field)
+
+    applicable = field.custom_options.applicable_in(target_project).pluck(:id).map(&:to_s)
+    kept = Array(value).select { |single| applicable.include?(single.to_s) }
+
+    value.is_a?(Array) ? kept : kept.first
+  end
+
+  def project_scoped_label_field?(field)
+    field&.field_format == "list" && field.allow_project_values?
   end
 end
