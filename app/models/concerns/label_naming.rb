@@ -38,9 +38,18 @@
 module LabelNaming
   PREFIX_FRAGMENT = /[A-Z][A-Z0-9]{1,5}/
   PREFIX_FORMAT = /\A#{PREFIX_FRAGMENT}\z/
-  # The shape a project label is expected to take. Admins may set a stricter
-  # custom_fields.option_pattern on top of this; this is the structural rule.
-  LABEL_FORMAT = /\A#{PREFIX_FRAGMENT}-[A-Z][A-Za-z0-9]*\z/
+  # The shape a project label is expected to take: a prefix, a hyphen, then a name of one or
+  # more words, e.g. "AT-bounce" or "AT-bounce-handling".
+  #
+  # Case is deliberately not part of the rule. The distinction that carries meaning is the
+  # prefix, which is uppercase by its own format; forcing the name to start uppercase too
+  # only rejects the spelling people reach for first. Words may be separated by "-" or "_",
+  # and that stays unambiguous because prefixed_with? matches "AT-" from the start, so the
+  # FIRST hyphen always ends the prefix however many follow it.
+  #
+  # Admins may set a stricter custom_fields.option_pattern on top of this. They cannot set a
+  # looser one: this is applied independently of the pattern, and is the structural floor.
+  LABEL_FORMAT = /\A#{PREFIX_FRAGMENT}-[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*\z/
 
   module_function
 

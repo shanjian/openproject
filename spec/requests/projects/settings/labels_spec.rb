@@ -39,7 +39,7 @@ RSpec.describe "Project labels settings", :skip_csrf, type: :rails_request do
 
   before do
     field.update_columns(allow_project_values: true,
-                         option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Z][A-Za-z0-9]*\z')
+                         option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Za-z0-9]+([-_][A-Za-z0-9]+)*\z')
   end
 
   context "as a project admin" do
@@ -131,7 +131,7 @@ RSpec.describe "Project labels settings", :skip_csrf, type: :rails_request do
 
     before do
       second_field.update_columns(allow_project_values: true,
-                                  option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Z][A-Za-z0-9]*\z')
+                                  option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Za-z0-9]+([-_][A-Za-z0-9]+)*\z')
     end
 
     # The screen used to manage only the alphabetically first field, leaving the others'
