@@ -198,6 +198,29 @@ RSpec.describe CustomOption, "label governance" do
     end
   end
 
+  describe "reading the committed prefix" do
+    # The field lock serialises label writes against each other but not against a prefix
+    # change, which writes a different table. A request holding a stale in-memory project
+    # would otherwise validate against the prefix it loaded, not the one now committed.
+    it "rejects a label built against a prefix that has since changed" do
+      stale = Project.find(project.id) # loaded while the prefix is still AT
+      Project.where(id: project.id).update_all(label_prefix: "ARCH")
+
+      option = build(:custom_option, custom_field: field, value: "AT-Stale", project: stale)
+
+      expect(option).not_to be_valid
+    end
+
+    it "accepts a label matching the committed prefix" do
+      stale = Project.find(project.id)
+      Project.where(id: project.id).update_all(label_prefix: "ARCH")
+
+      option = build(:custom_option, custom_field: field, value: "ARCH-Fresh", project: stale)
+
+      expect(option).to be_valid
+    end
+  end
+
   describe "defaults" do
     it "refuses to make a project label the default" do
       option = project_label("AT-Migration")

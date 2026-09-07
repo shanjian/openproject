@@ -329,6 +329,7 @@ class Project < ApplicationRecord
 
     promote_owned_labels(referenced)
     delete_owned_labels(unreferenced)
+    touch_label_fields(owned)
 
     referenced.map(&:first)
   end
@@ -408,6 +409,17 @@ class Project < ApplicationRecord
       .where(custom_field_id:, value: option_id.to_s, customized_type: "WorkPackage")
       .where.not(customized_id: WorkPackage.where(project_id: id).select(:id))
       .exists?
+  end
+
+  # update_all and delete_all skip CustomOption's callbacks, including the `touch: true` on
+  # its custom_field. Without this the field keeps its old updated_at, so cached option and
+  # filter representations - which key on it - keep serving labels that have been promoted
+  # or deleted.
+  def touch_label_fields(owned)
+    field_ids = owned.map(&:last).uniq
+    return if field_ids.empty?
+
+    CustomField.where(id: field_ids).touch_all
   end
 
   def promote_owned_labels(referenced)

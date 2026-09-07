@@ -76,6 +76,7 @@ class CustomField < ApplicationRecord
   validate :validate_regex
   validate :validate_option_pattern
   validate :validate_option_pattern_present_when_allowing_project_values
+  validate :validate_project_values_not_disabled_with_owned_options
 
   validates :min_length, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :max_length, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
@@ -157,6 +158,21 @@ class CustomField < ApplicationRecord
   # Enabling project values without a naming rule would let a project create labels under no
   # constraint at all, and the rollout would depend on running its phases in order. Make the
   # order impossible to get wrong instead.
+  # Turning the flag off does not merely stop new project labels being created: every
+  # existing project-owned option stays attached to its project, while applicability falls
+  # back to "all options" - so one project's private labels become applicable in every other
+  # project, and the settings screen that could remove them hides the field. Same shape as
+  # clearing a prefix while labels exist, and refused for the same reason.
+  def validate_project_values_not_disabled_with_owned_options
+    return unless persisted?
+    return unless allow_project_values_changed?(from: true, to: false)
+
+    owned = custom_options.where.not(project_id: nil).count
+    return if owned.zero?
+
+    errors.add(:allow_project_values, :cannot_be_disabled_with_owned_options, count: owned)
+  end
+
   def validate_option_pattern_present_when_allowing_project_values
     return unless allow_project_values?
     return if option_pattern.present?

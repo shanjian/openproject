@@ -122,6 +122,18 @@ RSpec.describe Project, "label governance" do
       expect(described_class.where(id: owner.id)).to be_empty
     end
 
+    # update_all and delete_all skip CustomOption's callbacks, including the touch on its
+    # custom_field, so cached option and filter representations would keep serving labels
+    # that have been promoted or deleted.
+    it "touches the custom field so its caches are invalidated" do
+      owned_label("AT-Local")
+      before = field.reload.updated_at
+
+      travel(1.second) { owner.destroy! }
+
+      expect(field.reload.updated_at).to be > before
+    end
+
     it "does not delete an unrelated field's value that happens to equal an option id" do
       option = owned_label("AT-Local")
       integer_field = create(:integer_wp_custom_field, name: "Estimate")

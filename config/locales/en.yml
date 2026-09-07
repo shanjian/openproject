@@ -1884,6 +1884,7 @@ en:
           attributes:
             allow_project_values:
               requires_option_pattern: "cannot be enabled until a label naming pattern is set."
+              cannot_be_disabled_with_owned_options: "cannot be turned off while %{count} project-owned value(s) exist. Delete or promote them first."
             option_pattern:
               invalid: "is not a valid regular expression."
             formula:

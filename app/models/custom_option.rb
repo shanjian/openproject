@@ -44,7 +44,7 @@ class CustomOption < ApplicationRecord
   validate :validate_project_prefix
   validate :validate_default_is_system_level
 
-  before_validation :acquire_cross_tier_lock, on: %i[create update]
+  before_validation :acquire_write_locks, on: %i[create update]
   before_destroy :assure_at_least_one_option
 
   # Serialises writes per field so the cross-tier shadowing check cannot race.
@@ -79,13 +79,41 @@ class CustomOption < ApplicationRecord
 
   def system_level? = project_id.nil?
 
+  def acquire_write_locks
+    return unless value_check_needed?
+
+    acquire_cross_tier_lock
+    lock_owning_project
+  end
+
+  # Gated on the flag: cross-tier collisions are only possible on a field that has both
+  # tiers.
   def acquire_cross_tier_lock
     return unless custom_field&.allow_project_values?
-    return unless value_check_needed?
 
     self.class.connection.execute(
       "SELECT pg_advisory_xact_lock(#{CROSS_TIER_LOCK_NAMESPACE}, #{custom_field_id.to_i})"
     )
+
+    lock_owning_project
+  end
+
+  # NOT gated on the flag: the prefix rule applies to every project-owned option, so the
+  # committed prefix must be read whatever the field's configuration.
+  #
+  # The field lock serialises label writes against each other, but not against a PREFIX
+  # change, which is a write to a different table. Without this, a request that loaded the
+  # project while its prefix was AT can validate "AT-Bounce" against that stale in-memory
+  # value after another request has committed the prefix as ADT.
+  #
+  # Locking the project row makes the two serialise: this blocks while a prefix change is in
+  # flight, then re-reads the committed value, and a prefix change blocks on the same row
+  # while a label is being written.
+  def lock_owning_project
+    return if project_id.nil?
+
+    association(:project).reload
+    project&.lock!
   end
 
   protected
