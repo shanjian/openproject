@@ -39,6 +39,8 @@ class WorkPackagesController < ApplicationController
 
   before_action :authorize_on_work_package,
                 :project, only: %i[show generate_pdf_dialog generate_pdf]
+  before_action :redirect_to_canonical_project, only: :show, if: -> { request.format.html? }
+  before_action :redirect_split_view_to_canonical_project, only: :index, if: -> { request.format.html? }
   before_action :check_allowed_export,
                 :protect_from_unauthorized_export, only: %i[index export_dialog]
 
@@ -299,5 +301,73 @@ class WorkPackagesController < ApplicationController
 
   def show_route_incomplete?
     params[:project_id].blank? || params[:tab].blank?
+  end
+
+  # The project identifier in a show route is decorative: #work_package finds the work
+  # package by its globally unique id alone, and #project derives the real project from
+  # it. Renaming a project therefore broke every deep link shared outside OpenProject,
+  # because #load_and_authorize_in_optional_project looks params[:project_id] up and
+  # raises RecordNotFound on the now stale identifier -- overwriting the @project that
+  # #project had already resolved correctly.
+  #
+  # Redirect such links to the canonical route rather than serving a 404. This runs
+  # after #authorize_on_work_package, so a work package the user is not allowed to see
+  # is still a 404 and the redirect cannot be used to probe for one.
+  def redirect_to_canonical_project
+    return if params[:project_id].blank?
+    return if project_param_identifies_work_package_project?
+
+    redirect_to({ action: "show",
+                  id: params[:id],
+                  project_id: work_package.project.identifier,
+                  tab: params[:tab] || "activity" },
+                status: :moved_permanently)
+  end
+
+  def project_param_identifies_work_package_project?
+    wp_project = work_package.project
+
+    params[:project_id].to_s.in?([wp_project.identifier, wp_project.id.to_s])
+  end
+
+  # The split view keeps the opened work package in the client side routing state, as in
+  # /projects/:project_id/work_packages/details/:id/overview. Recover the project from
+  # that id for the same reason as #redirect_to_canonical_project, so that renaming a
+  # project does not break shared split view links either.
+  #
+  # Unlike #show, index has no #authorize_on_work_package ahead of it, so the lookup is
+  # scoped to what the user may see and simply falls through to the regular 404
+  # otherwise. A stale link therefore never discloses a work package or a project
+  # identifier the user has no access to.
+  def redirect_split_view_to_canonical_project
+    return if params[:project_id].blank?
+    return if project_id_param_resolves?
+
+    split_view_work_package = work_package_from_split_view_state
+    return if split_view_work_package.nil?
+
+    redirect_to({ action: "index",
+                  project_id: split_view_work_package.project.identifier,
+                  **canonical_index_params },
+                status: :moved_permanently)
+  end
+
+  # Mirrors the lookup #load_and_authorize_in_optional_project performs, so that the two
+  # cannot disagree about whether an identifier still resolves.
+  def project_id_param_resolves?
+    Project.find(params[:project_id]).present?
+  rescue ActiveRecord::RecordNotFound
+    false
+  end
+
+  def work_package_from_split_view_state
+    id = params[:state].to_s[%r{\Adetails/(\d+)}, 1]
+    return if id.blank?
+
+    WorkPackage.visible(current_user).find_by(id:)
+  end
+
+  def canonical_index_params
+    params.permit(:state, :query_id, :query_props).to_h.symbolize_keys.compact_blank
   end
 end
