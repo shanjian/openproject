@@ -313,21 +313,25 @@ class WorkPackagesController < ApplicationController
   # Redirect such links to the canonical route rather than serving a 404. This runs
   # after #authorize_on_work_package, so a work package the user is not allowed to see
   # is still a 404 and the redirect cannot be used to probe for one.
+  #
+  # Only a dead identifier is redirected. A resolvable one is left alone even when it is
+  # not the work package's own project, because that is a legitimate and common shape:
+  # a project list includes the work packages of its descendants
+  # (Setting.display_subprojects_work_packages, and the project filter's
+  # self_and_descendants scope), and the frontend builds full screen links from the
+  # project whose list you are looking at rather than from the work package
+  # (UiStateLinkBuilder#build). Canonicalizing those would throw away the parent project
+  # context on every click, permanently, since the redirect is cacheable.
   def redirect_to_canonical_project
     return if params[:project_id].blank?
-    return if project_param_identifies_work_package_project?
+    return if project_id_param_resolves?
 
     redirect_to({ action: "show",
                   id: params[:id],
                   project_id: work_package.project.identifier,
-                  tab: params[:tab] || "activity" },
+                  tab: params[:tab] || "activity",
+                  **canonical_navigation_params },
                 status: :moved_permanently)
-  end
-
-  def project_param_identifies_work_package_project?
-    wp_project = work_package.project
-
-    params[:project_id].to_s.in?([wp_project.identifier, wp_project.id.to_s])
   end
 
   # The split view keeps the opened work package in the client side routing state, as in
@@ -348,7 +352,8 @@ class WorkPackagesController < ApplicationController
 
     redirect_to({ action: "index",
                   project_id: split_view_work_package.project.identifier,
-                  **canonical_index_params },
+                  state: params[:state],
+                  **canonical_navigation_params },
                 status: :moved_permanently)
   end
 
@@ -367,7 +372,12 @@ class WorkPackagesController < ApplicationController
     WorkPackage.visible(current_user).find_by(id:)
   end
 
-  def canonical_index_params
-    params.permit(:state, :query_id, :query_props).to_h.symbolize_keys.compact_blank
+  # The frontend appends window.location.search to full screen links
+  # (UiStateLinkBuilder#build), so a shared link can carry the list it was opened from.
+  # Keep that state across the redirect instead of dropping the reader back into an
+  # unfiltered view. Allowlisted rather than reflected wholesale, so that a crafted
+  # query string cannot inject routing keys into #url_for.
+  def canonical_navigation_params
+    params.permit(:query_id, :query_props).to_h.symbolize_keys.compact_blank
   end
 end

@@ -37,11 +37,14 @@ require "spec_helper"
 RSpec.describe "Work package links with a stale project identifier", type: :rails_request do
   shared_let(:project) { create(:project, identifier: "adt") }
   shared_let(:other_project) { create(:project, identifier: "prtl") }
+  shared_let(:child_project) { create(:project, identifier: "adt-child", parent: project) }
   shared_let(:work_package) { create(:work_package, project:) }
+  shared_let(:child_work_package) { create(:work_package, project: child_project) }
 
   shared_let(:user) do
     create(:user, member_with_permissions: { project => %i[view_work_packages],
-                                             other_project => %i[view_work_packages] })
+                                             other_project => %i[view_work_packages],
+                                             child_project => %i[view_work_packages] })
   end
 
   current_user { user }
@@ -74,14 +77,41 @@ RSpec.describe "Work package links with a stale project identifier", type: :rail
 
       expect(response).to have_http_status(:ok)
     end
-  end
 
-  context "when the identifier resolves to a different project" do
-    it "redirects permanently to the project the work package actually belongs to" do
-      get "/projects/#{other_project.identifier}/work_packages/#{work_package.id}/activity"
+    it "keeps the list state the link was shared with" do
+      get "/projects/#{stale_identifier}/work_packages/#{work_package.id}/activity",
+          params: { query_id: "42", query_props: '{"c":["id"]}' }
 
       expect(response).to have_http_status(:moved_permanently)
-      expect(response).to redirect_to(canonical_url)
+      expect(response.headers["Location"]).to include("query_id=42").and include("query_props=")
+    end
+  end
+
+  # A project list contains the work packages of its descendants, and the frontend builds
+  # full screen links from the project whose list is open rather than from the work
+  # package itself, so a project that is not the work package's own is a normal,
+  # meaningful context and must survive untouched. Canonicalizing it away would discard
+  # the parent project context on every click through a subproject work package -- and
+  # permanently, the redirect being cacheable.
+  context "when the identifier resolves to an ancestor of the work package's project" do
+    it "renders the work package, keeping the project context the link was built with" do
+      get "/projects/#{project.identifier}/work_packages/#{child_work_package.id}/activity"
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "keeps that context in the split view too" do
+      get "/projects/#{project.identifier}/work_packages/details/#{child_work_package.id}/overview"
+
+      expect(response).to have_http_status(:ok)
+    end
+  end
+
+  context "when the identifier resolves to an unrelated project" do
+    it "does not redirect, leaving pre-existing behaviour for resolvable projects alone" do
+      get "/projects/#{other_project.identifier}/work_packages/#{work_package.id}/activity"
+
+      expect(response).to have_http_status(:ok)
     end
   end
 
