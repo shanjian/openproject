@@ -78,12 +78,20 @@ RSpec.describe "Work package links with a stale project identifier", type: :rail
       expect(response).to have_http_status(:ok)
     end
 
-    it "keeps the list state the link was shared with" do
+    # WORK_PACKAGES_ROUTES declares query_id, query_props, name and
+    # start_onboarding_tour, and modules add their own on top, so the whole query string
+    # is carried over rather than an allowlisted subset of it.
+    it "keeps every parameter the link was shared with" do
       get "/projects/#{stale_identifier}/work_packages/#{work_package.id}/activity",
-          params: { query_id: "42", query_props: '{"c":["id"]}' }
+          params: { query_id: "42", query_props: '{"c":["id"]}',
+                    name: "My saved view", start_onboarding_tour: "true", sprint_id: "7" }
 
       expect(response).to have_http_status(:moved_permanently)
-      expect(response.headers["Location"]).to include("query_id=42").and include("query_props=")
+
+      location = URI.parse(response.headers["Location"])
+      expect(Rack::Utils.parse_query(location.query))
+        .to eq("query_id" => "42", "query_props" => '{"c":["id"]}',
+               "name" => "My saved view", "start_onboarding_tour" => "true", "sprint_id" => "7")
     end
   end
 
@@ -107,11 +115,30 @@ RSpec.describe "Work package links with a stale project identifier", type: :rail
     end
   end
 
-  context "when the identifier resolves to an unrelated project" do
-    it "does not redirect, leaving pre-existing behaviour for resolvable projects alone" do
+  # An identifier freed by a rename can later be handed to an unrelated project. The
+  # work package was never reachable through that project's list, so using it as the
+  # page's context would quietly misrepresent where the work package lives.
+  context "when the identifier resolves to a project the work package is unreachable through" do
+    it "redirects permanently to the project the work package actually belongs to" do
       get "/projects/#{other_project.identifier}/work_packages/#{work_package.id}/activity"
 
-      expect(response).to have_http_status(:ok)
+      expect(response).to have_http_status(:moved_permanently)
+      expect(response).to redirect_to(canonical_url)
+    end
+
+    it "canonicalizes the split view as well" do
+      get "/projects/#{other_project.identifier}/work_packages/details/#{work_package.id}/overview"
+
+      expect(response).to have_http_status(:moved_permanently)
+      expect(response)
+        .to redirect_to("/projects/#{project.identifier}/work_packages/details/#{work_package.id}/overview")
+    end
+
+    it "canonicalizes a descendant project, which does not contain the ancestor's work packages" do
+      get "/projects/#{child_project.identifier}/work_packages/#{work_package.id}/activity"
+
+      expect(response).to have_http_status(:moved_permanently)
+      expect(response).to redirect_to(canonical_url)
     end
   end
 
@@ -195,6 +222,14 @@ RSpec.describe "Work package links with a stale project identifier", type: :rail
       get "/projects/#{stale_identifier}/work_packages"
 
       expect(response).to have_http_status(:not_found)
+    end
+
+    # The global list legitimately spans projects. Canonicalizing it into the project of
+    # whichever work package happens to be open in the split view would destroy it.
+    it "leaves the global cross-project list alone" do
+      get "/work_packages/details/#{work_package.id}/overview"
+
+      expect(response).to have_http_status(:ok)
     end
   end
 end

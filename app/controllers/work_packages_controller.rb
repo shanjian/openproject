@@ -313,25 +313,14 @@ class WorkPackagesController < ApplicationController
   # Redirect such links to the canonical route rather than serving a 404. This runs
   # after #authorize_on_work_package, so a work package the user is not allowed to see
   # is still a 404 and the redirect cannot be used to probe for one.
-  #
-  # Only a dead identifier is redirected. A resolvable one is left alone even when it is
-  # not the work package's own project, because that is a legitimate and common shape:
-  # a project list includes the work packages of its descendants
-  # (Setting.display_subprojects_work_packages, and the project filter's
-  # self_and_descendants scope), and the frontend builds full screen links from the
-  # project whose list you are looking at rather than from the work package
-  # (UiStateLinkBuilder#build). Canonicalizing those would throw away the parent project
-  # context on every click, permanently, since the redirect is cacheable.
   def redirect_to_canonical_project
     return if params[:project_id].blank?
-    return if project_id_param_resolves?
+    return if valid_project_context_for?(work_package)
 
-    redirect_to({ action: "show",
-                  id: params[:id],
-                  project_id: work_package.project.identifier,
-                  tab: params[:tab] || "activity",
-                  **canonical_navigation_params },
-                status: :moved_permanently)
+    redirect_to with_original_query(project_work_package_path(work_package.project,
+                                                              params[:id],
+                                                              params[:tab] || "activity")),
+                status: :moved_permanently
   end
 
   # The split view keeps the opened work package in the client side routing state, as in
@@ -344,23 +333,37 @@ class WorkPackagesController < ApplicationController
   # otherwise. A stale link therefore never discloses a work package or a project
   # identifier the user has no access to.
   def redirect_split_view_to_canonical_project
+    # A blank project_id is the global work package list, which legitimately spans
+    # projects. Scoping it to one would destroy the very list the link points at.
     return if params[:project_id].blank?
-    return if project_id_param_resolves?
 
     split_view_work_package = work_package_from_split_view_state
     return if split_view_work_package.nil?
+    return if valid_project_context_for?(split_view_work_package)
 
-    redirect_to({ action: "index",
-                  project_id: split_view_work_package.project.identifier,
-                  state: params[:state],
-                  **canonical_navigation_params },
-                status: :moved_permanently)
+    redirect_to with_original_query(
+      project_work_packages_path(split_view_work_package.project, params[:state])
+    ), status: :moved_permanently
   end
 
-  # Mirrors the lookup #load_and_authorize_in_optional_project performs, so that the two
-  # cannot disagree about whether an identifier still resolves.
-  def project_id_param_resolves?
-    Project.find(params[:project_id]).present?
+  # The project segment is a meaningful context whenever the work package is actually
+  # reachable through that project's list, which holds for the project itself and for
+  # any of its ancestors: a list contains the work packages of the project and of its
+  # descendants (Setting.display_subprojects_work_packages, and the project filter's
+  # self_and_descendants scope), while the frontend builds links from the project whose
+  # list is open rather than from the work package (UiStateLinkBuilder#build). Redirecting
+  # those would discard the parent project context on every click through a subproject
+  # work package, and permanently, a 301 being cacheable.
+  #
+  # Any other segment names a project this work package was never reachable through --
+  # an identifier left dead by a rename, or one since reused by an unrelated project --
+  # and is canonicalized rather than silently used as the page's context.
+  def valid_project_context_for?(work_package)
+    return false if params[:project_id].blank?
+
+    context_project = Project.find(params[:project_id])
+
+    work_package.project.self_and_ancestors.exists?(context_project.id)
   rescue ActiveRecord::RecordNotFound
     false
   end
@@ -372,12 +375,15 @@ class WorkPackagesController < ApplicationController
     WorkPackage.visible(current_user).find_by(id:)
   end
 
-  # The frontend appends window.location.search to full screen links
-  # (UiStateLinkBuilder#build), so a shared link can carry the list it was opened from.
-  # Keep that state across the redirect instead of dropping the reader back into an
-  # unfiltered view. Allowlisted rather than reflected wholesale, so that a crafted
-  # query string cannot inject routing keys into #url_for.
-  def canonical_navigation_params
-    params.permit(:query_id, :query_props).to_h.symbolize_keys.compact_blank
+  # The frontend appends window.location.search to work package links
+  # (UiStateLinkBuilder#build), and the list state supports query_id, query_props, name
+  # and start_onboarding_tour (WORK_PACKAGES_ROUTES) besides whatever a module adds of
+  # its own. Carry the query string over verbatim rather than maintaining an allowlist
+  # that silently drops the rest. Safe because the path is built by a route helper, so
+  # nothing here can inject routing keys the way merging params into #url_for could.
+  def with_original_query(path)
+    return path if request.query_string.blank?
+
+    "#{path}?#{request.query_string}"
   end
 end
