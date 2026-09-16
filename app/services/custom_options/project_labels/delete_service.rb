@@ -39,9 +39,12 @@ module CustomOptions
 
       private
 
-      # A system label belongs to the admin path, not this one.
+      # A system label belongs to the admin path, not this one. Same for an option that
+      # belongs to the project but to a DIFFERENT field: the guard above authorised against
+      # the supplied custom_field, so acting on another one's option would apply the wrong
+      # field's allow_project_values/option_pattern configuration to it.
       def ownership_failure(option)
-        :not_owned unless option.project_id == project.id
+        :not_owned unless option.project_id == project.id && option.custom_field_id == custom_field.id
       end
     end
   end

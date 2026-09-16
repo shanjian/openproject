@@ -39,7 +39,9 @@ RSpec.describe CustomOptions::ProjectLabels::CreateService do
   shared_let(:manager) { create(:user, member_with_roles: { project => role }) }
   shared_let(:outsider) { create(:user) }
 
-  before { field.update_columns(allow_project_values: true, option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Za-z0-9]+([-_][A-Za-z0-9]+)*\z') }
+  before do
+    field.update_columns(allow_project_values: true, option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Za-z0-9]+([-_][A-Za-z0-9]+)*\z')
+  end
 
   def create_label(value, user: manager, in_project: project)
     described_class.new(user:, project: in_project, custom_field: field).call(value:)
@@ -102,6 +104,19 @@ RSpec.describe CustomOptions::ProjectLabels::CreateService do
 
       expect(call).not_to be_success
     end
+
+    it "refuses to touch an option owned by this project but on a different field" do
+      other_field = create(:list_wp_custom_field, name: "Other", allow_project_values: true,
+                                                  option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Za-z0-9]+([-_][A-Za-z0-9]+)*\z',
+                                                  possible_values: %w[ML-Other])
+      elsewhere_field_option = create(:custom_option, custom_field: other_field, value: "AT-Elsewhere", project:)
+
+      call = described_class.new(user: manager, project:, custom_field: field)
+                            .call(option: elsewhere_field_option, value: "AT-Renamed")
+
+      expect(call).not_to be_success
+      expect(elsewhere_field_option.reload.value).to eq "AT-Elsewhere"
+    end
   end
 
   describe CustomOptions::ProjectLabels::DeleteService do
@@ -124,6 +139,18 @@ RSpec.describe CustomOptions::ProjectLabels::CreateService do
 
       expect(call).not_to be_success
       expect(CustomOption.where(id: system_label.id)).to exist
+    end
+
+    it "refuses to delete an option owned by this project but on a different field" do
+      other_field = create(:list_wp_custom_field, name: "Other", allow_project_values: true,
+                                                  option_pattern: '\A[A-Z][A-Z0-9]{1,5}-[A-Za-z0-9]+([-_][A-Za-z0-9]+)*\z',
+                                                  possible_values: %w[ML-Other])
+      elsewhere_field_option = create(:custom_option, custom_field: other_field, value: "AT-Elsewhere", project:)
+
+      call = described_class.new(user: manager, project:, custom_field: field).call(option: elsewhere_field_option)
+
+      expect(call).not_to be_success
+      expect(CustomOption.where(id: elsewhere_field_option.id)).to exist
     end
   end
 end
