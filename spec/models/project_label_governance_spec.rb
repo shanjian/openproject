@@ -121,6 +121,47 @@ RSpec.describe Project, "label governance" do
       expect(CustomValue.where(custom_field: field, value: option.id.to_s)).to be_present
     end
 
+    # The callback's return value goes nowhere - Rails does not hand a before_destroy's
+    # return value back from #destroy - so this is the only way a caller can find out which
+    # options were promoted.
+    it "reports the promoted option id, readable after destroy returns" do
+      option = owned_label("AT-Borrowed")
+      foreign = create(:work_package, project: elsewhere)
+      tag(foreign, option)
+
+      owner.destroy!
+
+      expect(owner.promoted_label_ids).to eq [option.id]
+      expect(owner.collided_label_ids).to eq []
+    end
+
+    # promote_owned_labels used to promote with a raw update_all, which skips CustomOption's
+    # own uniqueness and cross-tier shadow validations entirely - a project-owned option
+    # promoted onto an existing system label of the same name silently produced a duplicate.
+    # Promotion must still go through validations, but a collision must not block the
+    # project's own deletion, so it is forced through and reported separately instead.
+    it "forces a promotion through and reports the collision when it duplicates a system label" do
+      option = owned_label("AT-Borrowed")
+      # A duplicate this way round could not be created through ordinary validated saves -
+      # validate_does_not_shadow_system_option already blocks it on write. It stands in for
+      # the two ways a real one arises: a pre-existing duplicate from before these
+      # validations existed, or two concurrent writes each passing validation before either
+      # commits.
+      field.custom_options.new(value: "AT-Borrowed").save!(validate: false)
+      foreign = create(:work_package, project: elsewhere)
+      tag(foreign, option)
+
+      allow(Rails.logger).to receive(:warn).and_call_original
+
+      owner.destroy!
+
+      expect(Rails.logger).to have_received(:warn).with(/collided/)
+      expect(option.reload.project_id).to be_nil
+      expect(owner.promoted_label_ids).to eq []
+      expect(owner.collided_label_ids).to eq [option.id]
+      expect(CustomOption.where(custom_field: field, value: "AT-Borrowed").count).to eq 2
+    end
+
     it "locks the project and field before promoting an option" do
       option = owned_label("AT-Locked")
       foreign = create(:work_package, project: elsewhere)

@@ -219,6 +219,31 @@ RSpec.describe CustomOption, "label governance" do
 
       expect(described_class.connection).not_to have_received(:execute).with(/pg_advisory_xact_lock/)
     end
+
+    # assure_at_least_one_option counts sibling rows and then destroys; unguarded, two
+    # concurrent deletes on the same field can each count the other as the survivor and both
+    # go through, leaving the field with none. The advisory lock serialises them the same way
+    # it serialises concurrent creates and updates.
+    it "is taken when destroying a project-owned option" do
+      other_option = project_label("AT-Kept").tap(&:save!)
+      doomed = project_label("AT-Doomed").tap(&:save!)
+      allow(described_class.connection).to receive(:execute).and_call_original
+
+      doomed.destroy!
+
+      expect(described_class.connection).to have_received(:execute).with(/pg_advisory_xact_lock/).at_least(:once)
+      expect(described_class.where(id: other_option.id)).to exist
+    end
+
+    it "is not taken when destroying an option on a field that is not project-aware" do
+      plain = create(:list_wp_custom_field, possible_values: %w[A B])
+      option = plain.custom_options.last
+      allow(described_class.connection).to receive(:execute).and_call_original
+
+      option.destroy!
+
+      expect(described_class.connection).not_to have_received(:execute).with(/pg_advisory_xact_lock/)
+    end
   end
 
   describe "reading the committed prefix" do

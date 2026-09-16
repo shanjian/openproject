@@ -81,16 +81,18 @@ module EnableProjectLabels
     end
   end
 
-  # The pattern governs BOTH tiers, so existing system labels are worth looking at before
-  # committing to it. They are not invalidated - the pattern is checked when a value is
-  # created or renamed, never on unrelated saves - but they can no longer be renamed as they
-  # stand, which is a surprise worth having in advance rather than in a support request.
+  # The pattern only governs project-owned labels - CustomOption#validate_value_matches_option_pattern
+  # exempts system ones, which stay free-form. So only existing project-owned values are
+  # worth looking at before committing to it. They are not invalidated - the pattern is
+  # checked when a value is created or renamed, never on unrelated saves - but they can no
+  # longer be renamed as they stand, which is a surprise worth having in advance rather than
+  # in a support request.
   def report_non_conforming(field, pattern)
-    values = field.custom_options.order(:value).pluck(:value)
+    values = field.custom_options.where.not(project_id: nil).order(:value).pluck(:value)
     offenders = values.grep_v(Regexp.new(pattern))
-    return puts "  every existing value already matches the pattern" if offenders.empty?
+    return puts "  every existing project-owned value already matches the pattern" if offenders.empty?
 
-    puts "  #{offenders.size} of #{values.size} existing values do not match it."
+    puts "  #{offenders.size} of #{values.size} existing project-owned values do not match it."
     puts "  They keep working and stay applicable; they just cannot be renamed until they conform:"
     list(offenders)
   end
