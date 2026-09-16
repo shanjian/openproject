@@ -313,9 +313,19 @@ class Project < ApplicationRecord
   #     behind. That invariant is a field-level concern and must not block deleting a
   #     project.
   #
-  # Returns the promoted options so a caller can report them; promotion is deliberately not
-  # silent.
+  # promoted_label_ids and collided_label_ids are set by #remove_owned_labels. They exist
+  # because a before_destroy callback's return value goes nowhere - Rails does not hand it
+  # back from #destroy - so a caller that wants to report on promotion (deliberately not
+  # meant to be silent) has to read it off the instance after destroy returns. The instance
+  # is frozen by then but still readable. #collided_label_ids separately reports promotions
+  # that collided with an existing system label and were forced through anyway, because the
+  # deletion must succeed either way.
+  attr_reader :promoted_label_ids, :collided_label_ids
+
   def remove_owned_labels
+    @promoted_label_ids = []
+    @collided_label_ids = []
+
     # An unsaved project has a nil id, and `where(project_id: nil)` selects the SYSTEM
     # options - every shared label in the instance. Project.new.destroy runs before_destroy
     # like any other, so without this guard building a project and discarding it deletes the
@@ -329,11 +339,11 @@ class Project < ApplicationRecord
 
     referenced, unreferenced = owned.partition { |option_id, field_id| label_used_elsewhere?(option_id, field_id) }
 
-    promote_owned_labels(referenced)
+    @promoted_label_ids, @collided_label_ids = promote_owned_labels(referenced)
     delete_owned_labels(unreferenced)
     touch_label_fields(owned)
 
-    referenced.map(&:first)
+    @promoted_label_ids
   end
 
   def workspace_label
@@ -438,10 +448,43 @@ class Project < ApplicationRecord
     CustomField.where(id: field_ids).touch_all
   end
 
+  # Runs each promotion through CustomOption's own validations rather than a raw update_all,
+  # so it goes through the same uniqueness and cross-tier shadow checks any other save does -
+  # update_all skips callbacks and validations entirely, which is how this used to let a
+  # promoted label collide with an existing system label of the same name.
+  #
+  # A collision must not block the project's deletion: forcing it through and reporting the
+  # id separately is the documented answer, not merging the two labels or leaving the
+  # project undeletable over a naming clash it did not cause.
   def promote_owned_labels(referenced)
-    return if referenced.empty?
+    promoted = []
+    collided = []
 
-    CustomOption.where(id: referenced.map(&:first)).update_all(project_id: nil)
+    referenced.each do |pair|
+      option_id = pair.first
+
+      if promote_owned_label?(option_id)
+        promoted << option_id
+      else
+        collided << option_id
+      end
+    end
+
+    [promoted, collided]
+  end
+
+  def promote_owned_label?(option_id)
+    option = CustomOption.find(option_id)
+    option.project_id = nil
+    return true if option.save
+
+    Rails.logger.warn(
+      "Project ##{id}: promoting CustomOption ##{option_id} to a system label collided " \
+      "(#{option.errors.full_messages.join(', ')}). Forcing the promotion through so " \
+      "the project can still be deleted; the naming collision needs manual resolution."
+    )
+    option.update_columns(project_id: nil)
+    false
   end
 
   def delete_owned_labels(unreferenced)

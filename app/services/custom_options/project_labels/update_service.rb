@@ -48,8 +48,11 @@ module CustomOptions
 
       private
 
+      # Both halves matter: project_id alone would let an option from a different field on
+      # the same project be edited under this field's allow_project_values/option_pattern
+      # configuration instead of its own.
       def ownership_failure(option)
-        :not_owned unless option.project_id == project.id
+        :not_owned unless option.project_id == project.id && option.custom_field_id == custom_field.id
       end
     end
   end

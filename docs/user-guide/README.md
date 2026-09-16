@@ -42,6 +42,7 @@ Please choose the module or feature you want to learn more about.
 | [Gantt chart](gantt-chart)                                   | How to create and manage a project plan in a Gantt chart.    |
 | [GitHub](../system-admin-guide/integrations/github-integration/) | How to manage the GitHub integration.                        |
 | [GitLab](../system-admin-guide/integrations/gitlab-integration/) | How to manage the GitLab integration.                        |
+| [Labels](labels)                                             | How to create and apply labels, shared across the instance or owned by a single project. |
 | [Meetings](meetings)                                         | How to manage meetings to create and share meeting agenda and meeting outcomes. |
 | [Members](members)                                           | How to manage Members in a project.                          |
 | [My time tracking](./time-and-costs/my-time-tracking)        | How to manage personal time entries in list and calendar views. |

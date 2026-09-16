@@ -46,6 +46,7 @@ class CustomOption < ApplicationRecord
   validate :validate_default_is_system_level
 
   before_validation :acquire_write_locks, on: %i[create update]
+  before_destroy :acquire_destroy_lock, prepend: true
   before_destroy :assure_at_least_one_option
 
   # Serialises writes per field so the cross-tier shadowing check cannot race.
@@ -129,12 +130,26 @@ class CustomOption < ApplicationRecord
     true
   end
 
+  # assure_at_least_one_option counts sibling rows and then destroys; unguarded, two
+  # concurrent deletes of two different options on the same field can each count the other
+  # as the survivor and both proceed, leaving the field with none. Reuses the write path's
+  # per-field advisory lock and the same project-then-field order, so a destroy also
+  # serialises against a concurrent create/update/prefix change.
+  def acquire_destroy_lock
+    lock_owning_project
+    acquire_cross_tier_lock?
+    nil
+  end
+
   protected
 
-  # Validated only on create and when the value changes, so pre-existing duplicates - which
-  # are possible, since nothing enforced uniqueness before - never block an unrelated save.
+  # Validated on create, when the value changes, and when the tier does (project_id, e.g.
+  # promotion on project deletion) - a tier change makes every one of these checks apply
+  # against a different set of siblings even though the literal value string did not move.
+  # Excluding plain, unrelated saves matters: pre-existing duplicates are possible, since
+  # nothing enforced uniqueness before, and must not block them.
   def value_check_needed?
-    value.present? && (new_record? || value_changed?)
+    value.present? && (new_record? || value_changed? || project_id_changed?)
   end
 
   def validate_value_unique_within_tier
@@ -172,7 +187,12 @@ class CustomOption < ApplicationRecord
     scope.where("LOWER(value) = ?", value.downcase)
   end
 
+  # option_pattern exists to constrain the shape of project-owned labels (it is the
+  # mechanism behind LABEL_FORMAT, see validate_project_prefix). A system label is not part
+  # of that naming scheme and is created through the admin-only field path, not the
+  # project-labels path, so it stays exempt - same scoping as validate_project_prefix.
   def validate_value_matches_option_pattern
+    return if system_level?
     return unless value_check_needed?
 
     pattern = custom_field&.option_pattern

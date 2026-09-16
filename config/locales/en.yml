@@ -453,7 +453,7 @@ en:
     no_role_assigment: "No role assignment"
     instructions:
       allow_project_values: "Let project administrators add values for their own project. Each such value must carry that projects label prefix, and is only applicable in that project."
-      option_pattern: "A regular expression every value must match, e.g. \\A[A-Z][A-Z0-9]{1,5}-[A-Za-z0-9]+([-_][A-Za-z0-9]+)*\\z. Checked when a value is created or renamed, so existing values are not affected."
+      option_pattern: "A regular expression every project-owned value must match, e.g. \\A[A-Z][A-Z0-9]{1,5}-[A-Za-z0-9]+([-_][A-Za-z0-9]+)*\\z. Checked when a value is created or renamed, so existing values are not affected. Does not apply to values enabled globally by a system administrator."
       option_pattern_description: "Shown to users when a value is rejected. Describe the rule in words rather than showing them the expression."
       is_required:
         all: "Mark the custom field as required. This will make it mandatory to fill in the field when creating new resources. Existing resources will not require a value when being updated."
