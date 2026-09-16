@@ -172,7 +172,12 @@ class CustomOption < ApplicationRecord
     scope.where("LOWER(value) = ?", value.downcase)
   end
 
+  # option_pattern exists to constrain the shape of project-owned labels (it is the
+  # mechanism behind LABEL_FORMAT, see validate_project_prefix). A system label is not part
+  # of that naming scheme and is created through the admin-only field path, not the
+  # project-labels path, so it stays exempt - same scoping as validate_project_prefix.
   def validate_value_matches_option_pattern
+    return if system_level?
     return unless value_check_needed?
 
     pattern = custom_field&.option_pattern

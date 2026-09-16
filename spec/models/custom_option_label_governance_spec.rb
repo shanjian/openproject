@@ -287,16 +287,26 @@ RSpec.describe CustomOption, "label governance" do
   end
 
   describe "option_pattern" do
-    it "rejects a value that does not match the field's pattern" do
+    it "rejects a project label whose value does not match the field's pattern" do
       field.update_column(:option_pattern, '\A[A-Z][A-Z0-9]{1,5}-[A-Za-z0-9]+([-_][A-Za-z0-9]+)*\z')
 
-      expect(build(:custom_option, custom_field: field.reload, value: "nope")).not_to be_valid
+      expect(project_label("nope")).not_to be_valid
     end
 
-    it "does not make every label unsaveable when the pattern is malformed" do
+    it "does not make every project label unsaveable when the pattern is malformed" do
       field.update_column(:option_pattern, '\A(ML|AD-')
 
-      expect(build(:custom_option, custom_field: field.reload, value: "ML-Unrelated")).to be_valid
+      expect(project_label("AT-Unrelated")).to be_valid
+    end
+
+    # option_pattern is the mechanism behind the project-label naming scheme (LABEL_FORMAT);
+    # a system label is created through the admin field path, not the project-labels path,
+    # and was never subject to that scheme, so a sys-admin-created global label must not
+    # start being rejected once a project pattern is configured on the field.
+    it "does not restrict a system label with the field's pattern" do
+      field.update_column(:option_pattern, '\A[A-Z][A-Z0-9]{1,5}-[A-Za-z0-9]+([-_][A-Za-z0-9]+)*\z')
+
+      expect(build(:custom_option, custom_field: field.reload, value: "nope")).to be_valid
     end
   end
 end
