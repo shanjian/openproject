@@ -96,7 +96,8 @@ RSpec.describe WorkPackage::PDFExport::WorkPackageToPdf do
   let(:user) do
     create(:user,
            member_with_permissions: {
-             project => %w[view_work_packages export_work_packages view_project_attributes view_project_phases]
+             project => %w[view_work_packages export_work_packages view_project_attributes view_project_phases
+                           view_budgets]
            })
   end
   let(:another_user) do
@@ -255,7 +256,8 @@ RSpec.describe WorkPackage::PDFExport::WorkPackageToPdf do
       "Work Package Custom Field Boolean", "Yes",
       "My Link", "https://example.com",
       "Costs",
-      "Spent units", "Labor costs", "Unit costs", "Overall costs", "Budget"
+      "Spent units", "Labor costs", "Unit costs", "Overall costs",
+      *(project.module_enabled?(:budgets) ? ["Budget"] : [])
     ]
     result
   end
