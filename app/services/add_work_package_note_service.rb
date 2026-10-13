@@ -44,21 +44,26 @@ class AddWorkPackageNoteService
     self.contract_class = WorkPackages::CreateNoteContract
   end
 
-  def call(notes, send_notifications: nil, internal: false)
+  # @param cause [CauseOfChange::Base, nil] where the comment came from, e.g. an MCP assistant. Without one
+  #   the comment is written exactly as before.
+  def call(notes, send_notifications: nil, internal: false, cause: nil)
     in_context(work_package, send_notifications:) do
-      add_journal_to_work_package(notes, internal)
+      add_journal_to_work_package(notes, internal, cause)
       success, errors = save_journal_with_validation
 
       journal = fetch_latest_journal if success
 
       build_service_result(success, journal, errors)
     end
+  ensure
+    # A saved journal has consumed the cause. If it was never saved, do not leave it on the work package.
+    work_package.journal_cause = nil if cause
   end
 
   private
 
-  def add_journal_to_work_package(notes, internal)
-    work_package.add_journal(user:, notes:, internal:)
+  def add_journal_to_work_package(notes, internal, cause)
+    work_package.add_journal(user:, notes:, internal:, **(cause ? { cause: } : {}))
   end
 
   def save_journal_with_validation

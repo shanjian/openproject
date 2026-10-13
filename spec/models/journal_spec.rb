@@ -159,4 +159,41 @@ RSpec.describe Journal do
       end
     end
   end
+
+  describe ".origin_cause?" do
+    let(:system_cause) { Journal::CausedBySystemUpdate.new(feature: "progress_calculation_adjusted") }
+
+    it "is true for an MCP cause object" do
+      expect(described_class.origin_cause?(CauseOfChange::Base.new("mcp", { "tool" => "update_work_package" }))).to be(true)
+    end
+
+    it "is true for the stored form, with string or symbol keys" do
+      expect(described_class.origin_cause?({ "type" => "mcp", "tool" => "create_work_package" })).to be(true)
+      expect(described_class.origin_cause?({ type: "mcp" })).to be(true)
+    end
+
+    it "is false for every other cause" do
+      expect(described_class.origin_cause?(system_cause)).to be(false)
+      expect(described_class.origin_cause?({ "type" => "import" })).to be(false)
+      expect(described_class.origin_cause?({ "type" => "gitlab_event" })).to be(false)
+    end
+
+    it "is false for no cause" do
+      expect(described_class.origin_cause?(CauseOfChange::NoCause.new)).to be(false)
+      expect(described_class.origin_cause?({})).to be(false)
+      expect(described_class.origin_cause?(nil)).to be(false)
+    end
+
+    it "is false, rather than raising, for something that is not hash-like" do
+      expect(described_class.origin_cause?("ABC")).to be(false)
+    end
+
+    it "does not hide an origin cause from the user, unlike an integration cause" do
+      expect(described_class::INTEGRATION_CAUSE_TYPES & described_class::ORIGIN_CAUSE_TYPES).to be_empty
+    end
+
+    it "lists every origin cause as a valid cause type" do
+      expect(described_class::VALID_CAUSE_TYPES).to include(*described_class::ORIGIN_CAUSE_TYPES)
+    end
+  end
 end

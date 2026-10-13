@@ -80,6 +80,33 @@ RSpec.describe AddWorkPackageNoteService, type: :model do
       expect(work_package).to have_received(:save_journals)
     end
 
+    context "with a cause" do
+      subject { instance.call("blubs", send_notifications:, cause:) }
+
+      let(:cause) { CauseOfChange::Base.new("mcp", { "tool" => "create_work_package_comment" }) }
+
+      it "marks the journal with it" do
+        expect(subject).to be_success
+        expect(work_package).to have_received(:add_journal)
+          .with(user: user, notes: "blubs", internal: false, cause:)
+      end
+
+      it "does not leave it on the work package" do
+        subject
+
+        expect(work_package.journal_cause).to be_nil
+      end
+
+      context "and the contract is not fulfilled" do
+        let(:valid_contract) { false }
+
+        it "does not leave it on the work package either" do
+          expect(subject).to be_failure
+          expect(work_package.journal_cause).to be_nil
+        end
+      end
+    end
+
     context "with internal note" do
       subject { instance.call("blubs", send_notifications:, internal: true) }
 
