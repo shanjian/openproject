@@ -1,6 +1,7 @@
 # MCP: proposal to create, edit and comment on work packages
 
-**Status:** phase 1 built in the working tree (uncommitted, not deployed). **Date:** 2026-10-13.
+**Status:** phase 1 built; pull request [#178](https://github.com/shanjian/openproject/pull/178)
+open against `epic`, not merged, not deployed. **Date:** 2026-10-13.
 **Reopens:** item 4 of [mcp-upstream-backlog.md](mcp-upstream-backlog.md), for three of its six tools.
 
 **Decided 2026-10-13:** reverse the August verdict; comments are in scope; the tools are **live by
@@ -350,7 +351,7 @@ pattern-generated subject (the `{{id}}` token only exists after the first save):
 
 Under the *old* aggregation rules the second save would instead have merged into the first and
 **erased** the marker, so this is the same hazard as before, seen from inside one call. Fix, in the
-working tree: `WorkPackages::Shared::CarryOriginCause`, included by both services, re-applies the
+#178: `WorkPackages::Shared::CarryOriginCause`, included by both services, re-applies the
 origin cause to the work package before its follow-up saves and releases it in an `ensure` around
 the whole call, so it cannot leak into the caller's next save. An earlier version released it only
 at the end of the happy path; an exception between the hand-off and the release, or a failed
@@ -491,7 +492,7 @@ specced as such.
 
 ## Work breakdown
 
-### Done: phase 1, in the working tree, uncommitted
+### Done: phase 1 (pull request #178, two commits)
 
 **The tools** (all registered; enabled by the seeder like the others):
 
@@ -584,7 +585,7 @@ Behaviour I checked with scratch specs earlier, but that has no spec in the repo
 
 ## Documentation changes
 
-**Done**, in the same working tree as the code, since the docs are tied to this change:
+**Done**, in the same pull request as the code, since the docs are tied to this change:
 
 - **MCP_FEATURE_GUIDE.md.** "It only reads" and "It cannot write" replaced; the tool count and tool
   tables updated (fourteen read tools, three write tools); the "declined" callout, "Read-only. By

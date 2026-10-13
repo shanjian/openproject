@@ -276,6 +276,9 @@ says "work items" rather than "work packages", renaming *Search work packages* t
 *Search work items* measurably improves the assistant's choices — it gives the
 model an explicit cue that the two terms mean the same thing.
 
+**Spot the tools that write.** The tools that can change data carry a "Modifies data" badge in
+the list, so you can see which boxes to untick to stop assistants writing.
+
 **Change the response format** if your client seems to receive everything twice.
 The **Tool response format** setting offers:
 
@@ -323,6 +326,21 @@ alongside the results, so ask the assistant how many matches there are in all an
 fetch the remaining pages. If it insists 40 is everything, it is ignoring
 the `total` it was given — say the number back to it, or narrow the question.
 
+**A create, edit or comment is refused.**
+The assistant is told why, in the same words OpenProject uses in the interface, and nothing is
+written. The usual causes:
+
+- *"These attributes cannot be set through this tool: …"* — it sent something the tools do not
+  support: an attachment, a watcher, the author, a change of project, a typo, or a whole copy of a
+  work package it had read. Ask it to send only the attributes it wants to change.
+- *"There is no type (or status, or priority) with ID …"* — it guessed an ID. Ask it to look the
+  value up first (`list_types`, `list_statuses`, `list_priorities`).
+- *"Information has been updated by at least one other user in the meantime."* — someone changed
+  the work package since the assistant read it. Ask it to read it again and retry.
+- *"You are not allowed to comment on this work package."*, or any permission message — your
+  account lacks the permission, exactly as it would in the interface.
+- *"Tool not found: …"* — an administrator has switched that tool off.
+
 **Nothing above fits.**
 Server-side failures are logged with `Unhandled exception occured during MCP
 request`, so grep the OpenProject log for that string.
@@ -331,6 +349,10 @@ request`, so grep the OpenProject log for that string.
 
 ## Notes & limitations
 
+- **Some fields cannot be set yet.** An assistant has no way to look up the options of a
+  list-type custom field, such as Labels, so it cannot set them. A long-text custom field has to
+  be sent as `{"raw": "..."}`, and the assistant is told so. A milestone's single `date` property
+  is not supported.
 - **Writes are limited and marked, not blocked.** Whoever holds a token can use these tools
   wherever their own permissions allow, so treat a token as you would a password. The
   marker is an audit trail, not a control: it shows afterwards what an assistant did and
