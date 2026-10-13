@@ -31,12 +31,7 @@
 module McpConfigurations
   class EditRowComponent < OpPrimer::BorderBoxRowComponent
     def name
-      render(
-        Primer::Beta::Text.new(
-          font_weight: :bold,
-          data: { test_selector: "mcp-configuration--config-row-name" }
-        )
-      ) { config.identifier.split("/", 2).last }
+      safe_join([name_text, (modifies_data_label if modifies_data?)].compact, " ")
     end
 
     def title
@@ -80,6 +75,34 @@ module McpConfigurations
 
     def config
       model
+    end
+
+    def name_text
+      render(
+        Primer::Beta::Text.new(
+          font_weight: :bold,
+          data: { test_selector: "mcp-configuration--config-row-name" }
+        )
+      ) { config.identifier.split("/", 2).last }
+    end
+
+    # Unticking a tool is how an administrator stops assistants writing, so say which rows write.
+    # A resource, or a row whose tool is no longer registered, is never marked: only a tool that is
+    # known, and does not declare itself read-only, is.
+    def modifies_data?
+      tool = McpTools.tools_by_name[config.identifier]
+
+      tool.present? && !tool.read_annotations[:read_only_hint]
+    end
+
+    def modifies_data_label
+      render(
+        Primer::Beta::Label.new(
+          scheme: :attention,
+          title: I18n.t("mcp_configurations.edit_row_component.modifies_data_title"),
+          data: { test_selector: "mcp-configuration--modifies-data-badge" }
+        )
+      ) { I18n.t("mcp_configurations.edit_row_component.modifies_data") }
     end
   end
 end

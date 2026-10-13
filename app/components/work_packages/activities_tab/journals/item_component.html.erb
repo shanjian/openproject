@@ -48,6 +48,17 @@
                   ) do
                     truncated_user_name(journal.user, hover_card: true)
                   end
+                  if written_by_assistant?
+                    header_start_container.with_column(mr: 1) do
+                      render(
+                        Primer::Beta::Label.new(
+                          scheme: :secondary,
+                          title: I18n.t("activities.work_packages.activity_tab.written_by_assistant_title"),
+                          data: { test_selector: "op-journal-assistant-label" }
+                        )
+                      ) { I18n.t("activities.work_packages.activity_tab.written_by_assistant") }
+                    end
+                  end
                   if journal.initial?
                     header_start_container.with_column(
                       mr: 1,

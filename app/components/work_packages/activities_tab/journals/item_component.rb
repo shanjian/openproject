@@ -108,6 +108,12 @@ module WorkPackages
           journal.has_unread_notifications_for_user?(User.current)
         end
 
+        # The assistant acts as the token's user, so the author shown beside a comment is a person.
+        # Without this label, an assistant's comment reads as that person speaking.
+        def written_by_assistant?
+          journal.cause_type == Journal::CausedByMcp::TYPE
+        end
+
         def notification_on_details?
           has_unread_notifications? && journal.notes.blank?
         end

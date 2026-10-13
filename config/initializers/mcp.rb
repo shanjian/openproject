@@ -49,7 +49,10 @@ end
 # development. after_initialize never runs again, which would leave the server with no tools after the
 # first reload. to_prepare re-runs on each reload, so the registries are repopulated.
 Rails.application.config.to_prepare do
-  McpTools.register McpTools::CurrentUser,
+  McpTools.register McpTools::CreateWorkPackage,
+                    McpTools::CreateWorkPackageComment,
+                    McpTools::CurrentUser,
+                    McpTools::ListPriorities,
                     McpTools::ListStatuses,
                     McpTools::ListTypes,
                     McpTools::ListWorkPackageComments,
@@ -61,7 +64,8 @@ Rails.application.config.to_prepare do
                     McpTools::SearchProjects,
                     McpTools::SearchUsers,
                     McpTools::SearchVersions,
-                    McpTools::SearchWorkPackages
+                    McpTools::SearchWorkPackages,
+                    McpTools::UpdateWorkPackage
 
   McpResources.register McpResources::CurrentUser,
                         McpResources::CustomField,

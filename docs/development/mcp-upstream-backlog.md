@@ -3,7 +3,10 @@
 Survey of what upstream has done to the MCP server since our fork point, and what this
 fork took. **Closed as of 2026-08-22:** every read-only item is ported and merged, the
 write tools were reviewed and declined, and the two remaining items are blocked or not
-worth chasing. Kept as the record of what was decided and why — the per-item sections
+worth chasing. **Reopened 2026-10-13 for item 4:** upstream shipped the write tools in
+17.8, and three of the six were taken, rebuilt rather than ported. See
+[mcp-write-tools-proposal.md](mcp-write-tools-proposal.md) and
+[item 4](#4-write-tools--reopened-2026-10-13-three-of-six-taken). Kept as the record of what was decided and why — the per-item sections
 below carry findings that are expensive to re-derive.
 
 Companion to [upstream-sync-plan.md](upstream-sync-plan.md), which covers the general
@@ -294,7 +297,33 @@ Worth knowing: neither we nor upstream mention `total` in any tool description, 
 by reading the response body. If paging in practice turns out to be worse than the
 mechanism allows, adding a sentence to the search descriptions is the cheap fix.
 
-### 4. Write tools — reviewed 2026-08-22, deliberately NOT ported
+### 4. Write tools — reopened 2026-10-13, three of six taken
+
+**Update 2026-10-13.** The verdict below no longer stands for three of the six tools.
+Its reasons were that upstream had not released them and that nothing needed an agent that
+writes. Upstream shipped them in **17.8.0 (2026-09-02)**, and there is now a concrete use.
+Taken: `create_work_package`, `update_work_package`, `create_work_package_comment`. Still
+declined, and not requested: the three relation tools. They were not a straight port, because
+the review found things upstream's tools do that this fork should not accept:
+
+- `data` is an arbitrary APIv3 payload. Replaced by an allowlist, checked on the raw keys
+  and on the parsed attributes. `_links.attachments: []` deleted a work package's
+  attachments, and the parser accepts attachments, file links, author and timestamps that
+  the representer does not list as writable.
+- An unknown type, status or priority ID silently falls back to the default. Refused.
+- The comment tool called the service directly, which accepts `edit_work_packages` where the
+  UI needs `add_work_package_comments`, and skipped the UI's mention sanitising for internal
+  comments. Both matched to the UI.
+- Journals attribute an assistant's change to the token's user. Marked with a new journal
+  cause, `mcp`, which needed changes to journal aggregation, forced journals and the
+  services' re-saves so the marker survives. Nothing was ported from upstream's `Base`
+  refactor of 2026-08-26.
+
+The two considerations that decided the August review were an assistant comment notifying
+subscribers, which is accepted and documented, and the missing audit trail, which is now
+the marker. The rest of this section is the August review, kept as the record.
+
+#### The August review (2026-08-22): deliberately NOT ported
 
 Six tools, all going through the normal service objects with `user: current_user`, so
 contracts and permissions are enforced the same way the API v3 enforces them:

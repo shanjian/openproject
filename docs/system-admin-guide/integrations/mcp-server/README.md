@@ -79,3 +79,23 @@ You can also disable individual tools and resources provided via MCP. This can b
 For example if work packages are called "work items" in your day-to-day language, it can be helpful to rename _Search work packages_ to _Search work items_, so that users interacting with the MCP client understand what a tool does and the language model has an additional cue that there is an alias for "work packages".
 
 ![MCP tools section settings in OpenProject administration](openproject_system_guide_new_mcp_tools.png)
+
+### Tools that change data
+
+Most MCP tools only read. Three can write, as the user whose token the client holds:
+
+| Tool | Does |
+| --- | --- |
+| `create_work_package` | Creates a work package. |
+| `update_work_package` | Changes a work package. The client must send the `lockVersion` it read, so an update is refused if the work package changed in the meantime. |
+| `create_work_package_comment` | Adds a public or internal comment. |
+
+They are enabled like every other tool, so they are available as soon as the configuration has been seeded (`rake db:seed`, which the standard Docker and package installs run; if your deployment does not, run it once). **To stop assistants writing, untick them here**; the tools that can change data are labelled "Modifies data" in the list. The change applies to the next request. Comments are the tool most worth switching off on its own, since they notify people.
+
+What an administrator should know:
+
+- **They obey the user's permissions.** A token can create, edit or comment only where its user could in the interface. Access to `/mcp` alone grants nothing. Existing tokens and OAuth grants can use these tools from the moment they are enabled, so tell the people who have assistants connected.
+- **Only a fixed set of attributes can be sent.** Attachments, file links, watchers, relations, the author, timestamps and a change of project are refused, along with anything unknown, and nothing is written.
+- **Notifications follow the interface.** Assignees, watchers and mentioned users are notified, and the assistant cannot turn that off.
+- **Everything is marked.** A change appears in the activity as "AI assistant (MCP)", and a comment carries an "AI assistant" label. The marker is an audit mechanism, not a restriction. To list what assistants wrote, run `Journal.where("cause->>'type' = 'mcp'")` in a Rails console. Changes the system made as a consequence, such as a parent's dates rolling up, are not marked, but each names the work package that triggered it.
+- **The marker does not say which assistant.** Every client acts as the same user.

@@ -169,6 +169,7 @@ module McpTools
 
     def handle_request(**)
       result = call(**)
+      return failure_response(result) if result.is_a?(McpTools::Failure)
 
       format_response(result)
     end
@@ -178,6 +179,20 @@ module McpTools
     # Intended to be implemented by subclasses. It should return a structured result (e.g. a Hash or Array).
     def call(**)
       raise NotImplemented, "#{self.class} needs to implement #call method"
+    end
+
+    def failure(message)
+      McpTools::Failure.new(message:)
+    end
+
+    # The reason a service refused, in words an assistant can act on.
+    def error_text(result)
+      result.errors.full_messages.to_sentence.presence || result.message.presence || "The request was refused."
+    end
+
+    # Always text, whatever the configured response format: a client needs the message to correct itself.
+    def failure_response(failure)
+      MCP::Tool::Response.new([{ type: "text", text: failure.message }], error: true)
     end
 
     def format_response(result)

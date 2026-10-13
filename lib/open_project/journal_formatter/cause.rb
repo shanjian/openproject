@@ -85,6 +85,8 @@ class OpenProject::JournalFormatter::Cause < JournalFormatter::Base
       total_percent_complete_mode_changed_to_simple_average_message
     when "import"
       import_message
+    when "mcp"
+      mcp_message
     else
       related_work_package_changed_message
     end
@@ -157,6 +159,14 @@ class OpenProject::JournalFormatter::Cause < JournalFormatter::Base
 
   def total_percent_complete_mode_changed_to_simple_average_message
     I18n.t("journals.cause_descriptions.total_percent_complete_mode_changed_to_simple_average")
+  end
+
+  # The tool name is stored, so only a name we know is used to pick the translation. Anything else
+  # gets the generic text rather than an arbitrary translation key.
+  def mcp_message
+    tool = Journal::CausedByMcp::TOOLS.include?(cause["tool"]) ? cause["tool"] : "default"
+
+    I18n.t("journals.cause_descriptions.mcp.#{tool}")
   end
 
   def import_message
