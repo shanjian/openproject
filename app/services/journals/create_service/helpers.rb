@@ -53,11 +53,17 @@ class Journals::CreateService
     end
 
     def only_on_changed_or_forced_condition_sql(notes, cause)
-      if notes.blank? && cause.blank?
+      if notes.blank? && (cause.blank? || origin_cause?(cause))
         "AND EXISTS (SELECT * FROM changes)"
       else
         ""
       end
+    end
+
+    # An origin cause only says where a journal came from. It rides on a journal that exists because
+    # something changed or a note was written, and is never the reason for one.
+    def origin_cause?(cause)
+      Journal.origin_cause?(cause)
     end
 
     def normalize_newlines_sql(column)

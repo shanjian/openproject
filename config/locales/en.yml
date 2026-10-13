@@ -51,6 +51,8 @@ en:
         commented: "commented"
         internal_comment: Internal comment
         internal_journal: Internal comments are visible to a limited group of members.
+        written_by_assistant: AI assistant
+        written_by_assistant_title: Written by an AI assistant on behalf of this user, through the MCP server.
         unsaved_changes_confirmation_message: You have unsaved changes. Are you sure you want to close the editor?
         internal_comment_confirmation:
           title: "Make this comment public?"
@@ -821,6 +823,9 @@ en:
     can_be_saved_as: "The modifications can only be saved in a new list:"
 
   mcp_configurations:
+    edit_row_component:
+      modifies_data: "Modifies data"
+      modifies_data_title: "This tool can create or change data in OpenProject, as the user whose token the client holds."
     server_url_component:
       caption: "The URL at which the OpenProject MCP server will be reachable. Required for setting up MCP clients."
       label: "Server URL"
@@ -3258,6 +3263,7 @@ en:
     caused_changes:
       dates_changed: "Dates changed"
       default_attribute_written: "Read-only attributes written"
+      mcp: "AI assistant (MCP):"
       progress_mode_changed_to_status_based: "Progress calculation updated"
       status_changed: "Status '%{status_name}'"
       system_update: "OpenProject system update:"
@@ -3271,6 +3277,11 @@ en:
       work_package_related_changed_times: by changes to related %{link}
       work_package_duplicate_closed: The status was automatically updated by the duplicated work package %{link}
       unaccessable_work_package_changed: by changes to a related work package
+      mcp:
+        create_work_package: "created this work package."
+        update_work_package: "updated this work package."
+        create_work_package_comment: "added this comment."
+        default: "made this change."
       working_days_changed:
         changed: "by changes to working days (%{changes})"
         days:
@@ -5821,7 +5832,7 @@ en:
       api_v3: "Full API v3 access"
       api_v3_text: "Application will receive full read & write access to the OpenProject API v3 to perform actions on your behalf."
       mcp: "Access to MCP"
-      mcp_text: "Application will receive access to the OpenProject MCP endpoints. They are a limited subset of APIv3, that's tailored for usage with AI agents."
+      mcp_text: "Application will receive access to the OpenProject MCP endpoints, which are tailored for usage with AI agents. It can read what you can see, and create and edit work packages and add comments on your behalf, wherever your permissions allow it. Changes it makes are marked as made by an AI assistant."
     grants:
       created_date: "Approved on"
       scopes: "Permissions"

@@ -30,6 +30,7 @@
 
 class WorkPackages::UpdateService < BaseServices::Update
   include ::WorkPackages::Shared::UpdateAncestors
+  include ::WorkPackages::Shared::CarryOriginCause
   include Attachments::ReplaceAttachments
   include Types::ApplyPatterns
 
@@ -40,6 +41,16 @@ class WorkPackages::UpdateService < BaseServices::Update
     self.cause_of_rescheduling = cause_of_rescheduling || model
   end
 
+  protected
+
+  # The cause is assigned with the other attributes, so it is on the instance even when the update then
+  # fails validation or raises. Release it in every case.
+  def perform(*)
+    super
+  ensure
+    release_origin_cause(model)
+  end
+
   private
 
   def after_perform(service_call)
@@ -47,6 +58,7 @@ class WorkPackages::UpdateService < BaseServices::Update
     # on running the UpdateAncestorsService right after. The subject gets saved
     # only thanks to this. If the UpdateAncestorsService is not run, the subject
     # is not saved. That's an odd coupling.
+    carry_origin_cause(service_call.result)
     apply_patterns(service_call.result, save: false)
     update_related_work_packages(service_call)
     cleanup(service_call.result)

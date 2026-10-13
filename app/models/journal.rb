@@ -90,6 +90,7 @@ class Journal < ApplicationRecord
     default_attribute_written
     gitlab_event
     import
+    mcp
     progress_mode_changed_to_status_based
     status_changed
     system_update
@@ -101,6 +102,18 @@ class Journal < ApplicationRecord
     work_package_duplicate_closed
     working_days_changed
   ].freeze
+
+  # Cause types that record where a journal came from and nothing else. They never force a journal into
+  # existence and only aggregate with an identical cause, so they can neither be erased by, nor relabel,
+  # a person's journal. Unlike INTEGRATION_CAUSE_TYPES they are shown to the user.
+  ORIGIN_CAUSE_TYPES = %w[mcp].freeze
+
+  # @param cause [CauseOfChange::Base, Hash, nil] a cause as passed to the journal creation, or as stored
+  def self.origin_cause?(cause)
+    return false unless cause.respond_to?(:to_hash)
+
+    ORIGIN_CAUSE_TYPES.include?(cause.to_hash.stringify_keys["type"])
+  end
 
   # Cause types that only record where a journal came from. Unlike the other
   # causes they describe no change, so they render no "caused changes" line, and

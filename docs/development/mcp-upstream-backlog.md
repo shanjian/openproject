@@ -3,7 +3,10 @@
 Survey of what upstream has done to the MCP server since our fork point, and what this
 fork took. **Closed as of 2026-08-22:** every read-only item is ported and merged, the
 write tools were reviewed and declined, and the two remaining items are blocked or not
-worth chasing. Kept as the record of what was decided and why — the per-item sections
+worth chasing. **Reopened 2026-10-13 for item 4:** upstream shipped the write tools in
+17.8, and three of the six were taken, rebuilt rather than ported. See
+[mcp-write-tools-proposal.md](mcp-write-tools-proposal.md) and
+[item 4](#4-write-tools--reopened-2026-10-13-three-of-six-taken). Kept as the record of what was decided and why — the per-item sections
 below carry findings that are expensive to re-derive.
 
 Companion to [upstream-sync-plan.md](upstream-sync-plan.md), which covers the general
@@ -15,17 +18,22 @@ Companion to [upstream-sync-plan.md](upstream-sync-plan.md), which covers the ge
 |---|---|
 | Fork point | `v17.1.2` (MCP first shipped upstream in `v17.1.0`) |
 | Upstream surveyed | `upstream/dev` @ `4a95621961c`, 2026-08-21 |
-| Survey still current? | Yes, rechecked 2026-08-22 |
-| Latest upstream tag | `v17.7.2`; `release/17.8` branch open |
-| Our `mcp` gem | `~> 0.24.0` |
-| Upstream `mcp` gem | `~> 0.24.0` |
+| Survey still current? | **No.** Re-checked on 2026-10-13 for item 4 only (the write tools); everything else here dates from 2026-08-22 |
+| Latest upstream tag | `v17.9.1` (2026-10-01). `v17.8.0` (2026-09-02) shipped the write tools; `v17.9.0` added time entries |
+| Our `mcp` gem | `~> 0.24.0` (as of 2026-08-22) |
+| Upstream `mcp` gem | `~> 0.24.0` (as of 2026-08-22, not re-checked) |
 
-Rechecked on 2026-08-22: `upstream/dev` had advanced 56 commits since the survey and
+**Historical, 2026-08-22:** `upstream/dev` had advanced 56 commits since the survey and
 **not one of them touches MCP** — `app/services/mcp_*`, `lib/api/mcp*`,
 `config/initializers/mcp.rb` and the admin-guide screenshots are byte-identical to the
-surveyed commit, and upstream's gem pin is still `~> 0.24.0`. So this fork is level with
-upstream on MCP, and upstream has not shipped the write tools in the meantime. Re-run that
-comparison before trusting anything below.
+surveyed commit, and upstream's gem pin is still `~> 0.24.0`. So this fork was level with
+upstream on MCP, and upstream had not yet shipped the write tools.
+
+**That no longer holds (2026-10-13).** Upstream has since shipped the write tools (17.8) and
+time entry tools (17.9), added a `SearchTool` base, and on 2026-08-26 refactored `McpTools::Base`
+to use `Dry::Monads` results. This fork took three of the write tools (see
+[item 4](#4-write-tools--reopened-2026-10-13-three-of-six-taken)) and **not** that refactor, so the
+two trees now differ in `base.rb`. Re-run the comparison before trusting any other section.
 
 Our tree is not simply "at 17.1.2" for MCP. An earlier partial sync already brought in
 `ServerUrlComponent`, the `mcp_tool_response_format` setting and `McpTools::Base::RESPONSE_FORMATS`
@@ -294,7 +302,33 @@ Worth knowing: neither we nor upstream mention `total` in any tool description, 
 by reading the response body. If paging in practice turns out to be worse than the
 mechanism allows, adding a sentence to the search descriptions is the cheap fix.
 
-### 4. Write tools — reviewed 2026-08-22, deliberately NOT ported
+### 4. Write tools — reopened 2026-10-13, three of six taken
+
+**Update 2026-10-13.** The verdict below no longer stands for three of the six tools.
+Its reasons were that upstream had not released them and that nothing needed an agent that
+writes. Upstream shipped them in **17.8.0 (2026-09-02)**, and there is now a concrete use.
+Taken: `create_work_package`, `update_work_package`, `create_work_package_comment`. Still
+declined, and not requested: the three relation tools. They were not a straight port, because
+the review found things upstream's tools do that this fork should not accept:
+
+- `data` is an arbitrary APIv3 payload. Replaced by an allowlist, checked on the raw keys
+  and on the parsed attributes. `_links.attachments: []` deleted a work package's
+  attachments, and the parser accepts attachments, file links, author and timestamps that
+  the representer does not list as writable.
+- An unknown type, status or priority ID silently falls back to the default. Refused.
+- The comment tool called the service directly, which accepts `edit_work_packages` where the
+  UI needs `add_work_package_comments`, and skipped the UI's mention sanitising for internal
+  comments. Both matched to the UI.
+- Journals attribute an assistant's change to the token's user. Marked with a new journal
+  cause, `mcp`, which needed changes to journal aggregation, forced journals and the
+  services' re-saves so the marker survives. Nothing was ported from upstream's `Base`
+  refactor of 2026-08-26.
+
+The two considerations that decided the August review were an assistant comment notifying
+subscribers, which is accepted and documented, and the missing audit trail, which is now
+the marker. The rest of this section is the August review, kept as the record.
+
+#### The August review (2026-08-22): deliberately NOT ported
 
 Six tools, all going through the normal service objects with `user: current_user`, so
 contracts and permissions are enforced the same way the API v3 enforces them:
@@ -405,19 +439,20 @@ reference cite them by number.
 5. ~~Read-only tools, work package detail~~ (rest of item 2) — done, with
    `RemoveActivityDetails` from item 1. **Everything read-only in this backlog is now
    ported.** What remains is item 4 (write tools), item 5 (blocked) and item 6 (drift).
-6. ~~Write tools~~ (item 4) — reviewed and skipped; see the findings there.
+6. Write tools (item 4) — skipped in August, **reopened 2026-10-13**: three of six taken, in
+   [#178](https://github.com/shanjian/openproject/pull/178). See item 4.
 7. Leave item 5 to the Release/Sprint work and item 6 to natural upstream drift.
 
-**This backlog is now closed.** Everything read-only is ported and merged (#147, #148,
-#149, #150). Item 4 was reviewed and declined, item 5 is blocked on the Release/Sprint
-model rather than on anything MCP, and item 6 is drift not worth chasing. Reopen this doc
-when upstream ships write tools, when the Release/Sprint work unblocks the version
-filtering, or at the next general upstream sync — see
-[upstream-sync-plan.md](upstream-sync-plan.md).
+**The read-only part of this backlog is closed.** Everything read-only is ported and merged
+(#147, #148, #149, #150). Item 4 was declined in August and **reopened on 2026-10-13**, when
+upstream had shipped the write tools: three of the six are taken (#178), and the three relation
+tools remain declined and unrequested. Item 5 is blocked on the Release/Sprint model rather than
+on anything MCP, and item 6 is drift not worth chasing. Reopen this doc when the Release/Sprint
+work unblocks the version filtering, when upstream changes the MCP tools again, or at the next
+general upstream sync — see [upstream-sync-plan.md](upstream-sync-plan.md).
 
 Items 1-3 are read-only and sit behind the per-tool admin toggles, so each can ship and
-be reverted independently. Item 4 is the write tools and needs its own review before any
-of it ships.
+be reverted independently. So do the write tools of item 4: each has its own toggle.
 
 A lesson worth keeping from items 1 and 2: **check what a ported file calls, not just the
 file.** Twice the risk assessment written from reading tool files alone turned out

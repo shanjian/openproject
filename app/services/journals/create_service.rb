@@ -574,7 +574,11 @@ module Journals
     end
 
     def only_one_or_same_cause?(predecessor, cause)
-      predecessor.cause.empty? || cause.blank? || predecessor.cause == cause
+      if origin_cause?(predecessor.cause) || origin_cause?(cause)
+        predecessor.cause == cause
+      else
+        predecessor.cause.empty? || cause.blank? || predecessor.cause == cause
+      end
     end
 
     def only_one_note?(predecessor, notes)

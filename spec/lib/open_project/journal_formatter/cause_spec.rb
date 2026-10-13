@@ -889,4 +889,40 @@ RSpec.describe OpenProject::JournalFormatter::Cause do
       end
     end
   end
+
+  context "when an AI assistant made the change through the MCP server" do
+    {
+      "create_work_package" => "created this work package.",
+      "update_work_package" => "updated this work package.",
+      "create_work_package_comment" => "added this comment."
+    }.each do |tool, description|
+      context "with #{tool}" do
+        subject(:cause) { Journal::CausedByMcp.new(tool:).to_hash }
+
+        it "renders the HTML variant" do
+          expect(cause).to render_html_variant("<strong>AI assistant (MCP):</strong> #{description}")
+        end
+
+        it "renders the raw text variant" do
+          expect(cause).to render_raw_variant("AI assistant (MCP): #{description}")
+        end
+      end
+    end
+
+    context "with a tool name that is not one of ours" do
+      subject(:cause) { { "type" => "mcp", "tool" => "<script>alert(1)</script>" } }
+
+      it "falls back to the generic text rather than looking up an arbitrary translation key" do
+        expect(cause).to render_html_variant("<strong>AI assistant (MCP):</strong> made this change.")
+      end
+    end
+
+    context "with no tool name stored" do
+      subject(:cause) { { "type" => "mcp" } }
+
+      it "falls back to the generic text" do
+        expect(cause).to render_raw_variant("AI assistant (MCP): made this change.")
+      end
+    end
+  end
 end

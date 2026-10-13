@@ -2,18 +2,23 @@
 
 This build ships an **MCP server**: a single endpoint that lets an AI assistant —
 Claude Code, Claude Desktop, or any other MCP client — read data out of this
-OpenProject instance and use it when answering you.
+OpenProject instance, and create and edit work packages and comment on them.
 
 Ask "what's still open in the Website Redesign project?" and the assistant queries
-OpenProject directly instead of guessing or asking you to paste anything in.
+OpenProject directly instead of guessing or asking you to paste anything in. Ask it to
+"create a task for the login bug and assign it to Sam" and it does that too.
 
-Two things are worth knowing up front:
+Three things are worth knowing up front:
 
-- **It only reads.** Nothing an assistant does through MCP can create, change, or
-  delete anything in OpenProject. See [What it can and can't do](#what-it-can-and-cant-do).
-- **It sees exactly what you see.** Every request runs as the user whose token the
-  client holds, through the same permission checks as the rest of OpenProject. An
-  assistant cannot surface a project you have no access to.
+- **It can write, a little.** It can create work packages, edit them, and add comments.
+  It cannot delete anything, manage relations, or touch attachments. See
+  [What it can and can't do](#what-it-can-and-cant-do).
+- **It acts as you.** Every request runs as the user whose token the client holds,
+  through the same permission checks as the rest of OpenProject. An assistant cannot
+  surface a project you have no access to, and cannot change what you may not change.
+  What it writes carries your name, so it is **marked as written by an AI assistant**.
+- **Whoever it notifies is notified.** Creating, editing and commenting notify the
+  people the OpenProject UI would notify. The assistant cannot turn that off.
 
 > Upstream OpenProject sells MCP as an Enterprise add-on. This build removes that
 > restriction, so the feature works without an Enterprise token.
@@ -147,6 +152,13 @@ questions in plain language and it decides which tools to call:
 - "Who's on the Website Redesign project?"
 - "Summarise the discussion on work package 1234."
 - "What's blocking work package 1234?"
+- "Create a bug in the Website Redesign project: the login page returns a 500."
+- "Set work package 1234 to In progress and assign it to Sam."
+- "Add a comment to work package 1234 saying the fix is on staging."
+
+Ask for the change in words you would use to a colleague. The assistant looks up the
+project, type, status, priority and people it needs by ID before writing, so name them the
+way OpenProject does.
 
 Two habits make answers noticeably better:
 
@@ -187,7 +199,7 @@ resolving to the right account.
 
 ## What it can and can't do
 
-**It can read**, through thirteen tools:
+**It can read**, through fourteen tools:
 
 | Tool | Answers |
 |---|---|
@@ -202,6 +214,7 @@ resolving to the right account.
 | `search_custom_fields` | Custom fields by ID or partial name — this is how an assistant turns `customField7` into a real name |
 | `search_custom_field_items` | The values available for a hierarchy custom field |
 | `list_statuses` | Every work package status on the instance |
+| `list_priorities` | Every work package priority on the instance, in order, with whether it is active |
 | `list_types` | Every work package type on the instance |
 | `current_user` | Who the token belongs to |
 
@@ -209,24 +222,39 @@ Alongside these it exposes ten **resources** — by-ID lookups of a single proje
 package, user, version, type, status or custom field, plus the current user and the full
 status and type lists — which a client can fetch without a search.
 
-**It cannot write.** There is no tool to create, edit, comment on, or delete
-anything, and no way to configure one. It can *read* a work package's comments; it
-cannot post one. Assistant-suggested changes still have to
-be made by a person in the UI.
+**It can write**, through three tools, and nothing else:
+
+| Tool | Does |
+|---|---|
+| `create_work_package` | Creates a work package |
+| `update_work_package` | Changes a work package. It must send the `lockVersion` it read, so an update is refused if someone changed the work package meanwhile |
+| `create_work_package_comment` | Adds a comment, public or internal |
+
+It **cannot** delete anything, create or change relations, edit or delete a comment, add
+attachments or file links, manage watchers, or move a work package to another project. A
+request that includes any of those is refused with a message naming them, and nothing is
+written. Only a fixed set of work package attributes can be sent: the subject, description,
+type, status, priority, assignee, responsible, parent, version, category, epic, dates,
+duration, estimated and remaining time, percent complete, scheduling mode, story points, and
+custom fields. Anything else, including a typo, is refused rather than ignored.
+
+**What it writes is marked.** A change an assistant made is shown in the activity as
+"AI assistant (MCP)", and a comment it wrote carries an "AI assistant" label next to your name
+wherever the comment is shown. It is still recorded under your name, because it acted as you. Administrators can
+list everything assistants wrote with `Journal.where("cause->>'type' = 'mcp'")` in a Rails
+console. That lists the journals written for the work packages an assistant targeted. Side
+effects, such as a parent whose dates rolled up, are recorded as the automatic changes they
+are and name the work package that triggered them; they are not in that list.
 
 **It cannot exceed your permissions.** Every query is scoped to what the token's
 user can see. Two people connecting the same assistant to the same instance get
 different answers, correctly.
 
-> Upstream has begun building write tools — creating work packages, comments, and
-> relations. They are deliberately **not** in this build: they were reviewed and
-> declined, not merely skipped. Upstream's own documentation still describes MCP as
-> read-only, so the work is unreleased, and nothing here needs an agent that writes.
-> Two things weighed against it in particular — an agent-authored comment would notify
-> every subscriber, and journals would attribute agent edits to the token's user with
-> nothing marking them as an agent's. See
-> [mcp-upstream-backlog.md](../development/mcp-upstream-backlog.md) for the full
-> reasoning and what a future port would involve.
+> Upstream also ships tools for relations and time entries. They are **not** in this
+> build. The write tools that are here were reviewed, narrowed and given an audit marker
+> before being taken; see [mcp-write-tools-proposal.md](../development/mcp-write-tools-proposal.md)
+> for the reasoning and
+> [mcp-upstream-backlog.md](../development/mcp-upstream-backlog.md) for what remains.
 
 ---
 
@@ -236,14 +264,20 @@ Everything below is on the admin page, under **Tools** and **Resources**, and ta
 effect on the next client connection.
 
 **Turn individual tools off.** Unticking a tool removes it from the server
-entirely — clients stop being offered it. Useful for narrowing what an assistant
-can reach without switching MCP off wholesale.
+entirely — clients stop being offered it, and a call to it is refused. Useful for
+narrowing what an assistant can reach without switching MCP off wholesale. **This is how
+you stop an assistant writing**: untick `create_work_package`, `update_work_package` and
+`create_work_package_comment`. Comments are the one most worth switching off on its own,
+since they notify people. The write tools are on by default, like the others.
 
 **Rename tools to match your vocabulary.** Each tool's title and description are
 editable, and the assistant reads both when deciding what to call. If your team
 says "work items" rather than "work packages", renaming *Search work packages* to
 *Search work items* measurably improves the assistant's choices — it gives the
 model an explicit cue that the two terms mean the same thing.
+
+**Spot the tools that write.** The tools that can change data carry a "Modifies data" badge in
+the list, so you can see which boxes to untick to stop assistants writing.
 
 **Change the response format** if your client seems to receive everything twice.
 The **Tool response format** setting offers:
@@ -292,6 +326,21 @@ alongside the results, so ask the assistant how many matches there are in all an
 fetch the remaining pages. If it insists 40 is everything, it is ignoring
 the `total` it was given — say the number back to it, or narrow the question.
 
+**A create, edit or comment is refused.**
+The assistant is told why, in the same words OpenProject uses in the interface, and nothing is
+written. The usual causes:
+
+- *"These attributes cannot be set through this tool: …"* — it sent something the tools do not
+  support: an attachment, a watcher, the author, a change of project, a typo, or a whole copy of a
+  work package it had read. Ask it to send only the attributes it wants to change.
+- *"There is no type (or status, or priority) with ID …"* — it guessed an ID. Ask it to look the
+  value up first (`list_types`, `list_statuses`, `list_priorities`).
+- *"Information has been updated by at least one other user in the meantime."* — someone changed
+  the work package since the assistant read it. Ask it to read it again and retry.
+- *"You are not allowed to comment on this work package."*, or any permission message — your
+  account lacks the permission, exactly as it would in the interface.
+- *"Tool not found: …"* — an administrator has switched that tool off.
+
 **Nothing above fits.**
 Server-side failures are logged with `Unhandled exception occured during MCP
 request`, so grep the OpenProject log for that string.
@@ -300,7 +349,14 @@ request`, so grep the OpenProject log for that string.
 
 ## Notes & limitations
 
-- **Read-only.** By design in this build.
+- **Some fields cannot be set yet.** An assistant has no way to look up the options of a
+  list-type custom field, such as Labels, so it cannot set them. A long-text custom field has to
+  be sent as `{"raw": "..."}`, and the assistant is told so. A milestone's single `date` property
+  is not supported.
+- **Writes are limited and marked, not blocked.** Whoever holds a token can use these tools
+  wherever their own permissions allow, so treat a token as you would a password. The
+  marker is an audit trail, not a control: it shows afterwards what an assistant did and
+  prevents nothing.
 - **40 results per call, for the tools that paginate.** Eight tools do: work packages,
   projects, programs, portfolios, versions, users, custom fields and work package
   comments. Those cap at 40 and report a `total`, so an assistant can tell whether more
@@ -324,9 +380,14 @@ request`, so grep the OpenProject log for that string.
 - **Versions:** work packages are matched on their single assigned version. Upstream
   is moving to multiple target versions per work package; that change conflicts with
   this build's Release/Sprint model and is deliberately not ported.
-- **No agent audit trail.** Nothing needs one while MCP cannot write. It was one of the
-  considerations that led to declining the write tools, and would have to be settled
-  before they were ever ported.
+- **The marker says an assistant, not which one.** The token's user and the marker are the
+  same whichever client wrote.
+- **Notifications follow the UI.** An assignee, a watcher or a mentioned person is notified
+  of an assistant's change as they would be of yours. An assistant looping over many work
+  packages sends many notifications.
+- **An assistant can see internal comments you can see.** It must not copy them into a
+  public comment; the tool says so, but that is guidance, not something the server can
+  enforce.
 
 ---
 

@@ -30,6 +30,7 @@
 
 class WorkPackages::CreateService < BaseServices::BaseCallable
   include ::WorkPackages::Shared::UpdateAncestors
+  include ::WorkPackages::Shared::CarryOriginCause
   include ::Shared::ServiceContext
   include Types::ApplyPatterns
 
@@ -49,6 +50,8 @@ class WorkPackages::CreateService < BaseServices::BaseCallable
     in_user_context(send_notifications: params[:send_notifications]) do
       create(attributes, work_package)
     end
+  ensure
+    release_origin_cause(work_package)
   end
 
   protected
@@ -62,6 +65,7 @@ class WorkPackages::CreateService < BaseServices::BaseCallable
       work_package.attachments = work_package.attachments_replacements if work_package.attachments_replacements
       work_package.save(validate: false)
 
+      carry_origin_cause(work_package)
       apply_patterns(work_package)
 
       # update ancestors before rescheduling, as the parent might switch to automatic mode
