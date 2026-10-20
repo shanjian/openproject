@@ -2188,6 +2188,8 @@ en:
             base:
               user_limit_reached: "User limit reached. No more accounts can be created on the current plan."
               one_must_be_active: "Admin User cannot be locked/removed. At least one admin must be active."
+            login:
+              must_be_email: "must be an email address, as users log in with their email address."
             password_confirmation:
               confirmation: "Password confirmation does not match password."
               format: "%{message}"
@@ -4338,8 +4340,10 @@ en:
   notice_account_already_activated: The account has already been activated.
   notice_account_invalid_token: Invalid activation token
   notice_account_invalid_credentials: "Invalid user or password"
-  notice_account_login_use_email: "Most users log in with their email address. If your account uses a username, you can continue with it."
+  notice_account_login_use_email: "Please log in with your email address. Usernames are only supported for accounts created before this rule."
   notice_account_invalid_credentials_or_blocked: "Invalid user or password or the account is blocked due to multiple failed login attempts. If so, it will be unblocked automatically in a short time."
+  notice_account_unknown_login: "No account was found for this login. Please check that you entered your email address correctly."
+  notice_account_blocked_too_many_attempts: "Too many failed login attempts. This account is blocked and will be unblocked automatically %{minutes} minutes after the last failed attempt."
   notice_account_lost_email_sent: "An email with instructions to choose a new password has been sent to you."
   notice_account_new_password_forced: "A new password is required."
   notice_account_password_expired: "Your password expired after %{days} days. Please set a new one."

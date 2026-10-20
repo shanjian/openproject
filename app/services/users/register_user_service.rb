@@ -44,6 +44,7 @@ module Users
         ensure_provider_not_limited!
         register_omniauth_user
         ensure_registration_allowed!
+        ensure_login_is_email!
         register_by_email_activation
         register_automatically
         register_manually
@@ -76,6 +77,16 @@ module Users
       if Setting::SelfRegistration.disabled?
         ServiceResult.failure(result: user, message: I18n.t("account.error_self_registration_disabled"))
       end
+    end
+
+    ##
+    # Self-registered users have to use their email address as login.
+    # By this point invited, LDAP and omniauth users have already been handled.
+    def ensure_login_is_email!
+      return unless user.login_violates_email_policy?
+
+      user.errors.add(:login, :must_be_email)
+      ServiceResult.failure(result: user, message: user.errors.full_messages.to_sentence)
     end
 
     ##

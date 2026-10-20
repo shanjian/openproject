@@ -131,13 +131,117 @@ RSpec.describe AccountController, :skip_2fa_stage do
   describe "POST #login" do
     shared_let(:admin) { create(:admin) }
 
-    describe "wrong password" do
-      it "redirects back to login" do
-        post :login, params: { username: "admin", password: "bad" }
-        expect(response).to have_http_status :unprocessable_entity
-        expect(response).to render_template "login"
-        expect(flash[:error]).to include "Invalid user or password"
-        expect(flash[:warning]).to eq(I18n.t(:notice_account_login_use_email))
+    describe "failed login" do
+      let(:password) { "adminADMIN!" }
+      let!(:user) do
+        create(:user, login: "person@example.org", mail: "person@example.org", password:, password_confirmation: password)
+      end
+
+      context "with a login that does not exist" do
+        it "says so" do
+          post :login, params: { username: "nobody@example.org", password: "bad" }
+
+          expect(response).to have_http_status :unprocessable_entity
+          expect(response).to render_template "login"
+          expect(flash[:error]).to eq I18n.t(:notice_account_unknown_login)
+          expect(flash[:warning]).to be_nil
+        end
+
+        it "also asks for the email address when the login is not one" do
+          post :login, params: { username: "admin", password: "bad" }
+
+          expect(flash[:error]).to eq I18n.t(:notice_account_unknown_login)
+          expect(flash[:warning]).to eq I18n.t(:notice_account_login_use_email)
+        end
+
+        it "does not count towards any account" do
+          expect { post :login, params: { username: "nobody@example.org", password: "bad" } }
+            .not_to change { User.where.not(failed_login_count: 0).count }
+        end
+      end
+
+      context "with an existing login and the wrong password" do
+        it "says that the password is wrong" do
+          post :login, params: { username: user.login, password: "bad" }
+
+          expect(response).to have_http_status :unprocessable_entity
+          expect(response).to render_template "login"
+          expect(flash[:error]).to eq I18n.t(:notice_account_wrong_password)
+        end
+
+        it "finds the account regardless of the casing of the login" do
+          post :login, params: { username: user.login.upcase, password: "bad" }
+
+          expect(flash[:error]).to eq I18n.t(:notice_account_wrong_password)
+        end
+      end
+
+      context "with brute force protection",
+              with_settings: { brute_force_block_minutes: 30, brute_force_block_after_failed_logins: 2 } do
+        it "reports the wrong password until the limit is reached, then that the account is blocked" do
+          post :login, params: { username: user.login, password: "bad" }
+          expect(flash[:error]).to eq I18n.t(:notice_account_wrong_password)
+
+          post :login, params: { username: user.login, password: "bad" }
+          expect(flash[:error]).to eq I18n.t(:notice_account_blocked_too_many_attempts, minutes: 30)
+        end
+
+        context "when the account is blocked" do
+          before do
+            user.update_columns(failed_login_count: 2, last_failed_login_on: 1.minute.ago)
+          end
+
+          it "rejects the correct password with the blocked message" do
+            post :login, params: { username: user.login, password: }
+
+            expect(response).to have_http_status :unprocessable_entity
+            expect(flash[:error]).to eq I18n.t(:notice_account_blocked_too_many_attempts, minutes: 30)
+            expect(session[:user_id]).to be_nil
+          end
+
+          it "gives the same message for a wrong password, so a guess cannot be confirmed" do
+            post :login, params: { username: user.login, password: "bad" }
+
+            expect(flash[:error]).to eq I18n.t(:notice_account_blocked_too_many_attempts, minutes: 30)
+          end
+        end
+
+        context "when the block time has passed" do
+          before do
+            user.update_columns(failed_login_count: 5, last_failed_login_on: 31.minutes.ago)
+          end
+
+          it "allows to log in again" do
+            post :login, params: { username: user.login, password: }
+
+            expect(response).to redirect_to home_path
+          end
+
+          it "reports a wrong password as such" do
+            post :login, params: { username: user.login, password: "bad" }
+
+            expect(flash[:error]).to eq I18n.t(:notice_account_wrong_password)
+          end
+        end
+      end
+
+      context "with brute force protection disabled",
+              with_settings: { brute_force_block_after_failed_logins: 0 } do
+        before do
+          user.update_columns(failed_login_count: 50, last_failed_login_on: 1.minute.ago)
+        end
+
+        it "never reports a block" do
+          post :login, params: { username: user.login, password: "bad" }
+
+          expect(flash[:error]).to eq I18n.t(:notice_account_wrong_password)
+        end
+
+        it "allows to log in" do
+          post :login, params: { username: user.login, password: }
+
+          expect(response).to redirect_to home_path
+        end
       end
     end
 
@@ -572,13 +676,8 @@ RSpec.describe AccountController, :skip_2fa_stage do
           expect(user.check_password?("NewPass123!")).to be false
         end
 
-        it "shows an error message" do
-          if Setting.brute_force_block_after_failed_logins.to_i > 0
-            expected_message = I18n.t(:notice_account_invalid_credentials_or_blocked)
-          else
-            expected_message = I18n.t(:notice_account_invalid_credentials)
-          end
-          expect(flash[:error]).to eq(expected_message)
+        it "shows that the account is blocked" do
+          expect(flash[:error]).to eq(I18n.t(:notice_account_blocked_too_many_attempts, minutes: 30))
         end
       end
 
@@ -601,6 +700,10 @@ RSpec.describe AccountController, :skip_2fa_stage do
         it "increments failed login count" do
           user.reload
           expect(user.failed_login_count).to eq(1)
+        end
+
+        it "says that the password is wrong" do
+          expect(flash[:error]).to eq(I18n.t(:notice_account_wrong_password))
         end
 
         it "updates last failed login timestamp" do
@@ -854,6 +957,32 @@ RSpec.describe AccountController, :skip_2fa_stage do
         allow(OpenProject::Configuration).to receive(:disable_password_login?).and_return(false)
       end
 
+      context "with a login that is not an email address" do
+        before do
+          post :register,
+               params: {
+                 user: {
+                   login: "Mark.Liu",
+                   password: "adminADMIN!",
+                   password_confirmation: "adminADMIN!",
+                   firstname: "Mark",
+                   lastname: "Liu",
+                   mail: "mark.liu@example.com"
+                 }
+               }
+        end
+
+        it "shows the registration form again with the reason" do
+          expect(response).to have_http_status :unprocessable_entity
+          expect(response).to render_template "account/register"
+          expect(flash[:error]).to include I18n.t("activerecord.errors.models.user.attributes.login.must_be_email")
+        end
+
+        it "does not create the account" do
+          expect(User.find_by_login("Mark.Liu")).to be_nil
+        end
+      end
+
       context "with password login enabled" do
         # expects `redirect_to_path`
         shared_examples "automatic self registration succeeds" do
@@ -861,7 +990,7 @@ RSpec.describe AccountController, :skip_2fa_stage do
             post :register,
                  params: {
                    user: {
-                     login: "register",
+                     login: "register@example.com",
                      password: "adminADMIN!",
                      password_confirmation: "adminADMIN!",
                      firstname: "John",
@@ -875,11 +1004,11 @@ RSpec.describe AccountController, :skip_2fa_stage do
             expect(subject).to respond_with :redirect
             expect(assigns[:user]).not_to be_nil
             expect(subject).to redirect_to(redirect_to_path)
-            expect(User.where(login: "register").last).not_to be_nil
+            expect(User.where(login: "register@example.com").last).not_to be_nil
           end
 
           it "set the user status to active" do
-            user = User.where(login: "register").last
+            user = User.where(login: "register@example.com").last
             expect(user).not_to be_nil
             expect(user).to be_active
           end
@@ -908,7 +1037,7 @@ RSpec.describe AccountController, :skip_2fa_stage do
           let(:params) do
             {
               user: {
-                login: "register",
+                login: "register@example.com",
                 password: "adminADMIN!",
                 password_confirmation: "adminADMIN!",
                 firstname: "John",
@@ -964,7 +1093,7 @@ RSpec.describe AccountController, :skip_2fa_stage do
           post :register,
                params: {
                  user: {
-                   login: "register",
+                   login: "register@example.com",
                    password: "adminADMIN!",
                    password_confirmation: "adminADMIN!",
                    firstname: "John",
@@ -979,7 +1108,7 @@ RSpec.describe AccountController, :skip_2fa_stage do
         end
 
         it "doesn't activate the user but sends out a token instead" do
-          expect(User.find_by_login("register")).not_to be_active
+          expect(User.find_by_login("register@example.com")).not_to be_active
           token = Token::Invitation.last
           expect(token.user.mail).to eq("register@example.com")
           expect(token).not_to be_expired
@@ -1007,7 +1136,7 @@ RSpec.describe AccountController, :skip_2fa_stage do
     context "with manual activation",
             with_settings: { self_registration: Setting::SelfRegistration.manual } do
       let(:user_hash) do
-        { login: "register",
+        { login: "register@example.com",
           password: "adminADMIN!",
           password_confirmation: "adminADMIN!",
           firstname: "John",
@@ -1025,7 +1154,7 @@ RSpec.describe AccountController, :skip_2fa_stage do
         end
 
         it "doesn't activate the user" do
-          expect(User.find_by_login("register")).not_to be_active
+          expect(User.find_by_login("register@example.com")).not_to be_active
         end
 
         it "calls the user_registered callback" do
@@ -1070,7 +1199,7 @@ RSpec.describe AccountController, :skip_2fa_stage do
         post :register,
              params: {
                user: {
-                 login: "register",
+                 login: "register@example.com",
                  password: "adminADMIN!",
                  password_confirmation: "adminADMIN!",
                  firstname: "John",

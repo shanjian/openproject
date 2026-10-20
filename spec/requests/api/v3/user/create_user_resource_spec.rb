@@ -38,7 +38,7 @@ RSpec.describe API::V3::Users::UsersAPI do
   let(:parameters) do
     {
       status: "active",
-      login: "myusername",
+      login: "myusername@example.org",
       firstName: "Foo",
       lastName: "Bar",
       email: "foobar@example.org",
@@ -61,9 +61,46 @@ RSpec.describe API::V3::Users::UsersAPI do
 
     it_behaves_like "create user request flow"
 
+    context "with a login that is not an email address" do
+      before do
+        parameters[:login] = "myusername"
+        parameters[:password] = "admin!admin!"
+      end
+
+      it "returns an error on the login and does not create the user" do
+        send_request
+
+        expect(last_response).to have_http_status(:unprocessable_entity)
+
+        expect(last_response.body)
+          .to be_json_eql("login".to_json)
+                .at_path("_embedded/details/attribute")
+
+        expect(last_response.body)
+          .to be_json_eql("urn:openproject-org:api:v3:errors:PropertyConstraintViolation".to_json)
+                .at_path("errorIdentifier")
+
+        expect(User.find_by(login: "myusername")).to be_nil
+      end
+    end
+
     context "with auth_source" do
       let(:ldap_auth_source_id) { "some_ldap" }
       let(:auth_source) { create(:ldap_auth_source, name: ldap_auth_source_id) }
+
+      context "with a login that is not an email address" do
+        before do
+          parameters[:login] = "myusername"
+          parameters[:_links] = { auth_source: { href: "/api/v3/auth_sources/#{auth_source.id}" } }
+        end
+
+        it "creates the user, as LDAP dictates the login" do
+          send_request
+
+          expect(last_response).to have_http_status(:created)
+          expect(User.find_by(login: "myusername").ldap_auth_source).to eq auth_source
+        end
+      end
 
       context "ID" do
         before do
@@ -134,7 +171,7 @@ RSpec.describe API::V3::Users::UsersAPI do
       let(:parameters) do
         {
           status: "active",
-          login: "myusername",
+          login: "myusername@example.org",
           firstName: "Foo",
           lastName: "Bar",
           email: "foobar@example.org",
@@ -267,7 +304,7 @@ RSpec.describe API::V3::Users::UsersAPI do
         let(:parameters) do
           {
             status: "active",
-            login: "testuser",
+            login: "testuser@example.org",
             firstName: "Test",
             lastName: "User",
             email: "test@example.org",
@@ -291,7 +328,7 @@ RSpec.describe API::V3::Users::UsersAPI do
         let(:parameters) do
           {
             status: "active",
-            login: "testuser",
+            login: "testuser@example.org",
             firstName: "Test",
             lastName: "User",
             email: "test@example.org",
@@ -318,7 +355,7 @@ RSpec.describe API::V3::Users::UsersAPI do
         let(:parameters) do
           {
             status: "active",
-            login: "testuser",
+            login: "testuser@example.org",
             firstName: "Test",
             lastName: "User",
             email: "test@example.org",
@@ -362,7 +399,7 @@ RSpec.describe API::V3::Users::UsersAPI do
       let(:parameters) do
         {
           status: "active",
-          login: "testuser",
+          login: "testuser@example.org",
           firstName: "Test",
           lastName: "User",
           email: "test@example.org",
@@ -396,7 +433,7 @@ RSpec.describe API::V3::Users::UsersAPI do
         let(:parameters) do
           {
             status: "active",
-            login: "testuser",
+            login: "testuser@example.org",
             firstName: "Test",
             lastName: "User",
             email: "test@example.org",

@@ -69,14 +69,28 @@ RSpec.describe API::V3::Users::UsersAPI do
     end
 
     describe "attribute change" do
-      let(:parameters) { { login: "new.login", language: "de" } }
+      let(:parameters) { { login: "new.login@example.com", language: "de" } }
 
-      it_behaves_like "successful update", login: "new.login", language: "de"
+      it_behaves_like "successful update", login: "new.login@example.com", language: "de"
+    end
+
+    describe "changing the login to something that is not an email address" do
+      let(:parameters) { { login: "new.login" } }
+
+      it "returns an error on the login and keeps the current one" do
+        expect { send_request }.not_to change { user.reload.login }
+
+        expect(last_response).to have_http_status(:unprocessable_entity)
+
+        expect(last_response.body)
+          .to be_json_eql("login".to_json)
+                .at_path("_embedded/details/attribute")
+      end
     end
 
     describe "attribute collision" do
-      let(:parameters) { { login: "new.login" } }
-      let(:collision) { create(:user, login: "new.login") }
+      let(:parameters) { { login: "new.login@example.com" } }
+      let(:collision) { create(:user, login: "new.login@example.com") }
 
       before do
         collision
@@ -127,11 +141,11 @@ RSpec.describe API::V3::Users::UsersAPI do
         context "when no custom field value is provided" do
           let(:parameters) do
             {
-              login: "new.login"
+              login: "new.login@example.com"
             }
           end
 
-          it_behaves_like "successful update", login: "new.login"
+          it_behaves_like "successful update", login: "new.login@example.com"
 
           it "keeps the custom field value empty" do
             send_request
@@ -143,7 +157,7 @@ RSpec.describe API::V3::Users::UsersAPI do
         context "when the custom field is provided but empty" do
           let(:parameters) do
             {
-              login: "new.login",
+              login: "new.login@example.com",
               required_custom_field.attribute_name(:camel_case) => {
                 raw: ""
               }
@@ -165,14 +179,14 @@ RSpec.describe API::V3::Users::UsersAPI do
         context "when the custom field value is provided and valid" do
           let(:parameters) do
             {
-              login: "new.login",
+              login: "new.login@example.com",
               required_custom_field.attribute_name(:camel_case) => {
                 raw: "Engineering"
               }
             }
           end
 
-          it_behaves_like "successful update", login: "new.login"
+          it_behaves_like "successful update", login: "new.login@example.com"
 
           it "updates the user with the custom field value" do
             send_request
@@ -189,14 +203,14 @@ RSpec.describe API::V3::Users::UsersAPI do
 
         let(:parameters) do
           {
-            login: "new.login",
+            login: "new.login@example.com",
             custom_field.attribute_name(:camel_case) => {
               raw: "CF text"
             }
           }
         end
 
-        it_behaves_like "successful update", login: "new.login"
+        it_behaves_like "successful update", login: "new.login@example.com"
 
         it "sets the cf value" do
           send_request
@@ -215,14 +229,14 @@ RSpec.describe API::V3::Users::UsersAPI do
           let(:current_user) { create(:admin) }
           let(:parameters) do
             {
-              login: "new.login",
+              login: "new.login@example.com",
               admin_only_custom_field.attribute_name(:camel_case) => {
                 raw: "CF text"
               }
             }
           end
 
-          it_behaves_like "successful update", login: "new.login"
+          it_behaves_like "successful update", login: "new.login@example.com"
 
           it "sets the cf value" do
             send_request
@@ -235,14 +249,14 @@ RSpec.describe API::V3::Users::UsersAPI do
           let(:current_user) { create(:user, global_permissions: %i[manage_user view_all_principals]) }
           let(:parameters) do
             {
-              login: "new.login",
+              login: "new.login@example.com",
               admin_only_custom_field.attribute_name(:camel_case) => {
                 raw: "CF text"
               }
             }
           end
 
-          it_behaves_like "successful update", login: "new.login"
+          it_behaves_like "successful update", login: "new.login@example.com"
 
           it "does not set the cf value" do
             send_request
@@ -254,11 +268,11 @@ RSpec.describe API::V3::Users::UsersAPI do
             let(:is_required) { true }
             let(:parameters) do
               {
-                login: "new.login"
+                login: "new.login@example.com"
               }
             end
 
-            it_behaves_like "successful update", login: "new.login"
+            it_behaves_like "successful update", login: "new.login@example.com"
 
             it "does not set the cf value" do
               send_request
@@ -304,7 +318,7 @@ RSpec.describe API::V3::Users::UsersAPI do
     end
 
     describe "unknown user" do
-      let(:parameters) { { login: "new.login" } }
+      let(:parameters) { { login: "new.login@example.com" } }
       let(:path) { api_v3_paths.user(666) }
 
       it "responds with 404" do
