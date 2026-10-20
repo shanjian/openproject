@@ -36,7 +36,7 @@ RSpec.shared_examples_for "user contract" do
 
   let(:user_firstname) { "Bob" }
   let(:user_lastname) { "Bobbit" }
-  let(:user_login) { "bob" }
+  let(:user_login) { "bob@bob.com" }
   let(:user_mail) { "bobbit@bob.com" }
   let(:user_password) { "adminADMIN!" }
   let(:user_password_confirmation) { "adminADMIN!" }
@@ -49,6 +49,54 @@ RSpec.shared_examples_for "user contract" do
     it_behaves_like "contract is valid"
 
     include_examples "contract reuses the model errors"
+  end
+
+  describe "email address as login" do
+    let(:current_user) { build_stubbed(:admin) }
+
+    context "when setting a login that is not an email address" do
+      before { user.login = "Mark.Liu" }
+
+      it_behaves_like "contract is invalid", login: :must_be_email
+    end
+
+    context "when setting an email address as login" do
+      before { user.login = "mark.liu@example.com" }
+
+      it_behaves_like "contract is valid"
+    end
+
+    context "when the login is set by the system user (e.g. an import)" do
+      let(:current_user) { User.system }
+
+      before { user.login = "Mark.Liu" }
+
+      it_behaves_like "contract is valid"
+    end
+
+    context "when the user authenticates through LDAP" do
+      let!(:auth_source) { create(:ldap_auth_source) }
+
+      before do
+        user.password = user.password_confirmation = nil
+        user.ldap_auth_source = auth_source
+        user.login = "mliu"
+      end
+
+      it_behaves_like "contract is valid"
+    end
+
+    context "when the user authenticates through an SSO provider" do
+      before do
+        user.user_auth_provider_links.build(
+          auth_provider: create(:oidc_provider),
+          external_id: "123123123"
+        )
+        user.login = "mliu"
+      end
+
+      it_behaves_like "contract is valid"
+    end
   end
 
   context "when global user" do

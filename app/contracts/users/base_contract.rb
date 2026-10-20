@@ -62,6 +62,7 @@ module Users
     validate :validate_password_writable
     validate :validate_identity_url_writable
     validate :existing_auth_source
+    validate :login_is_email_address
 
     delegate :available_custom_fields, to: :model
 
@@ -100,6 +101,17 @@ module Users
       return if identity_url_writable?
 
       errors.add(:identity_url, :error_readonly) if model.user_auth_provider_links.any?(&:changed?)
+    end
+
+    # Only checked when the login is set or changed, so existing accounts
+    # with a non-email login can still be edited. Automated provisioning
+    # (imports, LDAP and SSO sync) runs as the system user and has to
+    # keep the logins dictated by the source system.
+    def login_is_email_address
+      return if user.is_a?(SystemUser)
+      return unless model.login_changed? && model.login_violates_email_policy?
+
+      errors.add :login, :must_be_email
     end
 
     # rubocop:disable Rails/DynamicFindBy

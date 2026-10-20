@@ -380,7 +380,7 @@ class AccountController < ApplicationController
       username = params[:username]&.strip
       password = params[:password]&.sub(/[[:space:]]+\z/, "")
 
-      if username.present? && !username.match?(URI::MailTo::EMAIL_REGEXP)
+      if username.present? && !::EmailValidator.valid?(username)
         flash.now[:warning] = I18n.t(:notice_account_login_use_email)
       end
 
@@ -393,7 +393,12 @@ class AccountController < ApplicationController
     if user.nil?
       # login failed, now try to find out why and do the appropriate thing
       user = User.find_by_login(username)
-      if user and user.check_password?(password)
+      if user&.failed_too_many_recent_login_attempts?
+        # Say so whether or not the password was right, otherwise the message
+        # would reveal if a guess was correct while the account is blocked.
+        flash_and_log_invalid_credentials(reason: :blocked)
+        render status: :unprocessable_entity
+      elsif user&.check_password?(password)
         # correct password
         if not user.active?
           account_inactive(user, flash_now: true)
@@ -415,8 +420,7 @@ class AccountController < ApplicationController
         invited_account_not_activated(user)
         render status: :unprocessable_entity
       else
-        # incorrect password
-        flash_and_log_invalid_credentials
+        flash_and_log_invalid_credentials(reason: user ? :wrong_password : :unknown_login)
         render status: :unprocessable_entity
       end
     elsif user.new_record?

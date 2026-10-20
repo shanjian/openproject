@@ -91,7 +91,7 @@ RSpec.describe "Authentication Stages", :skip_2fa_stage do
       visit account_register_path
 
       within("#new_user") do
-        fill_in "user_login", with: "h.wurst"
+        fill_in "user_login", with: "h.wurst@openproject.com"
         fill_in "user_firstname", with: "Hans"
         fill_in "user_lastname", with: "Wurst"
         fill_in "user_mail", with: "h.wurst@openproject.com"

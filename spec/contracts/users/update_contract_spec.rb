@@ -109,6 +109,28 @@ RSpec.describe Users::UpdateContract do
     context "when user is an admin" do
       let(:current_user) { create(:admin) }
 
+      describe "editing an account that already has a non-email login" do
+        let(:user) { create(:user, login: "legacy_login") }
+
+        context "when the login is left untouched" do
+          before { user.firstname = "Changed firstname" }
+
+          it_behaves_like "contract is valid"
+        end
+
+        context "when the login is changed to another non-email value" do
+          before { user.login = "another_login" }
+
+          it_behaves_like "contract is invalid", login: :must_be_email
+        end
+
+        context "when the login is changed to an email address" do
+          before { user.login = "legacy@example.com" }
+
+          it_behaves_like "contract is valid"
+        end
+      end
+
       describe "can update the email" do
         before do
           user.mail = "a.new@email.address"

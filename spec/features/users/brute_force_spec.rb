@@ -59,19 +59,21 @@ RSpec.describe "Loggin (with brute force protection)" do
      with_settings: { brute_force_block_minutes: 5, brute_force_block_after_failed_logins: 2 } do
     login_with login, invalid_password
 
+    # Still below the limit: only the password is reported as wrong
     expect(page)
-      .to have_content(I18n.t(:notice_account_invalid_credentials_or_blocked))
+      .to have_content(I18n.t(:notice_account_wrong_password))
 
     new_login_attempt(login, invalid_password)
 
+    # Limit reached
     expect(page)
-      .to have_content(I18n.t(:notice_account_invalid_credentials_or_blocked))
+      .to have_content(I18n.t(:notice_account_blocked_too_many_attempts, minutes: 5))
 
     new_login_attempt(login, password)
 
-    # Too many attempts
+    # Blocked, even though the password is correct
     expect(page)
-      .to have_content(I18n.t(:notice_account_invalid_credentials_or_blocked))
+      .to have_content(I18n.t(:notice_account_blocked_too_many_attempts, minutes: 5))
 
     # Pretend the user waited some time
     wait_time = 4.minutes.ago
@@ -81,7 +83,7 @@ RSpec.describe "Loggin (with brute force protection)" do
     new_login_attempt(login, password)
 
     expect(page)
-      .to have_content(I18n.t(:notice_account_invalid_credentials_or_blocked))
+      .to have_content(I18n.t(:notice_account_blocked_too_many_attempts, minutes: 5))
 
     # Pretend the user waited some time
     wait_time = 5.minutes.ago - 1.second
@@ -103,12 +105,12 @@ RSpec.describe "Loggin (with brute force protection)" do
     login_with login, invalid_password
 
     expect(page)
-      .to have_content(I18n.t(:notice_account_invalid_credentials))
+      .to have_content(I18n.t(:notice_account_wrong_password))
 
     new_login_attempt(login, invalid_password)
 
     expect(page)
-      .to have_content(I18n.t(:notice_account_invalid_credentials))
+      .to have_content(I18n.t(:notice_account_wrong_password))
 
     new_login_attempt(login, password)
 

@@ -44,14 +44,15 @@ module Accounts::UserPasswordChange
 
     # Check if user is locked due to too many failed attempts
     if user.failed_too_many_recent_login_attempts?
-      flash_and_log_invalid_credentials(is_logged_in: !show_user_name)
+      flash_and_log_invalid_credentials(is_logged_in: !show_user_name, reason: :blocked)
       return render_password_change(user, nil, show_user_name:)
     end
 
     # Ensure the current password is validated
     unless user.check_password?(params[:password], update_legacy:)
       user.log_failed_login
-      flash_and_log_invalid_credentials(is_logged_in: !show_user_name)
+      reason = user.failed_too_many_recent_login_attempts? ? :blocked : :wrong_password
+      flash_and_log_invalid_credentials(is_logged_in: !show_user_name, reason:)
       return render_password_change(user, nil, show_user_name:)
     end
 

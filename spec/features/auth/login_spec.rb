@@ -140,7 +140,7 @@ RSpec.describe "Login" do
     it "prevents login for a blocked user" do
       user.locked!
 
-      login_with(user.login, user.password)
+      login_with(user.login, user_password)
 
       expect(page).to have_current_path signin_path
       expect(page)

@@ -78,7 +78,7 @@ RSpec.describe "random password generation", :js do
       fill_in "new_password_confirmation", with: new_password
       click_on "Save"
 
-      expect(page).to have_content "Invalid user or password"
+      expect(page).to have_content I18n.t(:notice_account_wrong_password)
 
       # Give correct password
       fill_in "password", with: password
@@ -103,7 +103,7 @@ RSpec.describe "random password generation", :js do
 
       login_with user.login, password
       wait_for_network_idle
-      expect(page).to have_content "Invalid user or password"
+      expect(page).to have_content I18n.t(:notice_account_wrong_password)
 
       # Logout and sign in with new_passworwd
       visit signout_path

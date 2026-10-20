@@ -174,7 +174,7 @@ RSpec.describe API::V3::Users::UpdateFormAPI, content_type: :json do
         context "when no custom field value is provided" do
           let(:payload) do
             {
-              login: "new.login"
+              login: "new.login@example.com"
             }
           end
 
@@ -182,7 +182,7 @@ RSpec.describe API::V3::Users::UpdateFormAPI, content_type: :json do
             expect(response).to have_http_status(:ok)
             expect(body).to have_json_size(0).at_path("_embedded/validationErrors")
             expect(body)
-              .to be_json_eql("new.login".to_json)
+              .to be_json_eql("new.login@example.com".to_json)
               .at_path("_embedded/payload/login")
             expect(body)
               .to be_json_eql(api_v3_paths.user(user.id).to_json)
@@ -193,7 +193,7 @@ RSpec.describe API::V3::Users::UpdateFormAPI, content_type: :json do
         context "when the custom field is provided but empty" do
           let(:payload) do
             {
-              login: "new.login",
+              login: "new.login@example.com",
               required_custom_field.attribute_name(:camel_case) => {
                 raw: ""
               }
@@ -213,7 +213,7 @@ RSpec.describe API::V3::Users::UpdateFormAPI, content_type: :json do
         context "when the custom field value is provided and valid" do
           let(:payload) do
             {
-              login: "new.login",
+              login: "new.login@example.com",
               required_custom_field.attribute_name(:camel_case) => {
                 raw: "Engineering"
               }
@@ -240,7 +240,7 @@ RSpec.describe API::V3::Users::UpdateFormAPI, content_type: :json do
 
         let(:payload) do
           {
-            login: "new.login",
+            login: "new.login@example.com",
             visible_custom_field.attribute_name(:camel_case) => {
               raw: "CF text"
             }
@@ -269,7 +269,7 @@ RSpec.describe API::V3::Users::UpdateFormAPI, content_type: :json do
           let(:current_user) { create(:admin) }
           let(:payload) do
             {
-              login: "new.login",
+              login: "new.login@example.com",
               admin_only_custom_field.attribute_name(:camel_case) => {
                 raw: "CF text"
               }
@@ -291,7 +291,7 @@ RSpec.describe API::V3::Users::UpdateFormAPI, content_type: :json do
         context "with non-admin permissions" do
           let(:payload) do
             {
-              login: "new.login",
+              login: "new.login@example.com",
               admin_only_custom_field.attribute_name(:camel_case) => {
                 raw: "CF text"
               }
@@ -312,7 +312,7 @@ RSpec.describe API::V3::Users::UpdateFormAPI, content_type: :json do
             let(:is_required) { true }
             let(:payload) do
               {
-                login: "new.login"
+                login: "new.login@example.com"
               }
             end
 

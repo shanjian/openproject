@@ -408,6 +408,17 @@ class User < Principal
     user_auth_provider_links.exists?
   end
 
+  ##
+  # Accounts log in with their email address. Builtin, LDAP-backed and SSO-provisioned
+  # accounts are exempt as their login is dictated by the external system.
+  def login_violates_email_policy?
+    login.present? &&
+      !builtin? &&
+      ldap_auth_source_id.blank? &&
+      user_auth_provider_links.empty? &&
+      !::EmailValidator.valid?(login)
+  end
+
   #
   # Generate and set a random password.
   #

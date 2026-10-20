@@ -30,7 +30,7 @@
 require "spec_helper"
 
 RSpec.describe Users::RegisterUserService, with_ee: %i[sso_auth_providers] do
-  let(:user) { build(:user) }
+  let(:user) { build(:user, login: "bob@example.com") }
   let(:instance) { described_class.new(user) }
   let(:call) { instance.call }
 
@@ -227,6 +227,34 @@ RSpec.describe Users::RegisterUserService, with_ee: %i[sso_auth_providers] do
         call = instance.call
         expect(call.result).to eq user
         expect(call.message).to eq "test stop"
+      end
+    end
+  end
+
+  describe "ensure_login_is_email!",
+           with_settings: { self_registration: Setting::SelfRegistration.automatic } do
+    before do
+      allow(OpenProject::Enterprise).to receive(:user_limit_reached?).and_return(false)
+    end
+
+    context "when the login is not an email address" do
+      let(:user) { build(:user, login: "Mark.Liu") }
+
+      it "fails and does not create the account" do
+        expect(call).to be_failure
+        expect(call.result).to eq user
+        expect(call.message).to include I18n.t("activerecord.errors.models.user.attributes.login.must_be_email")
+        expect(user.errors).to be_added(:login, :must_be_email)
+        expect(user).to be_new_record
+      end
+    end
+
+    context "when the login is an email address" do
+      let(:user) { build(:user, login: "mark.liu@example.com") }
+
+      it "registers the user" do
+        expect(call).to be_success
+        expect(user).to be_persisted
       end
     end
   end

@@ -44,7 +44,7 @@ RSpec.describe "user self registration", :js do
       click_link "Create a new account"
       # deliberately inserting a wrong password confirmation
       within ".registration-modal" do
-        fill_in "Username", with: "heidi"
+        fill_in "Username", with: "heidi@heidiland.com"
         fill_in "First name", with: "Heidi"
         fill_in "Last name", with: "Switzerland"
         fill_in "Email", with: "heidi@heidiland.com"
@@ -69,7 +69,7 @@ RSpec.describe "user self registration", :js do
 
       # deliberately inserting a wrong password confirmation
       within ".registration-modal" do
-        fill_in "Username", with: "heidi"
+        fill_in "Username", with: "heidi@heidiland.com"
         fill_in "First name", with: "Heidi"
         fill_in "Last name", with: "Switzerland"
         fill_in "Email", with: "heidi@heidiland.com"
@@ -98,7 +98,7 @@ RSpec.describe "user self registration", :js do
       registered_user = User.find_by(status: Principal.statuses[:registered])
 
       # Trying unsuccessfully to login
-      login_with "heidi", "test123=321test"
+      login_with "heidi@heidiland.com", "test123=321test"
 
       expect(page)
         .to have_content I18n.t(:"account.error_inactive_manual_activation")
@@ -118,7 +118,7 @@ RSpec.describe "user self registration", :js do
       logout
 
       # Test logging in as newly created and activated user
-      login_with "heidi", "test123=321test"
+      login_with "heidi@heidiland.com", "test123=321test"
 
       user_menu.expect_user_shown registered_user.name
     end

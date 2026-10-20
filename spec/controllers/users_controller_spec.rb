@@ -1090,7 +1090,7 @@ RSpec.describe UsersController do
           id: some_user.id,
           user: {
             firstname: "Changed",
-            login: "changed_login",
+            login: "changed_login@example.com",
             force_password_change: true
           },
           pref: {
@@ -1112,7 +1112,7 @@ RSpec.describe UsersController do
       it "is assigned their new values" do
         some_user_from_db = User.find(some_user.id)
         expect(some_user_from_db.firstname).to eq("Changed")
-        expect(some_user_from_db.login).to eq("changed_login")
+        expect(some_user_from_db.login).to eq("changed_login@example.com")
         expect(some_user_from_db.force_password_change).to be(true)
         expect(some_user_from_db.pref[:comments_sorting]).to eq("desc")
       end
@@ -1501,7 +1501,7 @@ RSpec.describe UsersController do
         user: {
           firstname: "John",
           lastname: "Doe",
-          login: "jdoe",
+          login: "jdoe@gmail.com",
           password: "adminADMIN!",
           password_confirmation: "adminADMIN!",
           mail: "jdoe@gmail.com"
