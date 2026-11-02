@@ -2149,6 +2149,9 @@ en:
               violates_relationships: "can only be set to %{soonest_start} or later so as not to violate the work package's relationships."
               cannot_be_null: "can not be set to null as due date and duration are known."
             status_id:
+              blocked_by_open_work_packages:
+                one: "cannot be changed to closed while this work package is blocked by %{blockers}. Close that work package or remove the relation first."
+                other: "cannot be changed to closed while this work package is blocked by %{blockers}. Close those work packages or remove the relations first."
               status_transition_invalid: "is invalid because no valid transition exists from old to new status for the current user's roles."
               status_invalid_in_type: "is invalid because the current status does not exist in this type."
             type:
@@ -2990,6 +2993,10 @@ en:
   error_can_not_invite_user: "Failed to send invitation to user."
   error_can_not_remove_role: "This role is in use and cannot be deleted."
   error_can_not_reopen_work_package_on_closed_version: "A work package assigned to a closed version cannot be reopened"
+  work_package_blockers_more: "and %{count} more"
+  work_package_blockers_hidden:
+    one: "1 work package you cannot access"
+    other: "%{count} work packages you cannot access"
   error_can_not_find_all_resources: "Could not find all related resources to this request."
   error_can_not_unarchive_project: "This project cannot be unarchived: %{errors}"
   error_check_user_and_role: "Please choose a user and a role."

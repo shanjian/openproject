@@ -1537,15 +1537,13 @@ RSpec.describe WorkPackages::BaseContract do
           .to eql base_scope.order_by_position.to_sql
       end
 
-      it "removes closed statuses if blocked" do
+      it "keeps closed statuses if blocked (closing is refused by a validation instead)" do
         allow(work_package)
           .to receive(:blocked?)
           .and_return(true)
 
-        expected = base_scope.where(is_closed: false).order_by_position
-
         expect(contract.assignable_statuses.to_sql)
-          .to eql expected.to_sql
+          .to eql base_scope.order_by_position.to_sql
       end
 
       context "if the current status is closed and the version is closed as well" do
