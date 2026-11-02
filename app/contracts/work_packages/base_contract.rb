@@ -34,6 +34,9 @@ module WorkPackages
     include AssignableValuesContract
     include WorkPackages::SetAttributesService::ProgressValuesCalculations
 
+    # How many blocking work packages the error message lists before it summarizes the rest.
+    MAX_LISTED_BLOCKERS = 5
+
     attribute :subject
     attribute :description
     attribute :status_id,
@@ -159,6 +162,7 @@ module WorkPackages
 
     validate :validate_status_exists
     validate :validate_status_transition
+    validate :validate_not_blocked_when_closing
 
     validate :validate_active_priority
     validate :validate_priority_exists
@@ -422,6 +426,41 @@ module WorkPackages
       if status_changed? && status_exists? && !(model.type_id_changed? || status_transition_exists?)
         errors.add :status_id, :status_transition_invalid
       end
+    end
+
+    # Closed statuses stay selectable while open work packages block this one. Hiding them left users
+    # wondering where "Done" had gone, so closing is refused here instead, with the reason.
+    def validate_not_blocked_when_closing
+      return unless model.status_id_changed? && model.status&.is_closed? && model.closing?
+
+      blockers = model.open_blockers.to_a
+      return if blockers.empty?
+
+      errors.add :status_id,
+                 :blocked_by_open_work_packages,
+                 count: blockers.size,
+                 blockers: describe_blockers(blockers)
+    end
+
+    # Names the blocking work packages the user may see. The others are only counted, so that no title
+    # leaks from a project the user has no access to.
+    def describe_blockers(blockers)
+      visible = WorkPackage.visible(user).where(id: blockers.map(&:id)).order(:id).to_a
+
+      [*listed_blockers(visible), *blockers_not_listed(visible, blockers.size - visible.size)].join(", ")
+    end
+
+    def listed_blockers(visible)
+      visible.first(MAX_LISTED_BLOCKERS).map { |work_package| "##{work_package.id} \"#{work_package.subject.truncate(60)}\"" }
+    end
+
+    def blockers_not_listed(visible, hidden_count)
+      more_count = visible.size - MAX_LISTED_BLOCKERS
+
+      summary = []
+      summary << I18n.t(:work_package_blockers_more, count: more_count) if more_count.positive?
+      summary << I18n.t(:work_package_blockers_hidden, count: hidden_count) if hidden_count.positive?
+      summary
     end
 
     def validate_active_priority
@@ -745,12 +784,8 @@ module WorkPackages
 
       return current_status if closed_version_and_status?(status)
 
-      statuses = new_statuses_by_workflow(status)
-                   .or(current_status)
-
-      statuses = statuses.where(is_closed: false) if model.blocked?
-
-      statuses
+      new_statuses_by_workflow(status)
+        .or(current_status)
     end
 
     def closed_version_and_status?(status = model.status)
