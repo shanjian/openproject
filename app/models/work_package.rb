@@ -279,6 +279,13 @@ class WorkPackage < ApplicationRecord
     # return work_packages that block me
     return WorkPackage.none if closed?
 
+    open_blockers
+  end
+
+  # Open work packages that block this one, whatever this one's own status is.
+  # #blockers is empty once this work package is closed, so it cannot tell whether
+  # closing it is allowed.
+  def open_blockers
     blocking_relations = Relation.blocks.where(to_id: self)
 
     WorkPackage
