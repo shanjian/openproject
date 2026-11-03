@@ -57,6 +57,9 @@ TurboPower.register('turbo_frame_set_src', TurboPower.Actions.turbo_frame_set_sr
 TurboPower.register('redirect_to', TurboPower.Actions.redirect_to, StreamActions);
 TurboPower.register('set_dataset_attribute', TurboPower.Actions.set_dataset_attribute, StreamActions);
 TurboPower.register('set_title', TurboPower.Actions.set_title, StreamActions);
+// Used by OpTurbo::ComponentStream#scroll_into_view_via_turbo_stream (e.g. meeting outcomes,
+// SAML/OIDC provider forms). It only scrolls an element into view: no navigation, no form submission.
+TurboPower.register('scroll_into_view', TurboPower.Actions.scroll_into_view, StreamActions);
 
 // Error handling when "Content missing" returned
 document.addEventListener('turbo:frame-missing', (event) => {
