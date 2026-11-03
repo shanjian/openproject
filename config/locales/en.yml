@@ -5760,6 +5760,7 @@ en:
       project: Undisclosed - The project is invisible because of lacking permissions.
       ancestor: Undisclosed - The ancestor is invisible because of lacking permissions.
       definingProject: Undisclosed - The project is invisible because of lacking permissions.
+      workPackage: Undisclosed - The work package is invisible because of lacking permissions.
 
   doorkeeper:
     pre_authorization:
