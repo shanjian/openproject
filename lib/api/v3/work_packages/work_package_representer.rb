@@ -655,6 +655,9 @@ module API
                             v3_path: :budget,
                             link_title_attribute: :subject,
                             representer: ::API::V3::Budgets::BudgetRepresenter,
+                            uncacheable_link: true,
+                            skip_link: ->(*) { represented.budget_id.present? && !view_budgets_allowed? },
+                            undisclosed: true,
                             skip_render: ->(*) { !view_budgets_allowed? }
 
         resources :customActions,
