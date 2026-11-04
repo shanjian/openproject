@@ -76,8 +76,18 @@ module API
 
         def create_link_lambda(name, getter: "#{name}_id")
           ->(*) {
-            v3_path = API::V3::TimeEntries::EntityRepresenterFactory.representer_type(represented.send(name))
-            title_attribute = API::V3::TimeEntries::EntityRepresenterFactory.title_attribute(represented.send(name))
+            entity = represented.send(name)
+
+            # entity_id can reference a record that no longer exists, e.g. when a form request
+            # links a deleted work package.
+            next { href: nil } unless entity
+
+            unless API::V3::TimeEntries::EntityRepresenterFactory.entity_visible?(entity, current_user)
+              next API::V3::TimeEntries::EntityRepresenterFactory.undisclosed_link
+            end
+
+            v3_path = API::V3::TimeEntries::EntityRepresenterFactory.representer_type(entity)
+            title_attribute = API::V3::TimeEntries::EntityRepresenterFactory.title_attribute(entity)
 
             instance_exec(&self.class.associated_resource_default_link_lambda(name,
                                                                               v3_path:,
@@ -87,31 +97,52 @@ module API
           }
         end
 
+        # Renders the deprecated `workPackage` link, gated on work package visibility.
+        def create_work_package_link_lambda
+          ->(*) {
+            entity = represented.entity
+            next unless entity.is_a?(WorkPackage)
+
+            unless entity.visible?(current_user)
+              next API::V3::TimeEntries::EntityRepresenterFactory.undisclosed_link
+            end
+
+            { href: api_v3_paths.work_package(entity.id), title: entity.subject }
+          }
+        end
+
         def create_getter_lambda(name)
           ->(*) {
             next unless embed_links
 
             instance = represented.send(name)
             next if instance.nil?
+            next unless API::V3::TimeEntries::EntityRepresenterFactory.entity_visible?(instance, current_user)
 
             ::API::V3::TimeEntries::EntityRepresenterFactory.create(instance, current_user:)
           }
         end
 
+        def entity_visible?(entity, user)
+          case entity
+          when WorkPackage, Meeting then entity.visible?(user)
+          else false
+          end
+        end
+
+        def undisclosed_link
+          { href: ::API::V3::URN_UNDISCLOSED, title: I18n.t(:"api_v3.undisclosed.workPackage") }
+        end
+
         def create_setter_lambda(name)
           ->(fragment:, **) {
-            result = ::API::Utilities::ResourceLinkParser.parse(fragment["href"])
+            # TODO: Accept meetings as entity once time tracking on meetings is released.
+            id = ::API::Utilities::ResourceLinkParser.parse_id(fragment["href"],
+                                                               property: name,
+                                                               expected_namespace: "work_packages")
 
-            case result[:namespace]
-            when "meetings"
-              represented.public_send("#{name}_id=", result[:id])
-              represented.public_send("#{name}_type=", "Meeting")
-            when "work_packages"
-              represented.public_send("#{name}_id=", result[:id])
-              represented.public_send("#{name}_type=", "WorkPackage")
-            else
-              # TODO: Handle error if unexpected object
-            end
+            represented.public_send("#{name}_id=", id)
+            represented.public_send("#{name}_type=", "WorkPackage")
           }
         end
       end

@@ -69,6 +69,16 @@ RSpec.describe CustomField do
     it { is_expected.to validate_presence_of(:name) }
     it { is_expected.to validate_length_of(:name).is_at_most(256) }
 
+    it "strips ASCII control characters on assignment" do
+      cf = build(:custom_field, name: "Test\nField\x00Name\t!")
+      expect(cf.name).to eq("TestFieldName!")
+    end
+
+    it "preserves Unicode and normal characters" do
+      cf = build(:custom_field, name: "Héllo Wörld 日本語")
+      expect(cf.name).to eq("Héllo Wörld 日本語")
+    end
+
     describe "uniqueness" do
       describe "WHEN value, locale and type are identical" do
         before do

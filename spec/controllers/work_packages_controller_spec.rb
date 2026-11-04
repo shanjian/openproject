@@ -48,7 +48,7 @@ RSpec.describe WorkPackagesController do
 
   let(:current_user) { create(:user) }
 
-  def self.requires_permission_in_project(&)
+  def self.requires_permission_in_project(permissions: %i[view_work_packages], &)
     describe "w/o the permission to see the project/work_package" do
       before do
         allow(controller).to receive(:work_package).and_return(nil)
@@ -66,7 +66,7 @@ RSpec.describe WorkPackagesController do
       before do
         expect(WorkPackage).to receive_message_chain("visible.find_by").and_return(stub_work_package)
         mock_permissions_for(current_user) do |mock|
-          mock.allow_in_project :view_work_packages, project: stub_work_package.project
+          mock.allow_in_project(*permissions, project: stub_work_package.project)
         end
       end
 
@@ -281,7 +281,7 @@ RSpec.describe WorkPackagesController do
       allow(exporter).to receive(:new).and_return(exporter_instance)
     end
 
-    requires_permission_in_project do
+    requires_permission_in_project(permissions: %i[view_work_packages export_work_packages]) do
       it "respond with a pdf" do
         pdf_data = "foobar"
         time = DateTime.new(2023, 6, 30, 23, 59)

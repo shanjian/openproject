@@ -281,7 +281,12 @@ class MeetingAgendaItemsController < ApplicationController
   end
 
   def move_to_section
-    meeting_section = MeetingSection.find_by(id: params[:meeting_agenda_item][:meeting_section_id])
+    section_scope = if @meeting.recurring_meeting_id.present?
+                      MeetingSection.joins(:meeting).where(meetings: { recurring_meeting_id: @meeting.recurring_meeting_id })
+                    else
+                      @meeting.sections
+                    end
+    meeting_section = section_scope.find_by(id: params[:meeting_agenda_item][:meeting_section_id])
     @meeting = meeting_section.meeting unless meeting_section.backlog?
 
     call = update_agenda_item(meeting_section:)

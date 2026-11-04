@@ -30,6 +30,7 @@
 module MeetingAgendaItems
   class UpdateContract < BaseContract
     validate :user_allowed_to_edit
+    validate :section_belongs_to_meeting
 
     attribute :lock_version do
       if model.lock_version.nil? || model.lock_version_changed?
@@ -46,6 +47,23 @@ module MeetingAgendaItems
       unless user.allowed_in_project?(:manage_agendas, model.project)
         errors.add :base, :error_unauthorized
       end
+    end
+
+    def section_belongs_to_meeting
+      return unless model.meeting_section_id_changed?
+
+      item_meeting = model.meeting
+      section_meeting = model.meeting_section.meeting
+
+      return if item_meeting == section_meeting
+
+      # For recurring meetings, allow moves across meetings in the same series
+      if item_meeting.recurring? &&
+        item_meeting.recurring_meeting_id == section_meeting.recurring_meeting_id
+        return
+      end
+
+      errors.add :meeting_section, :invalid
     end
   end
 end

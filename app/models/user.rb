@@ -146,7 +146,7 @@ class User < Principal
 
   acts_as_customizable admin_only_allowed: true
 
-  attr_accessor :last_before_login_on
+  attr_accessor :last_before_login_on, :current_password_input
   attr_reader :password, :password_confirmation
 
   # Strip trailing whitespace so accidental trailing characters (paste, autocomplete)

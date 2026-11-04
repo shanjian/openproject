@@ -41,7 +41,7 @@ gem "activemodel-serializers-xml", "~> 1.0.1"
 gem "activerecord-import", "~> 2.2.0"
 gem "activerecord-session_store", "~> 2.2.0"
 gem "ox"
-gem "rails", "~> 8.1.2"
+gem "rails", "~> 8.1.3.1"
 gem "responders", "~> 3.2"
 
 gem "ffi", "~> 1.15"
@@ -72,7 +72,7 @@ gem "awesome_nested_set", "~> 3.9.0"
 gem "closure_tree", "~> 9.6.0"
 gem "rubytree", "~> 2.2.0"
 
-gem "addressable", "~> 2.8.9"
+gem "addressable", "~> 2.9.0"
 
 # Remove whitespace from model input
 gem "auto_strip_attributes", "~> 2.5"
@@ -113,18 +113,19 @@ gem "date_validator", "~> 0.12.0"
 gem "email_validator", "~> 2.2.3"
 gem "json_schemer", "~> 2.5.0"
 gem "ruby-duration", "~> 3.2.0"
+gem "msgpack", "~> 1.8.4"
 
-gem "mail", "2.9.0"
+gem "mail", "2.9.1"
 
 gem "csv", "~> 3.3"
 
 # provide compatible filesystem information for available storage
 gem "sys-filesystem", "~> 1.5.0", require: false
 
-gem "bcrypt", "~> 3.1.6"
+gem "bcrypt", "~> 3.1.22"
 
 gem "multi_json", "~> 1.19.0"
-gem "oj", "~> 3.16.12"
+gem "oj", "~> 3.17.3"
 
 gem "daemons"
 gem "good_job", "~> 4.13.3" # update should be done manually in sync with saas-openproject version.
@@ -197,9 +198,9 @@ gem "puma", "~> 7.1"
 gem "puma-plugin-statsd", "~> 2.7"
 gem "rack-timeout", "~> 0.7.0", require: "rack/timeout/base"
 
-gem "nokogiri", "~> 1.19.1"
+gem "nokogiri", "~> 1.19.4"
 
-gem "carrierwave", "~> 2.2.6"
+gem "carrierwave", "~> 2.2.7"
 gem "carrierwave_direct", "~> 3.0.0"
 gem "fog-aws"
 
@@ -213,7 +214,7 @@ gem "plaintext", "~> 0.3.7"
 
 gem "ruby-progressbar", "~> 1.13.0", require: false
 
-gem "mini_magick", "~> 5.3.0", require: false
+gem "mini_magick", "~> 5.3.3", require: false
 
 gem "validate_url"
 

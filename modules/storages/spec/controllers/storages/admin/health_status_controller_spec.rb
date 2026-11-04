@@ -104,6 +104,19 @@ RSpec.describe Storages::Admin::HealthStatusController do
       expect(response.status).to redirect_to admin_settings_storage_health_status_report_path(storage)
       expect(Rails.cache.read(cache_key)).to be_a(Storages::Adapters::ConnectionValidators::ValidatorResult)
     end
+
+    context "when the cache store cannot serialize the report (e.g. MessagePack on Redis/Memcached)" do
+      before do
+        allow(Rails.cache).to receive(:write).and_call_original
+        allow(Rails.cache).to receive(:write).with(cache_key, anything, anything)
+          .and_raise(ActiveSupport::MessagePack::UnserializableObjectError, "Unsupported type")
+      end
+
+      it "does not fail the request and redirects to show" do
+        post :create, params: params
+        expect(response.status).to redirect_to admin_settings_storage_health_status_report_path(storage)
+      end
+    end
   end
 
   describe "#create_health_status_report" do

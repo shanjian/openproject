@@ -44,6 +44,8 @@ module WorkPackages
 
     validate :user_allowed_to_edit
 
+    validate :user_allowed_to_move_from_source_project
+
     validate :can_move_to_milestone
 
     validate :user_allowed_to_change_parent
@@ -68,6 +70,21 @@ module WorkPackages
         next if allowed_journal_addition?
 
         errors.add :base, :error_unauthorized
+      end
+    end
+
+    # When moving a work package to a different project, require
+    # :move_work_packages in the source project (the project the work
+    # package currently belongs to). The per-attribute permission check
+    # (reduce_by_writable_permissions) evaluates :move_work_packages
+    # against the target project; this validation covers the source side.
+    def user_allowed_to_move_from_source_project
+      return unless model.project_id_changed?
+
+      with_unchanged_project_id do
+        unless user.allowed_in_project?(:move_work_packages, model.project)
+          errors.add :project_id, :error_readonly
+        end
       end
     end
 

@@ -76,9 +76,10 @@ module ::TeamPlanner
     end
 
     def find_plan_view
-      @view = Query
-        .visible(current_user)
-        .find(params[:id])
+      query_scope = Query.visible(current_user)
+      query_scope = query_scope.where(project_id: @project.id) if @project
+
+      @view = query_scope.find(params[:id])
     end
 
     def visible_plans(project = nil)

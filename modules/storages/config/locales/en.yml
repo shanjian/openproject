@@ -108,21 +108,25 @@ en:
         remote_folders: 'Read contents of the team folder:'
         remove_user_from_group: 'Remove User from Group:'
         rename_project_folder: 'Rename managed project Folder:'
+        set_folder_permission: 'Set managed project Folder permissions:'
       one_drive_sync_service:
         create_folder: 'Managed Project Folder Creation:'
         ensure_root_folder_permissions: 'Set Base Folder Permissions:'
         hide_inactive_folders: 'Hide Inactive Folders Step:'
         remote_folders: 'Read contents of the drive root folder:'
         rename_project_folder: 'Rename managed project Folder:'
+        set_folder_permission: 'Set managed project Folder permissions:'
       sharepoint_sync_service:
         create_folder: 'Managed Project Folder Creation:'
         ensure_root_folder_permissions: 'Set Base Folder Permissions:'
         hide_inactive_folders: 'Hide Inactive Folders Step:'
         remote_folders: 'Read contents of the drive root folder:'
         rename_project_folder: 'Rename managed project Folder:'
+        set_folder_permission: 'Set managed project Folder permissions:'
     errors:
       messages:
         error: An unexpected error occurred. Please check OpenProject logs for more information or contact an administrator
+        folder_id_collision: Multiple project storages try to manage the project folder %{folder}. Its synchronization was skipped.
         forbidden: OpenProject could not access the requested resource. Please check your permissions configuration on the Storage Provider.
         unauthorized: OpenProject could not authenticate with the Storage Provider. Please ensure that you have access to it.
       models:

@@ -41,7 +41,7 @@ RSpec.describe "users/index" do
 
     assign(:users, User.where(id: [admin.id, user.id]))
     assign(:status, "all")
-    assign(:groups, Group.all)
+    assign(:groups, Group.visible)
 
     without_partial_double_verification do
       allow(view).to receive_messages(current_user: admin, controller_name: "users", action_name: "index")

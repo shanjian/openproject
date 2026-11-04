@@ -87,9 +87,19 @@ module Storages
 
       def create_and_cache_report
         report = validator.call
-        Rails.cache.write(validator.report_cache_key, report, expires_in: 6.hours)
+        cache_report(validator.report_cache_key, report)
 
         report
+      end
+
+      # The report is a plain Ruby object graph. Redis and Memcached cache stores only accept
+      # MessagePack-serializable values (see OpenProject::Configuration::StrictMessagePackCoder),
+      # so writing it there raises. Serve the freshly computed report instead of failing the request;
+      # it is merely not remembered for the next page load on those stores.
+      def cache_report(key, report)
+        Rails.cache.write(key, report, expires_in: 6.hours)
+      rescue ActiveSupport::MessagePack::UnserializableObjectError => e
+        Rails.logger.warn { "Unable to cache storage health report: #{e.message.truncate(200)}" }
       end
 
       def validator

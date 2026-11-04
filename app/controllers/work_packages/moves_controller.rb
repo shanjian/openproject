@@ -33,7 +33,8 @@ class WorkPackages::MovesController < ApplicationController
 
   default_search_scope :work_packages
   before_action :find_work_packages, :check_project_uniqueness
-  before_action :authorize
+  before_action :authorize_move_or_copy
+  authorization_checked! :new, :create
 
   def new
     prepare_for_work_package_move
@@ -46,6 +47,11 @@ class WorkPackages::MovesController < ApplicationController
   end
 
   private
+
+  def authorize_move_or_copy
+    permission = params.has_key?(:copy) ? :copy_work_packages : :move_work_packages
+    do_authorize(permission)
+  end
 
   def perform_operation
     if within_frontend_treshold?

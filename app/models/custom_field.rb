@@ -32,6 +32,8 @@ class CustomField < ApplicationRecord
   include CustomField::OrderStatements
   include CustomField::CalculatedValue
 
+  normalizes :name, with: OpenProject::RemoveAsciiControlCharacters
+
   has_many :custom_values, dependent: :delete_all
   # WARNING: the inverse_of option is also required in order
   # for the 'touch: true' option on the custom_field association in CustomOption
@@ -93,6 +95,10 @@ class CustomField < ApplicationRecord
 
   before_validation :check_searchability
   after_destroy :destroy_help_text
+
+  def visible?(usr = User.current, **)
+    self.class.visible(usr).exists?(id: id)
+  end
 
   # make sure int, float, date, and bool are not searchable
   def check_searchability
