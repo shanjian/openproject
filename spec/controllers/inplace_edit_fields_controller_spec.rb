@@ -33,7 +33,7 @@ require "rails_helper"
 RSpec.describe InplaceEditFieldsController do
   let(:user) { create(:user) }
   let(:model) { create(:project) }
-  let(:attribute) { :name }
+  let(:attribute) { :description }
   let(:model_param) { "project" }
 
   let(:update_registry) do
@@ -79,7 +79,7 @@ RSpec.describe InplaceEditFieldsController do
           id: model.id,
           attribute:,
           project: {
-            name: "New project"
+            description: "New description"
           }
         }, format: :turbo_stream
 
@@ -97,7 +97,7 @@ RSpec.describe InplaceEditFieldsController do
           id: model.id,
           attribute:,
           project: {
-            name: ""
+            description: ""
           }
         }, format: :turbo_stream
 
@@ -114,7 +114,7 @@ RSpec.describe InplaceEditFieldsController do
           model: model_param,
           id: model.id,
           attribute:,
-          project: { name: "Foo" }
+          project: { description: "Foo" }
         }, format: :turbo_stream
 
         expect(response).to have_http_status(:not_found)
@@ -134,6 +134,51 @@ RSpec.describe InplaceEditFieldsController do
 
       expect(response).to have_http_status(:ok)
       expect(response.media_type).to eq("text/vnd.turbo-stream.html")
+    end
+  end
+
+  describe "attributes that are not registered for inplace editing" do
+    let(:handler) { double }
+
+    # The attribute name comes from the URL and ends up in `public_send`, so it must be rejected
+    %w[destroy touch to_json name remove_owned_labels custom_field_1].each do |name|
+      it "returns 404 for #{name} and does not call it on the model" do
+        %i[edit reset].each do |action|
+          get action, params: { model: model_param, id: model.id, attribute: name }, format: :turbo_stream
+
+          expect(response).to have_http_status(:not_found)
+        end
+
+        expect(Project).to exist(model.id)
+      end
+    end
+
+    it "returns 404 on update" do
+      patch :update, params: { model: model_param, id: model.id, attribute: "name", project: { name: "x" } },
+                     format: :turbo_stream
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  describe "system arguments" do
+    let(:handler) { double }
+
+    it "does not let the client override arguments the server sets" do
+      allow(OpenProject::Common::InplaceEditFieldComponent).to receive(:new).and_call_original
+
+      get :edit, params: {
+        model: model_param,
+        id: model.id,
+        attribute:,
+        system_arguments_json: { attribute: "destroy", model: "x", update_registry: "x", enforce_edit_mode: false,
+                                 label: "kept" }.to_json
+      }, format: :turbo_stream
+
+      expect(response).to have_http_status(:ok)
+      expect(OpenProject::Common::InplaceEditFieldComponent)
+        .to have_received(:new)
+              .with(hash_including(model:, attribute: attribute.to_sym, enforce_edit_mode: true, label: "kept"))
     end
   end
 

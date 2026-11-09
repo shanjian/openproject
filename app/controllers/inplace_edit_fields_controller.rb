@@ -31,9 +31,13 @@
 class InplaceEditFieldsController < ApplicationController
   include OpTurbo::ComponentStream
 
+  # Arguments the controller sets itself. The system arguments are echoed to the client and back as
+  # JSON, so they must not be able to override these.
+  SERVER_SIDE_ARGUMENTS = %w[attribute model update_registry enforce_edit_mode].freeze
+
   before_action :find_model
   before_action :set_attribute
-  no_authorization_required! :edit, :update, :reset
+  authorization_checked! :edit, :update, :reset
 
   def edit
     replace_via_turbo_stream(
@@ -102,7 +106,11 @@ class InplaceEditFieldsController < ApplicationController
     model_class
   end
 
+  # The attribute comes from the URL and is eventually sent to the model with `public_send`,
+  # so only attributes that were registered for inplace editing are accepted.
   def set_attribute
+    return head :not_found unless OpenProject::InplaceEdit::FieldRegistry.editable?(params[:attribute])
+
     @attribute = params[:attribute].to_sym
   end
 
@@ -131,6 +139,6 @@ class InplaceEditFieldsController < ApplicationController
                                     .filter_map { |v| v["system_arguments_json"] }
                                     .first
 
-    arguments.nil? ? {} : JSON.parse(arguments)
+    arguments.nil? ? {} : JSON.parse(arguments).except(*SERVER_SIDE_ARGUMENTS)
   end
 end
