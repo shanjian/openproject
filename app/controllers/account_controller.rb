@@ -188,15 +188,17 @@ class AccountController < ApplicationController
   # to change the password.
   # When making changes here, also check MyController.change_password
   def change_password
-    # Retrieve user login name from session
-    @user = User.find_by!(login: params[:password_change_user])
+    return render_404 if OpenProject::Configuration.disable_password_login?
 
-    change_password_flow(user: @user, params:, show_user_name: true) do
-      password_authentication(@user.login, params[:new_password])
+    @user = User.find_by(login: params[:password_change_user])
+
+    if password_change_required?(@user)
+      change_password_flow(user: @user, params:, show_user_name: true) do
+        password_authentication(@user.login, params[:new_password])
+      end
+    else
+      reject_password_change(@user)
     end
-  rescue ActiveRecord::RecordNotFound
-    Rails.logger.error "Failed to find user for change_password request: #{flash[:_password_change_user]}"
-    render_404
   end
 
   def auth_source_sso_failed
@@ -213,6 +215,28 @@ class AccountController < ApplicationController
   end
 
   private
+
+  def password_change_required?(user)
+    user.present? && (user.force_password_change || user.password_expired?)
+  end
+
+  # Answer the same way whether the login is unknown, has no pending password change
+  # or the password is wrong, using the reasons the login form shows.
+  # Attempts against existing accounts count as failed logins.
+  def reject_password_change(user)
+    user&.log_failed_login
+
+    reason = if user.nil?
+               :unknown_login
+             elsif user.failed_too_many_recent_login_attempts?
+               :blocked
+             else
+               :wrong_password
+             end
+
+    flash_and_log_invalid_credentials(is_logged_in: false, reason:)
+    render_password_change(user || User.new(login: params[:password_change_user]), nil, show_user_name: true)
+  end
 
   def handle_expired_token(token)
     send_activation_email! token.user
