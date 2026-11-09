@@ -147,6 +147,21 @@ RSpec.describe "search/index" do
           .to eql '<p class="op-uc-p">The <span class="search-highlight token-0">description</span> of the event</p>'
       end
 
+      context "with quotes and an ampersand in the description" do
+        let(:event_description) { %(It's the "description" of Tom & Jerry) }
+        let(:tokens) { %w(description) }
+
+        it "shows the characters as text and does not double-encode them" do
+          result = helper.highlight_tokens_in_event(event, tokens)
+
+          expect(result).to include("It's the")
+          expect(result).to include("Tom &amp; Jerry")
+          expect(result).not_to include("&amp;#39;")
+          expect(result).not_to include("&amp;quot;")
+          expect(result).not_to include("&amp;amp;")
+        end
+      end
+
       context "with elaborate markdown formatting in the description" do
         let(:event_description) do
           <<~MARKDOWN
