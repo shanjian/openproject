@@ -290,4 +290,46 @@ RSpec.describe TimeEntriesController do
       end
     end
   end
+
+  describe "#create" do
+    let(:project) { create(:project) }
+    let(:other_project) { create(:project) }
+    let(:work_package) { create(:work_package, project:) }
+    let(:meeting) { create(:meeting, project: other_project) }
+    let(:activity) { create(:time_entry_activity) }
+    let(:entity) { work_package }
+    let(:time_entry_params) do
+      {
+        entity_type: entity.class.name,
+        entity_id: entity.id,
+        project_id: project.id,
+        hours: 2,
+        spent_on: Date.current.iso8601,
+        activity_id: activity.id
+      }
+    end
+
+    before do
+      role = create(:project_role, permissions: %i[view_work_packages log_own_time view_time_entries])
+      create(:member, principal: user, project:, roles: [role])
+    end
+
+    context "with a work package of the project" do
+      it "logs the time" do
+        expect { post :create, params: { time_entry: time_entry_params }, format: :turbo_stream }
+          .to change(TimeEntry, :count).by(1)
+      end
+    end
+
+    context "with a meeting of a project the user has no access to" do
+      let(:entity) { meeting }
+
+      it "does not log the time" do
+        expect { post :create, params: { time_entry: time_entry_params }, format: :turbo_stream }
+          .not_to change(TimeEntry, :count)
+
+        expect(response).to have_http_status(:bad_request)
+      end
+    end
+  end
 end
