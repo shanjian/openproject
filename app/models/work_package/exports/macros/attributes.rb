@@ -50,13 +50,18 @@ module WorkPackage::Exports
       extend WorkPackage::Exports::Attributes
       DISABLED_PROJECT_RICH_TEXT_FIELDS = %i[description status_explanation status_description].freeze
       DISABLED_WORK_PACKAGE_RICH_TEXT_FIELDS = %i[description].freeze
+      # Attributes that macros may resolve. Anything else renders as blank, so that a macro cannot
+      # call arbitrary public methods on the record. Only add side-effect-free attribute readers here.
       PROJECT_ATTRIBUTES = %w[
-        active description identifier name parent public status status_code status_explanation
+        active created_at description id identifier name parent public status status_code status_explanation
+        updated_at
       ].freeze
       WORK_PACKAGE_ATTRIBUTES = %w[
         assigned_to author category created_at description done_ratio due_date estimated_hours parent priority
         project project_phase remaining_hours responsible spent_hours start_date status subject target_versions
         type updated_at version
+        derived_done_ratio derived_estimated_hours derived_remaining_hours duration id
+        ignore_non_working_days position schedule_manually story_points
       ].freeze
 
       def self.regexp
