@@ -219,6 +219,25 @@ RSpec.describe Exports::PDF::Common::Macro do
       end
     end
 
+    describe "with plain attributes that this fork allows in addition to the documented ones" do
+      before { work_package.update_columns(story_points: 5, position: 3, duration: 4) }
+
+      {
+        "id" => -> { work_package.id.to_s },
+        "story_points" => -> { "5" },
+        "position" => -> { "3" },
+        "duration" => -> { "4 d" }
+      }.each do |attribute, expected|
+        context "with #{attribute}" do
+          let(:markdown) { "workPackageValue:#{work_package.id}:#{attribute}" }
+
+          it "outputs the attribute value" do
+            expect(formatted).to eq(instance_exec(&expected))
+          end
+        end
+      end
+    end
+
     describe "withh another work package ID and attribute" do
       let(:markdown) { "workPackageValue:#{other_work_package.id}:subject" }
 
@@ -378,6 +397,16 @@ RSpec.describe Exports::PDF::Common::Macro do
 
       it "outputs an empty value" do
         expect(formatted).to eq(" ")
+      end
+    end
+
+    describe "with another work package id and a method name instead of an attribute" do
+      let(:markdown) { "workPackageValue:#{other_work_package.id}:destroy" }
+
+      it "does not call the method on the work package" do
+        formatted
+
+        expect(WorkPackage).to exist(other_work_package.id)
       end
     end
 
@@ -640,6 +669,16 @@ RSpec.describe Exports::PDF::Common::Macro do
 
       it "outputs an empty value" do
         expect(formatted).to eq(" ")
+      end
+    end
+
+    describe "with other project ID and a method name instead of an attribute" do
+      let(:markdown) { "projectValue:#{other_project.id}:destroy" }
+
+      it "does not call the method on the project" do
+        formatted
+
+        expect(Project).to exist(other_project.id)
       end
     end
 

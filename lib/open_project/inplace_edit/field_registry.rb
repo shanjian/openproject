@@ -43,12 +43,23 @@ module OpenProject
         @registry.fetch(attribute_name.to_s) { Common::InplaceEditFields::TextInputComponent }
       end
 
+      def registered?(attribute_name)
+        @registry.key?(attribute_name.to_s)
+      end
+
+      # Only registered attributes may be rendered or edited through the inplace edit endpoints.
+      # The attribute name comes straight from the request URL and is eventually sent to the model
+      # via `public_send`, so it must never be accepted without being registered here first.
+      def editable?(attribute_name)
+        registered?(attribute_name)
+      end
+
       @default = new
 
       class << self
         attr_reader :default
 
-        delegate :register, :fetch, to: :@default
+        delegate :register, :fetch, :registered?, :editable?, to: :@default
       end
     end
   end

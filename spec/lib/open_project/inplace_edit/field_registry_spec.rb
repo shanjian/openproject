@@ -61,4 +61,21 @@ RSpec.describe OpenProject::InplaceEdit::FieldRegistry do
       expect(registry.fetch(:description)).to eq(rich_text_component)
     end
   end
+
+  describe "#registered? and #editable?" do
+    before { registry.register(:description, rich_text_component) }
+
+    it "accepts a registered attribute, as symbol or string" do
+      expect(registry).to be_registered(:description)
+      expect(registry).to be_registered("description")
+      expect(registry).to be_editable(:description)
+    end
+
+    it "rejects attributes that are not registered, even if the model has such a method" do
+      %w[destroy name touch to_json custom_field_1 remove_owned_labels].each do |name|
+        expect(registry).not_to be_registered(name)
+        expect(registry).not_to be_editable(name)
+      end
+    end
+  end
 end
