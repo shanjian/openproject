@@ -40,7 +40,13 @@ RSpec.describe OpenProject::JournalFormatter::ProjectPhaseDefinition do
     let(:journal) { build_stubbed(:work_package_journal, journable: work_package) }
     let(:instance) { described_class.new(journal) }
 
+    current_user { build_stubbed(:user) }
+
     before do
+      mock_permissions_for(current_user) do |mock|
+        mock.allow_in_project :view_project_phases, project:
+      end
+
       allow(Project::PhaseDefinition)
         .to receive(:find_by)
               .and_return(nil)
