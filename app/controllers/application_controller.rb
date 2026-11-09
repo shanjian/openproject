@@ -416,7 +416,7 @@ class ApplicationController < ActionController::Base
   private
 
   def session_expired?
-    !api_request? && current_user.logged? && session_ttl_expired?
+    current_user.logged? && session_ttl_expired?
   end
 
   def permitted_params
