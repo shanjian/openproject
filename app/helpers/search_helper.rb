@@ -231,7 +231,10 @@ module SearchHelper
   def process_text_node(content, current_length, max_length)
     return content if current_length >= max_length
 
-    truncated_text = truncate_formatted_text(content, length: 100)
+    # truncate_formatted_text returns HTML-encoded text, but the result ends up in a Nokogiri text node
+    # that encodes it once more when serialized. Decode here, otherwise characters like ' and & show up
+    # as literal entities in the search results.
+    truncated_text = CGI.unescapeHTML(truncate_formatted_text(content, length: 100))
 
     if current_length + content.length > max_length
       truncated_text.truncate(max_length - current_length - 1)

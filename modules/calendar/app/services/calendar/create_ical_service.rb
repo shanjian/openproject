@@ -142,13 +142,22 @@ module Calendar
     def truncated_work_package_description_value(work_package)
       return if work_package.description.blank?
 
-      stripped_text = truncate_formatted_text(
-        work_package.description.to_s,
-        length: 250,
-        replace_newlines: false
+      stripped_text = decode_strip_tags_quotes(
+        truncate_formatted_text(
+          work_package.description.to_s,
+          length: 250,
+          replace_newlines: false
+        )
       )
 
       "\n#{WorkPackage.human_attribute_name(:description)}:\n#{stripped_text}"
+    end
+
+    # Since Rails 8.1.4.1 `strip_tags` additionally encodes `"` and `'` (GHSA-rq8q-p985-fjq7).
+    # The iCal DESCRIPTION is not HTML, so restore exactly those two characters. `&`, `<` and `>`
+    # intentionally stay entity-encoded, as they were before.
+    def decode_strip_tags_quotes(text)
+      text.to_str.gsub("&quot;", '"').gsub("&#39;", "'")
     end
   end
 end

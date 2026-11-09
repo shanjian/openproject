@@ -9,6 +9,6 @@
 <%= details_notifications_url(@work_package.id, tab: :activity) %>
 
 <%= I18n.t(:label_comment_added) %>:
-<%= strip_tags @journal.notes %>
+<%= CGI.unescapeHTML(strip_tags(@journal.notes.to_s)) %>
 
 <%= "-" * 100 %>

@@ -138,7 +138,7 @@ RSpec.describe TextFormattingHelper do
       it "escapes" do
         text = "Lorem ipsum dolor <script>alert('pwnd');</script> tempor invidunt"
         expect(truncate_formatted_text(text))
-          .to include("&lt;script&gt;alert('pwnd');&lt;/script&gt;")
+          .to include("&lt;script&gt;alert(&#39;pwnd&#39;);&lt;/script&gt;")
       end
     end
   end
