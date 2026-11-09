@@ -208,7 +208,7 @@ RSpec.describe MeetingAgendaItems::DropService do
           expect { service_call }.not_to change { meeting_agenda_item.reload.meeting_section_id }
 
           expect(service_call).to be_failure
-          expect(service_call.errors[:base].join).to include("Couldn't find MeetingSection")
+          expect(service_call.errors).to match(/Couldn't find MeetingSection/)
         end
       end
     end
