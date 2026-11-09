@@ -211,4 +211,21 @@ RSpec.describe Calendar::CreateICalService, type: :model do
       expect(formatted_result).to include("&lt\\;script&gt\\;alert('Description')\\;&lt\\;/script&gt\\;")
     end
   end
+
+  describe "subject and description with HTML-significant characters" do
+    let(:work_packages) do
+      [create(:work_package, subject: %(Tom's R&D "plan"), project:, due_date: Time.zone.today + 7.days,
+                             description: %(Tom's "plan"))]
+    end
+
+    it "keeps the characters as plain text in the summary" do
+      expect(formatted_result).to include(%(SUMMARY:Tom's R&D "plan"\n))
+    end
+
+    it "keeps quotes as plain text in the description" do
+      expect(formatted_result).to include(%(Tom's "plan"))
+      expect(formatted_result).not_to include("&#39;")
+      expect(formatted_result).not_to include("&quot;")
+    end
+  end
 end
