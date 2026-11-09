@@ -141,9 +141,11 @@ RSpec.describe InplaceEditFieldsController do
     let(:handler) { double }
 
     # The attribute name comes from the URL and ends up in `public_send`, so it must be rejected
+    let(:actions) { %i[edit reset] }
+
     %w[destroy touch to_json name remove_owned_labels custom_field_1].each do |name|
       it "returns 404 for #{name} and does not call it on the model" do
-        %i[edit reset].each do |action|
+        actions.each do |action|
           get action, params: { model: model_param, id: model.id, attribute: name }, format: :turbo_stream
 
           expect(response).to have_http_status(:not_found)

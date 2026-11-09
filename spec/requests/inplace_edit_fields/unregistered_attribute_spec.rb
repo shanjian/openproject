@@ -45,8 +45,10 @@ RSpec.describe "Inplace edit fields with attributes that are not registered", ty
   context "when logged in with only the permission to view the project" do
     before { login_as viewer }
 
+    actions = %w[reset edit]
+
     %w[destroy touch destroy_descendants remove_owned_labels to_json name].each do |attribute|
-      %w[reset edit].each do |action|
+      actions.each do |action|
         it "answers 404 for #{attribute}/#{action} and leaves the project untouched" do
           updated_at = project.reload.updated_at
 
