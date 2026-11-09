@@ -29,6 +29,16 @@
 # ++
 
 class OpenProject::JournalFormatter::ProjectPhaseDefinition < JournalFormatter::NamedAssociation
+  # The phase names are only shown to users who may see the project phases of the work package's project.
+  # Everyone else sees a notice instead.
+  def render(key, values, options = { html: true })
+    return super if User.current.allowed_in_project?(:view_project_phases, @journal.journable.project)
+
+    message = I18n.t(:text_journal_permission_denied)
+
+    options[:html] ? content_tag("em", message) : "_#{message}_"
+  end
+
   private
 
   def associated_object_name(object)
