@@ -65,7 +65,7 @@ RSpec.describe "API password change session revocation",
 
     current.patch "/api/v3/users/me",
                   params: { password: new_password, currentPassword: old_password },
-                  headers: { "Sec-Fetch-Site" => "same-origin" },
+                  headers: { "X-Requested-With" => "XMLHttpRequest" },
                   as: :json
 
     expect(current.response).to have_http_status(:ok)
@@ -90,7 +90,7 @@ RSpec.describe "API password change session revocation",
 
     admin_browser.patch "/api/v3/users/#{user.id}",
                         params: { password: new_password },
-                        headers: { "Sec-Fetch-Site" => "same-origin" },
+                        headers: { "X-Requested-With" => "XMLHttpRequest" },
                         as: :json
 
     expect(admin_browser.response).to have_http_status(:ok)
