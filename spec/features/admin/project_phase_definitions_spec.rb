@@ -50,15 +50,22 @@ RSpec.describe "Projects phase definition settings", :js do
     end
   end
 
+  # Fork deviation: customizing the life cycle is not Enterprise-gated here. This guards
+  # against a future upstream merge silently restoring the gate.
   context "as admin without activated enterprise token" do
     current_user { create(:admin) }
 
-    it "allows viewing definitions" do
+    it "allows managing definitions without an upsell banner" do
       definitions_page.visit!
 
       definitions_page.expect_listed(["Initiating", "Executing"])
 
-      definitions_page.expect_no_controls
+      expect(page).to have_no_test_selector("op-enterprise-banner")
+      within "#content-body" do
+        expect(page).to have_css(".DragHandle", count: 2)
+        expect(page).to have_css("action-menu", count: 2)
+        expect(page).to have_link("Add")
+      end
     end
   end
 
