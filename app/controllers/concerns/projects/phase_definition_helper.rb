@@ -31,7 +31,8 @@
 module Projects::PhaseDefinitionHelper
   private
 
+  # Fork deviation: customizing the project life cycle is not Enterprise-gated here.
   def allowed_to_customize_life_cycle?
-    EnterpriseToken.allows_to?(:customize_life_cycle)
+    true
   end
 end
