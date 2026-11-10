@@ -8,7 +8,9 @@ on:
 jobs:
   rubocop:
     name: rubocop
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest is Ubuntu 26, where ruby/setup-ruby only offers the newest 3.4.x
+    # patch, so the exact 3.4.7 from .ruby-version (enforced by the Gemfile) cannot be installed.
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
