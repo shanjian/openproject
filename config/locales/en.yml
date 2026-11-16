@@ -1887,6 +1887,8 @@ en:
             one: "%{name} is used in project attribute calculation %{links}."
             other: "%{name} is used in project attribute calculations: %{links}."
           attributes:
+            admin_only:
+              cannot_be_true: "is not supported for this type of custom field."
             allow_project_values:
               requires_option_pattern: "cannot be enabled until a label naming pattern is set."
               cannot_be_disabled_with_owned_options: "cannot be turned off while %{count} project-owned value(s) exist. Delete or promote them first."
