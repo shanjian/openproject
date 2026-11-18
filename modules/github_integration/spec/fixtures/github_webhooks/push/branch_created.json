@@ -1,0 +1,72 @@
+{
+  "ref": "refs/heads/${branch}",
+  "before": "0000000000000000000000000000000000000000",
+  "after": "a265d6b7bcf836b77ed9e32f824b231585c6a355",
+  "created": true,
+  "deleted": false,
+  "forced": false,
+  "base_ref": null,
+  "compare": "https://github.com/test_user/webhooks_playground/compare/a265d6b7bcf8",
+  "commits": [
+    {
+      "id": "a265d6b7bcf836b77ed9e32f824b231585c6a355",
+      "tree_id": "9a3c2e0b6a8b7b5f7a0d4d0d5d3c0f2f9c1e6b44",
+      "distinct": true,
+      "message": "Start working on it",
+      "timestamp": "2021-04-01T10:15:30+02:00",
+      "url": "https://github.com/test_user/webhooks_playground/commit/a265d6b7bcf836b77ed9e32f824b231585c6a355",
+      "author": {
+        "name": "Some Committer",
+        "email": "committer@example.net",
+        "username": "committer"
+      },
+      "committer": {
+        "name": "Some Committer",
+        "email": "committer@example.net",
+        "username": "committer"
+      },
+      "added": [],
+      "removed": [],
+      "modified": []
+    }
+  ],
+  "head_commit": {
+    "id": "a265d6b7bcf836b77ed9e32f824b231585c6a355",
+    "tree_id": "9a3c2e0b6a8b7b5f7a0d4d0d5d3c0f2f9c1e6b44",
+    "distinct": true,
+    "message": "Start working on it",
+    "timestamp": "2021-04-01T10:15:30+02:00",
+    "url": "https://github.com/test_user/webhooks_playground/commit/a265d6b7bcf836b77ed9e32f824b231585c6a355",
+    "author": {
+      "name": "Some Committer",
+      "email": "committer@example.net",
+      "username": "committer"
+    },
+    "committer": {
+      "name": "Some Committer",
+      "email": "committer@example.net",
+      "username": "committer"
+    },
+    "added": [],
+    "removed": [],
+    "modified": []
+  },
+  "repository": {
+    "id": 354000000,
+    "name": "webhooks_playground",
+    "full_name": "test_user/webhooks_playground",
+    "private": false,
+    "html_url": "https://github.com/test_user/webhooks_playground",
+    "default_branch": "main"
+  },
+  "pusher": {
+    "name": "test_user",
+    "email": "test_user@example.net"
+  },
+  "sender": {
+    "login": "test_user",
+    "id": 345,
+    "avatar_url": "https://github.com/test_user.jpg",
+    "html_url": "https://github.com/test_user"
+  }
+}

@@ -1,0 +1,12 @@
+@if (branches$ | async; as branches) {
+  @if (branches.length === 0) {
+    <p
+      class="op-tab-content--text-box"
+      [innerHTML]="emptyText"
+    ></p>
+  }
+
+  @for (branch of branches; track branch.id) {
+    <op-github-branch [branch]="branch" />
+  }
+}

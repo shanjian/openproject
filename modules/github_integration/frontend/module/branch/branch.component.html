@@ -1,0 +1,43 @@
+<div class="op-github-branch--title">
+  <svg git-branch-icon size="small" class="op-github-branch--icon"></svg>
+  <a
+    class="op-github-branch--link"
+    [href]="branch.htmlUrl"
+    target="_blank"
+    rel="noopener noreferrer"
+    [textContent]="branch.name"
+  ></a>
+</div>
+
+<div class="op-github-branch--info">
+  <span class="op-github-branch--repository" [textContent]="branch.repository"></span>
+
+  @if (branch.lastCommitSha) {
+    <span class="op-github-branch--commit">
+      @if (branch.lastCommitHtmlUrl) {
+        <a
+          class="op-github-branch--commit-link"
+          [href]="branch.lastCommitHtmlUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          [textContent]="shortSha"
+        ></a>
+      } @else {
+        <span class="op-github-branch--commit-sha" [textContent]="shortSha"></span>
+      }
+      @if (branch.lastCommitMessage) {
+        <span class="op-github-branch--commit-message" [textContent]="branch.lastCommitMessage"></span>
+      }
+    </span>
+  }
+</div>
+
+<div class="op-github-branch--info op-github-branch--updated">
+  @if (branch.lastCommitAuthor) {
+    <span class="op-github-branch--author" [textContent]="branch.lastCommitAuthor"></span> &middot;
+  }
+  <span class="op-github-branch--date">
+    {{ text.label_last_updated_on }}
+    <op-date-time [dateTimeValue]="branch.githubUpdatedAt" />
+  </span>
+</div>

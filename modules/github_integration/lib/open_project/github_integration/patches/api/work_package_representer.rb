@@ -4,7 +4,7 @@ module OpenProject::GithubIntegration
       module WorkPackageRepresenter
         module_function
 
-        def extension
+        def extension # rubocop:disable Metrics/AbcSize
           ->(*) do
             link :github,
                  cache_if: -> { current_user.allowed_in_work_package?(:show_github_content, represented) } do
@@ -18,6 +18,15 @@ module OpenProject::GithubIntegration
               {
                 href: api_v3_paths.github_pull_requests_by_work_package(represented.id),
                 title: "GitHub pull requests"
+              }
+            end
+
+            link :github_branches do
+              next if represented.new_record?
+
+              {
+                href: api_v3_paths.github_branches_by_work_package(represented.id),
+                title: "GitHub branches"
               }
             end
           end

@@ -45,6 +45,10 @@ en:
           copy_error: ❌ Copy failed!
       tab_prs:
         empty: There are no pull requests linked yet. Link an existing PR by using the code <code>OP#%{wp_id}</code> in the PR description or create a new PR.
+      tab_header_branches:
+        title: "Branches"
+      tab_branches:
+        empty: There are no branches linked yet. Name your branch following the <code>&lt;type&gt;/%{wp_id}-&lt;title&gt;</code> convention (the Git snippets create it for you) or include <code>OP#%{wp_id}</code> in the branch name, then push it to GitHub.
 
       github_actions: Actions
       pull_requests:

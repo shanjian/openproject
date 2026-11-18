@@ -56,6 +56,26 @@ RSpec.describe OpenProject::GithubIntegration::HookHandler do
       end
     end
 
+    context "with a push event" do
+      let(:environment) do
+        { "HTTP_X_GITHUB_EVENT" => "push",
+          "HTTP_X_GITHUB_DELIVERY" => "veryuniqueid3" }
+      end
+
+      before do
+        allow(OpenProject::Notifications).to receive(:send)
+      end
+
+      it "sends a github.push notification and returns 200" do
+        result = handler.process(hook, request, params, user)
+
+        expect(result).to eq(200)
+        expect(OpenProject::Notifications)
+          .to have_received(:send)
+          .with("github.push", hash_including("github_event" => "push", "open_project_user_id" => 12))
+      end
+    end
+
     context "with a supported event and without user" do
       let(:user) { nil }
 

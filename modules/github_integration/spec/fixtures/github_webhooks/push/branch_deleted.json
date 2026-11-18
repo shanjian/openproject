@@ -1,0 +1,30 @@
+{
+  "ref": "refs/heads/${branch}",
+  "before": "a265d6b7bcf836b77ed9e32f824b231585c6a355",
+  "after": "0000000000000000000000000000000000000000",
+  "created": false,
+  "deleted": true,
+  "forced": false,
+  "base_ref": null,
+  "compare": "https://github.com/test_user/webhooks_playground/compare/a265d6b7bcf8...000000000000",
+  "commits": [],
+  "head_commit": null,
+  "repository": {
+    "id": 354000000,
+    "name": "webhooks_playground",
+    "full_name": "test_user/webhooks_playground",
+    "private": false,
+    "html_url": "https://github.com/test_user/webhooks_playground",
+    "default_branch": "main"
+  },
+  "pusher": {
+    "name": "test_user",
+    "email": "test_user@example.net"
+  },
+  "sender": {
+    "login": "test_user",
+    "id": 345,
+    "avatar_url": "https://github.com/test_user.jpg",
+    "html_url": "https://github.com/test_user"
+  }
+}

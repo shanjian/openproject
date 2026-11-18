@@ -54,4 +54,21 @@ describe('GitHubTabComponent.', () => {
     expect(tabHeader).toBeTruthy();
     expect(tabPrs).toBeTruthy();
   });
+
+  it('should render the branches header and component below the pull requests', () => {
+    const tabPrs = fixture.debugElement.query(By.css('op-tab-prs'));
+    const branchesHeader = fixture.debugElement.query(By.css('op-tab-header-branches'));
+    const tabBranches = fixture.debugElement.query(By.css('op-tab-branches'));
+
+    expect(branchesHeader).toBeTruthy();
+    expect(tabBranches).toBeTruthy();
+
+    const follows = (first:DebugElement, second:DebugElement):boolean => {
+      const position = (first.nativeElement as Node).compareDocumentPosition(second.nativeElement as Node);
+      return (position & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    };
+
+    expect(follows(tabPrs, branchesHeader)).toBe(true);
+    expect(follows(branchesHeader, tabBranches)).toBe(true);
+  });
 });

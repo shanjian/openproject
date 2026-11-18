@@ -98,6 +98,55 @@ RSpec.describe "Open the GitHub tab", :js do
       end
     end
 
+    context "when there are no branches" do
+      it "shows the github tab with an empty-branches message" do
+        work_package_page.visit!
+        work_package_page.switch_to_tab(tab: "github")
+
+        expect(page).to have_content("There are no branches linked yet")
+        expect(page).to have_content("include OP##{work_package.id} in the branch name")
+      end
+    end
+
+    context "when there are branches" do
+      let(:branch_name) { "task/#{work_package.id}-a-test-branch" }
+      let(:branch) do
+        create(:github_branch,
+               name: branch_name,
+               repository: "test_user/test_repo",
+               last_commit_message: "A test commit",
+               work_packages: [work_package])
+      end
+
+      before { branch }
+
+      it "lists them below the pull requests and counts them with the pull requests" do
+        work_package_page.visit!
+        work_package_page.switch_to_tab(tab: "github")
+
+        tabs.expect_counter(github_tab_element, 2)
+        expect(page).to have_text("A Test PR title")
+        expect(page).to have_text(branch_name)
+        expect(page).to have_text("test_user/test_repo")
+        expect(page).to have_text("A test commit")
+        expect(page).to have_no_content("There are no branches linked yet")
+      end
+
+      context "when there are no pull requests" do
+        let(:check_run) {}
+        let(:pull_request) {}
+
+        it "shows the branches next to the empty-pull-requests message" do
+          work_package_page.visit!
+          work_package_page.switch_to_tab(tab: "github")
+
+          tabs.expect_counter(github_tab_element, 1)
+          expect(page).to have_content("There are no pull requests")
+          expect(page).to have_text(branch_name)
+        end
+      end
+    end
+
     context "when the user does not have the permissions to see the github tab" do
       let(:role) do
         create(:project_role,
