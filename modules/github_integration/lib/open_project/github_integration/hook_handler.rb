@@ -34,6 +34,7 @@ module OpenProject::GithubIntegration
       issue_comment
       ping
       pull_request
+      push
     ].freeze
 
     # A github webhook happened.

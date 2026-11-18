@@ -1,0 +1,50 @@
+{
+  "ref": "refs/heads/${branch}",
+  "before": "0000000000000000000000000000000000000000",
+  "after": "6113728f27ae82c7b1a177c8d03f9e96e0adf246",
+  "created": true,
+  "deleted": false,
+  "forced": false,
+  "base_ref": "refs/heads/main",
+  "compare": "https://github.com/test_user/webhooks_playground/compare/6113728f27ae",
+  "commits": [],
+  "head_commit": {
+    "id": "6113728f27ae82c7b1a177c8d03f9e96e0adf246",
+    "tree_id": "1b2e3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d",
+    "distinct": true,
+    "message": "An older commit the branch was created from",
+    "timestamp": "2021-03-30T08:00:00+00:00",
+    "url": "https://github.com/test_user/webhooks_playground/commit/6113728f27ae82c7b1a177c8d03f9e96e0adf246",
+    "author": {
+      "name": "Another Committer",
+      "email": "other@example.net",
+      "username": "other"
+    },
+    "committer": {
+      "name": "Another Committer",
+      "email": "other@example.net",
+      "username": "other"
+    },
+    "added": [],
+    "removed": [],
+    "modified": []
+  },
+  "repository": {
+    "id": 354000000,
+    "name": "webhooks_playground",
+    "full_name": "test_user/webhooks_playground",
+    "private": false,
+    "html_url": "https://github.com/test_user/webhooks_playground",
+    "default_branch": "main"
+  },
+  "pusher": {
+    "name": "test_user",
+    "email": "test_user@example.net"
+  },
+  "sender": {
+    "login": "test_user",
+    "id": 345,
+    "avatar_url": "https://github.com/test_user.jpg",
+    "html_url": "https://github.com/test_user"
+  }
+}

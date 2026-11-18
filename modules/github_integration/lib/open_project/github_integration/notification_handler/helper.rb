@@ -72,6 +72,52 @@ module OpenProject::GithubIntegration
       end
 
       ##
+      # Returns the `WorkPackage`s a Git branch references and that are visible to
+      # the given `user`. A branch references a work package when its name either
+      #  - follows OpenProject's `{type}/{id}-{title}` branch-naming convention
+      #    (what the "Git snippets" menu of the GitHub tab produces), or
+      #  - contains an explicit `OP#<id>` / work package URL.
+      def find_branch_work_packages(branch_name, user)
+        explicit = find_visible_work_packages(extract_work_package_ids(branch_name), user)
+        (explicit + convention_work_packages(branch_name, user)).uniq
+      end
+
+      # Work packages referenced through OpenProject's branch-naming convention.
+      # A candidate id is taken from the `<type>/<id>-…` shape and only kept when
+      # the branch actually starts with that work package's canonical prefix, so a
+      # date-like branch such as `release/2024-01-15` does not spuriously match
+      # work package #2024 (unless its type also sanitizes to "release").
+      def convention_work_packages(branch_name, user)
+        candidate_ids = branch_name.to_s.scan(%r{(?:\A|/)(\d+)-}).flatten.map(&:to_i).uniq
+        return [] if candidate_ids.empty?
+
+        find_visible_work_packages(candidate_ids, user)
+          .select { |work_package| branch_follows_convention?(branch_name, work_package) }
+      end
+
+      # Mirrors GitActionsService#branchName of the GitHub tab so detection and the
+      # copied snippet agree on the convention. Only the prefix is compared: the
+      # rest of the name is the (free to edit) work package title.
+      def branch_follows_convention?(branch_name, work_package)
+        branch_name.to_s.downcase.start_with?(branch_convention_prefix(work_package))
+      end
+
+      def branch_convention_prefix(work_package)
+        type = sanitize_branch_segment(work_package.type&.name).downcase
+
+        type.present? ? "#{type}/#{work_package.id}-" : "#{work_package.id}-"
+      end
+
+      def sanitize_branch_segment(str)
+        str.to_s
+           .gsub("&", "and ")
+           .gsub(/\W+/, "-")
+           .delete_prefix("-")
+           .delete_suffix("-")
+           .strip
+      end
+
+      ##
       # Adds comments to the given WorkPackages.
       def comment_on_referenced_work_packages(work_packages, user, notes)
         return if notes.nil?

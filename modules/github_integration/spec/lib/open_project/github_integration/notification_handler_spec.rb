@@ -80,4 +80,12 @@ RSpec.describe OpenProject::GithubIntegration::NotificationHandler do
 
     it_behaves_like "a notification handler"
   end
+
+  describe ".push" do
+    subject(:process) { described_class.push(payload) }
+
+    let(:handler_class) { described_class::Push }
+
+    it_behaves_like "a notification handler"
+  end
 end

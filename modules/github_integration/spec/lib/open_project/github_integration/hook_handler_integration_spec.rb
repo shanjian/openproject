@@ -563,6 +563,78 @@ RSpec.describe OpenProject::GithubIntegration::HookHandler do
     it_behaves_like "it does not create a pull request"
   end
 
+  context "when receiving a webhook for a push event" do
+    let(:event) { "push" }
+    let(:fixture) { "branch_pushed" }
+    let(:branch_name) { "hotfix-OP##{work_packages[0].id}" }
+    # The controller wraps the body of the request as the `payload` param
+    let(:payload) { { "payload" => webhook_payload("push", fixture, branch: branch_name) } }
+
+    context "when a branch referencing a work package was pushed" do
+      it_behaves_like "it does not comment on any work package"
+      it_behaves_like "it does not create a pull request"
+
+      it "creates a GithubBranch linked to the work package" do
+        expect { process_webhook }.to change(GithubBranch, :count).by(1)
+
+        branch = GithubBranch.last
+        expect(branch).to have_attributes(
+          name: branch_name,
+          repository: "test_user/webhooks_playground",
+          last_commit_sha: "a265d6b7bcf836b77ed9e32f824b231585c6a355",
+          last_commit_message: "Fix the crash on startup",
+          last_commit_author: "Some Committer"
+        )
+        expect(branch.work_packages).to eq [work_packages[0]]
+      end
+
+      it "returns 200" do
+        expect(process_webhook).to eq(200)
+      end
+    end
+
+    context "when a branch referencing a work package the user may not see was pushed" do
+      let(:branch_name) { "hotfix-OP##{create(:work_package).id}" }
+
+      it "creates no GithubBranch" do
+        expect { process_webhook }.not_to change(GithubBranch, :count)
+      end
+    end
+
+    context "when a branch referencing no work package was pushed" do
+      let(:branch_name) { "main" }
+
+      it "creates no GithubBranch" do
+        expect { process_webhook }.not_to change(GithubBranch, :count)
+      end
+    end
+
+    context "when a tracked branch was created without new commits" do
+      let(:fixture) { "branch_created_without_new_commits" }
+
+      it "creates a GithubBranch for the commit the branch points to" do
+        expect { process_webhook }.to change(GithubBranch, :count).by(1)
+
+        expect(GithubBranch.last.last_commit_sha).to eq("6113728f27ae82c7b1a177c8d03f9e96e0adf246")
+      end
+    end
+
+    context "when a tracked branch was deleted" do
+      let(:fixture) { "branch_deleted" }
+
+      before do
+        create(:github_branch,
+               name: branch_name,
+               github_html_url: GithubBranch.build_html_url("https://github.com/test_user/webhooks_playground", branch_name),
+               work_packages: [work_packages[0]])
+      end
+
+      it "removes the GithubBranch" do
+        expect { process_webhook }.to change(GithubBranch, :count).by(-1)
+      end
+    end
+  end
+
   context "when receiving a webhook for a check_run event" do
     let(:event) { "check_run" }
     # github_id comes from the fixture files

@@ -83,11 +83,14 @@ module OpenProject::GithubIntegration
            },
            skip_permissions_check: true,
            badge: ->(work_package:, **) {
-             work_package.github_pull_requests.count
+             work_package.github_pull_requests.count +
+               work_package.github_branches.count
            },
            before: :watchers,
            caption: :project_module_github
     end
+
+    patches %w[WorkPackage]
 
     initializer "github.register_hook" do
       ::OpenProject::Webhooks.register_hook "github" do |hook, environment, params, user|
@@ -103,6 +106,8 @@ module OpenProject::GithubIntegration
                                                &NotificationHandler.method(:issue_comment))
         ::OpenProject::Notifications.subscribe("github.pull_request",
                                                &NotificationHandler.method(:pull_request))
+        ::OpenProject::Notifications.subscribe("github.push",
+                                               &NotificationHandler.method(:push))
       end
     end
 
@@ -120,6 +125,10 @@ module OpenProject::GithubIntegration
       "#{work_package(id)}/github_pull_requests"
     end
 
+    add_api_path :github_branches_by_work_package do |id|
+      "#{work_package(id)}/github_branches"
+    end
+
     add_api_path :github_user do |id|
       "github_users/#{id}"
     end
@@ -130,6 +139,10 @@ module OpenProject::GithubIntegration
 
     add_api_endpoint "API::V3::WorkPackages::WorkPackagesAPI", :id do
       mount ::API::V3::GithubPullRequests::GithubPullRequestsByWorkPackageAPI
+    end
+
+    add_api_endpoint "API::V3::WorkPackages::WorkPackagesAPI", :id do
+      mount ::API::V3::GithubBranches::GithubBranchesByWorkPackageAPI
     end
 
     add_api_endpoint "API::V3::Root" do

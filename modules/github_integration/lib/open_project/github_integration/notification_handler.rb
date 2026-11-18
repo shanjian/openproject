@@ -29,6 +29,7 @@
 require_relative "notification_handler/helper"
 require_relative "notification_handler/issue_comment"
 require_relative "notification_handler/pull_request"
+require_relative "notification_handler/push"
 
 module OpenProject::GithubIntegration
   ##
@@ -52,6 +53,12 @@ module OpenProject::GithubIntegration
       def pull_request(payload)
         with_logging do
           OpenProject::GithubIntegration::NotificationHandler::PullRequest.new.process(payload)
+        end
+      end
+
+      def push(payload)
+        with_logging do
+          OpenProject::GithubIntegration::NotificationHandler::Push.new.process(payload)
         end
       end
 

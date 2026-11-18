@@ -124,4 +124,95 @@ RSpec.describe OpenProject::GithubIntegration::NotificationHandler::Helper do
       it_behaves_like "it finds visible work packages"
     end
   end
+
+  describe "#find_branch_work_packages" do
+    subject(:found) { handler.find_branch_work_packages(branch_name, user) }
+
+    shared_let(:user) { create(:admin) }
+    shared_let(:bug_type) { create(:type, name: "Bug") }
+    shared_let(:story_type) { create(:type, name: "User story") }
+    shared_let(:bug) { create(:work_package, type: bug_type) }
+    shared_let(:story) { create(:work_package, type: story_type) }
+
+    context "with a branch following the type/id-title convention" do
+      let(:branch_name) { "bug/#{bug.id}-fix-the-crash" }
+
+      it { is_expected.to contain_exactly(bug) }
+    end
+
+    context "with a type whose name is sanitized the way the git snippets do" do
+      let(:branch_name) { "user-story/#{story.id}-as-a-user" }
+
+      it { is_expected.to contain_exactly(story) }
+    end
+
+    context "with a branch following the convention, in a different case" do
+      let(:branch_name) { "BUG/#{bug.id}-Fix" }
+
+      it { is_expected.to contain_exactly(bug) }
+    end
+
+    context "with a branch that has nothing after the id's dash" do
+      let(:branch_name) { "bug/#{bug.id}-" }
+
+      it { is_expected.to contain_exactly(bug) }
+    end
+
+    context "with a branch whose type does not match the work package's" do
+      let(:branch_name) { "feature/#{bug.id}-fix-the-crash" }
+
+      it { is_expected.to be_empty }
+    end
+
+    context "with a branch that has the id but not the dash after it" do
+      let(:branch_name) { "bug/#{bug.id}" }
+
+      it { is_expected.to be_empty }
+    end
+
+    context "with a branch whose id only happens to be inside of its name" do
+      let(:branch_name) { "bug/x#{bug.id}-fix" }
+
+      it { is_expected.to be_empty }
+    end
+
+    context "with a branch that has no type prefix" do
+      let(:branch_name) { "#{bug.id}-fix-the-crash" }
+
+      it { is_expected.to be_empty }
+    end
+
+    context "with a branch mentioning a work package with OP#" do
+      let(:branch_name) { "hotfix-OP##{bug.id}" }
+
+      it { is_expected.to contain_exactly(bug) }
+    end
+
+    context "with a branch mentioning one work package by convention and another by OP#" do
+      let(:branch_name) { "bug/#{bug.id}-also-OP##{story.id}" }
+
+      it { is_expected.to contain_exactly(bug, story) }
+    end
+
+    context "with a branch mentioning a work package both ways" do
+      let(:branch_name) { "bug/#{bug.id}-OP##{bug.id}" }
+
+      it "finds it once" do
+        expect(found).to eq([bug])
+      end
+    end
+
+    context "with a branch that references no work package" do
+      let(:branch_name) { "main" }
+
+      it { is_expected.to be_empty }
+    end
+
+    context "with a work package the user is not allowed to comment on" do
+      let(:user) { create(:user) }
+      let(:branch_name) { "bug/#{bug.id}-fix-the-crash" }
+
+      it { is_expected.to be_empty }
+    end
+  end
 end

@@ -17,6 +17,8 @@ OpenProject work packages will directly display information from GitHub in a sep
 
 The GitHub tab shows all PRs linked to a work package with their corresponding statuses (e.g. 'Open' or 'Merged') as well as the state (e.g. 'success' or 'queued') of the GitHub actions configured to run for a PR. PRs and work packages are in an n:m relationship, so a work package can be linked to multiple PRs and a PR can be linked to multiple work packages.
 
+Below the pull requests, the tab lists the branches that were pushed to GitHub for the work package (see [Branches](#branches)).
+
 Additionally, in your OpenProject work package, the GitHub integration supports you in creating a branch straight from the work package and the corresponding pull request.
 
 ![Git snippets dropdown menu under GitHub tab in OpenProject work package](openproject-system-guide-github-integation-github-git-snippets.png)
@@ -75,6 +77,9 @@ The **Payload URL** must point to your OpenProject server's GitHub webhook endpo
 > [!NOTE]
 > For the events that should be triggered by the webhook, please select "Send me everything".
 
+> [!NOTE]
+> If you select individual events instead, include **Pushes**. Without it, branches are not listed in the GitHub tab.
+
 > [!IMPORTANT]
 > OpenProject only supports the following GitHub events:
 >
@@ -82,6 +87,8 @@ The **Payload URL** must point to your OpenProject server's GitHub webhook endpo
 > - issue_comment
 > - ping
 > - pull_request
+> - push
+>
 > If the GitHub webhook sends an event that OpenProject does not support, a 404 error is returned by OpenProject.
 
 You will need the API key you copied earlier in OpenProject. Append it to the *Payload URL* as a simple GET parameter named `key`. In the end the URL should look something like this:
@@ -93,6 +100,19 @@ _Earlier version may have used the `api_key` parameter. In OpenProject 10.4, it 
 Now the integration is set up on both sides and you can use it.
 
 ## Using GitHub integration
+
+### Branches
+
+The **Branches** section of the GitHub tab lists the branches that were pushed to GitHub for a work package, each with its repository, its latest commit and the time of its last update. It does not need a pull request: a branch shows up as soon as it is pushed.
+
+OpenProject assigns a pushed branch to a work package when the branch name
+
+* follows the pattern `<type>/<work package ID>-<title>`, which is what the **Branch name** Git snippet produces (for example `bug/42-fix-the-crash` for work package 42 of the type *Bug*), or
+* contains the code `OP#<work package ID>` (for example `hotfix-OP#42`).
+
+The user the webhook acts as (see [OpenProject](#openproject)) has to be allowed to see and comment on the work package, just like for pull requests. A branch can belong to several work packages by combining both ways.
+
+Branches are recorded when they are pushed, so branches pushed before the **Pushes** event was enabled in the webhook are not listed. Deleting a branch on GitHub removes it from the list. Unlike pull requests, pushes do not add an entry to the Activity tab.
 
 ### Using a Git Desktop Client
 
