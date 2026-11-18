@@ -142,7 +142,9 @@ RSpec.describe API::V3::Attachments::AttachmentsAPI do
         expect(last_response).to have_http_status :ok
         download_location = JSON.parse(last_response.body).dig("_links", "downloadLocation", "href")
         expect(download_location).to eq api_v3_paths.attachment_content(attachment.id)
-        expect(attachment).not_to have_received(:external_url)
+        # epic's Attachment#thumbnailable? asks external_storage? (and thereby external_url)
+        # while rendering, so assert on the response instead of on the call.
+        expect(last_response.body).not_to include("signature=secret")
 
         get download_location
 
