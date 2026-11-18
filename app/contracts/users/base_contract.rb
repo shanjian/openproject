@@ -97,7 +97,7 @@ module Users
     end
 
     def validate_own_mail_change_confirmed
-      return unless model.mail_changed? && !user.admin? && can_change_self?
+      return unless model.mail_changed? && can_change_self?
       return unless OpenProject::Configuration.internal_password_confirmation?
       return if current_password_input_valid?
 

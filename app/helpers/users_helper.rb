@@ -158,4 +158,10 @@ module UsersHelper
   def can_users_have_auth_source?
     LdapAuthSource.any? && !OpenProject::Configuration.disable_password_login?
   end
+
+  # The password confirmation dialog is shown when users edit their own account,
+  # because the contract asks for the current password when they change their email.
+  def user_form_data_attributes(user, data)
+    user == current_user ? password_confirmation_data_attribute(data) : data
+  end
 end
