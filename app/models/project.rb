@@ -238,7 +238,8 @@ class Project < ApplicationRecord
          :assignable_parents,
          :available_custom_fields,
          :available_templates,
-         :visible
+         :visible,
+         :with_settings
 
   scope :has_module, ->(mod) {
     where(["#{Project.table_name}.id IN (SELECT em.project_id FROM #{EnabledModule.table_name} em WHERE em.name=?)", mod.to_s])
@@ -254,6 +255,9 @@ class Project < ApplicationRecord
   scope :without_member, ->(user = User.current) { where.not(id: user.memberships.select(:project_id)) }
   scope :workspace_type, ->(workspace_type) { workspace_types.key?(workspace_type) ? where(workspace_type:) : none }
   scope :templated, -> { where(templated: true) }
+  scope :with_internal_comments_enabled, -> {
+    EnterpriseToken.allows_to?(:internal_comments) ? with_settings(enabled_internal_comments: "true") : none
+  }
 
   scopes :activated_time_activity,
          :visible_with_activated_time_activity
@@ -269,6 +273,10 @@ class Project < ApplicationRecord
 
   def visible?(user = User.current)
     active? && (public? || user.admin? || user.access_to?(self))
+  end
+
+  def internal_comments_enabled?
+    EnterpriseToken.allows_to?(:internal_comments) && enabled_internal_comments.present?
   end
 
   def archived?

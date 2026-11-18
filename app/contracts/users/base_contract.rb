@@ -60,6 +60,7 @@ module Users
     end
 
     validate :validate_password_writable
+    validate :validate_own_mail_change_confirmed
     validate :validate_identity_url_writable
     validate :existing_auth_source
     validate :login_is_email_address
@@ -87,8 +88,20 @@ module Users
     def current_password_valid?
       return true if model.password.blank?
 
+      current_password_input_valid?
+    end
+
+    def current_password_input_valid?
       provided_current_password = model.current_password_input
       provided_current_password.present? && model.check_password?(provided_current_password)
+    end
+
+    def validate_own_mail_change_confirmed
+      return unless model.mail_changed? && !user.admin? && can_change_self?
+      return unless OpenProject::Configuration.internal_password_confirmation?
+      return if current_password_input_valid?
+
+      errors.add :current_password, :invalid
     end
 
     def identity_url_writable?
