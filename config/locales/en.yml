@@ -1845,6 +1845,7 @@ en:
         regex_list_invalid: "Lines %{invalid_lines} could not be parsed as regular expression."
         hexcode_invalid: "is not a valid 6-digit hexadecimal color code."
         smaller_than_or_equal_to_max_length: "must be smaller than or equal to maximum length."
+        ssrf_filtered: "violates the SSRF policy of this OpenProject instance."
         taken: "has already been taken."
         too_long: "is too long (maximum is %{count} characters)."
         too_short: "is too short (minimum is %{count} characters)."

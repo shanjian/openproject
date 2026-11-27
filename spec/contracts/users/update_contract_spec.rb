@@ -263,6 +263,26 @@ RSpec.describe Users::UpdateContract do
         end
       end
 
+      describe "an admin changing their own email" do
+        let(:user) { build_stubbed(:admin, attributes) }
+
+        before do
+          allow(user).to receive(:check_password?).and_return(false)
+          allow(user).to receive(:check_password?).with("correct").and_return(true)
+          user.mail = "a.new@email.address"
+        end
+
+        context "with the correct current password" do
+          before { user.current_password_input = "correct" }
+
+          it_behaves_like "contract is valid"
+        end
+
+        context "without the current password" do
+          it_behaves_like "contract is invalid", current_password: :invalid
+        end
+      end
+
       describe "when changing the password" do
         before do
           user.password = "newpassword123!"

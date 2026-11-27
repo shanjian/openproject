@@ -168,6 +168,37 @@ RSpec.describe MemberMailer do
       end
     end
     it_behaves_like "fails for a group"
+
+    describe "with a custom message referencing a project the recipient cannot see" do
+      shared_let(:view_role) { create(:project_role, permissions: %i[view_work_packages]) }
+      shared_let(:shared_project) { create(:project, public: false) }
+      shared_let(:private_project) { create(:project, public: false, name: "Orchid private project") }
+      shared_let(:inviter) do
+        create(:user, member_with_roles: { shared_project => view_role, private_project => view_role })
+      end
+
+      let(:message) { "please look at project##{private_project.id}" }
+      let(:member) { create(:member, principal: recipient, project: shared_project, roles: [view_role]) }
+      let(:body) { described_class.added_project(inviter, member, message).html_part.body.to_s }
+
+      # The message is written by the inviter but rendered for the person receiving the mail.
+      context "when the recipient cannot view the referenced project" do
+        let(:recipient) { create(:user) }
+
+        it "keeps a bare reference and omits the project name" do
+          expect(body).to include("project##{private_project.id}")
+          expect(body).not_to include(private_project.name)
+        end
+      end
+
+      context "when the recipient can view the referenced project" do
+        let(:recipient) { create(:user, member_with_roles: { private_project => view_role }) }
+
+        it "expands the project name" do
+          expect(body).to include(private_project.name)
+        end
+      end
+    end
   end
 
   describe "#updated_project" do

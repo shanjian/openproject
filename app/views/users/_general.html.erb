@@ -46,11 +46,14 @@ See COPYRIGHT and LICENSE files for more details.
                                 method: :put,
                                 autocomplete: "off"
                               },
-                              data: {
-                                controller: "admin--users",
-                                turbo: false,
-                                "admin--users-password-auth-selected-value": @user.ldap_auth_source_id.blank?
-                              },
+                              data: user_form_data_attributes(
+                                @user,
+                                {
+                                  controller: "admin--users",
+                                  turbo: false,
+                                  "admin--users-password-auth-selected-value": @user.ldap_auth_source_id.blank?
+                                }
+                              ),
                               as: :user do |f| %>
   <%= render partial: "form", locals: { f: f } %>
 
