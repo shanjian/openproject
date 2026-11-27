@@ -54,6 +54,7 @@ module Type::AttributeGroups
       {
         assignee: :people,
         responsible: :people,
+        reviewer: :people,
         estimated_time: :estimates_and_progress,
         remaining_time: :estimates_and_progress,
         percentage_done: :estimates_and_progress,

@@ -34,6 +34,7 @@ module CustomActions::Register
       [
         CustomActions::Actions::AssignedTo,
         CustomActions::Actions::Responsible,
+        CustomActions::Actions::Reviewer,
         CustomActions::Actions::Status,
         CustomActions::Actions::Priority,
         CustomActions::Actions::CustomField,

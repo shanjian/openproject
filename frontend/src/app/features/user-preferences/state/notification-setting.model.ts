@@ -5,6 +5,7 @@ export interface INotificationSetting {
   watched:boolean;
   assignee:boolean;
   responsible:boolean;
+  reviewer:boolean;
   shared:boolean;
   mentioned:boolean;
   workPackageCommented:boolean;
@@ -37,6 +38,7 @@ export function buildNotificationSetting(project:null|HalSourceLink, params:Part
     },
     assignee: true,
     responsible: true,
+    reviewer: true,
     shared: true,
     mentioned: true,
     watched: true,

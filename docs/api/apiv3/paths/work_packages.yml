@@ -69,6 +69,7 @@ get:
         - required
         - requires
         - responsible
+        - reviewer
         - role
         - search
         - start_date

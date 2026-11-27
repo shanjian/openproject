@@ -35,6 +35,7 @@ module API
             work_package.author = principal_for(work_package.author_id)
             work_package.assigned_to = principal_for(work_package.assigned_to_id)
             work_package.responsible = principal_for(work_package.responsible_id)
+            work_package.reviewer = principal_for(work_package.reviewer_id)
           end
 
           private
@@ -52,7 +53,7 @@ module API
 
           def principal_ids
             work_packages
-              .pluck(:author_id, :assigned_to_id, :responsible_id)
+              .pluck(:author_id, :assigned_to_id, :responsible_id, :reviewer_id)
               .flatten
               .uniq
               .compact

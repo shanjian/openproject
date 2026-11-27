@@ -46,6 +46,7 @@ module API
         SUPPORTED_LINK_PROPERTIES = %w[
           assignee
           responsible
+          reviewer
           project
           status
           priority

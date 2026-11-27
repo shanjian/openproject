@@ -1164,6 +1164,53 @@ RSpec.describe API::V3::WorkPackages::Schema::WorkPackageSchemaRepresenter do
           end
         end
       end
+
+      describe "reviewer" do
+        it_behaves_like "has basic schema properties" do
+          let(:path) { "reviewer" }
+          let(:type) { "User" }
+          let(:name) { I18n.t("attributes.reviewer") }
+          let(:required) { false }
+          let(:writable) { true }
+          let(:location) { "_links" }
+        end
+
+        context "when the work package is persisted" do
+          it_behaves_like "links to allowed values via collection link" do
+            let(:path) { "reviewer" }
+            let(:href) { api_v3_paths.available_assignees_in_work_package(work_package.id) }
+          end
+        end
+
+        context "when the work package is not persisted" do
+          let(:work_package) { build(:work_package, project:) }
+
+          it_behaves_like "links to allowed values via collection link" do
+            let(:path) { "reviewer" }
+            let(:href) { api_v3_paths.available_assignees_in_workspace(work_package.project_id) }
+          end
+        end
+
+        context "when not embedded" do
+          let(:embedded) { false }
+
+          it_behaves_like "does not link to allowed values" do
+            let(:path) { "reviewer" }
+          end
+        end
+
+        context "when not having a project (yet) and not yet persisted" do
+          before do
+            work_package.project = nil
+
+            allow(work_package).to receive(:persisted?).and_return(false)
+          end
+
+          it_behaves_like "does not link to allowed values" do
+            let(:path) { "reviewer" }
+          end
+        end
+      end
     end
 
     describe "budget" do

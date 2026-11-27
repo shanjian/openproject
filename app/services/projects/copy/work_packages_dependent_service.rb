@@ -63,7 +63,7 @@ module Projects::Copy
     def source_work_packages
       source
         .work_packages
-        .includes(:custom_values, :version, :assigned_to, :responsible)
+        .includes(:custom_values, :version, :assigned_to, :responsible, :reviewer)
         .order_by_ancestors("asc")
         .order("id ASC")
     end
@@ -136,6 +136,7 @@ module Projects::Copy
         version_id: work_package_version_id(source_work_package),
         assigned_to_id: work_package_assigned_to_id(source_work_package),
         responsible_id: work_package_responsible_id(source_work_package),
+        reviewer_id: work_package_reviewer_id(source_work_package),
         custom_field_values: custom_value_attributes(source_work_package, user_cf_ids),
         # We don't support copying budgets right now
         budget_id: nil
@@ -154,6 +155,10 @@ module Projects::Copy
 
     def work_package_responsible_id(source_work_package)
       possible_principal_id(source_work_package.responsible_id)
+    end
+
+    def work_package_reviewer_id(source_work_package)
+      possible_principal_id(source_work_package.reviewer_id)
     end
 
     def custom_value_attributes(source_work_package, user_cf_ids)

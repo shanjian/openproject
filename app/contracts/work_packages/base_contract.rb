@@ -115,6 +115,14 @@ module WorkPackages
                               assignable_responsibles
     end
 
+    attribute :reviewer_id do
+      next unless model.project
+
+      validate_people_visible :reviewer,
+                              "reviewer_id",
+                              assignable_reviewers
+    end
+
     attribute :schedule_manually
     attribute :ignore_non_working_days,
               writable: ->(*) {
@@ -252,6 +260,7 @@ module WorkPackages
       end
     end
     alias_method :assignable_responsibles, :assignable_assignees
+    alias_method :assignable_reviewers, :assignable_assignees
 
     def valid?(context = :saving_custom_fields) = super
 

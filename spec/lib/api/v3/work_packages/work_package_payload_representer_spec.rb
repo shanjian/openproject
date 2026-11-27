@@ -287,7 +287,7 @@ RSpec.describe API::V3::WorkPackages::WorkPackagePayloadRepresenter do
         it_behaves_like "linked property with 0 value", :status
       end
 
-      describe "assignee and responsible" do
+      describe "assignee, responsible and reviewer" do
         let(:other_user) { build_stubbed(:user) }
         let(:link) { "/api/v3/users/#{other_user.id}" }
 
@@ -313,6 +313,18 @@ RSpec.describe API::V3::WorkPackages::WorkPackagePayloadRepresenter do
           end
 
           it_behaves_like "linked property with 0 value", :responsible
+        end
+
+        describe "reviewer" do
+          before do
+            work_package.reviewer = other_user
+          end
+
+          it_behaves_like "linked property" do
+            let(:property) { "reviewer" }
+          end
+
+          it_behaves_like "linked property with 0 value", :reviewer
         end
       end
 
@@ -672,6 +684,26 @@ RSpec.describe API::V3::WorkPackages::WorkPackagePayloadRepresenter do
 
       before do
         work_package.responsible_id = 1
+      end
+
+      context "with a user" do
+        it_behaves_like "linked resource" do
+          let(:path) { api_v3_paths.user(id) }
+        end
+      end
+
+      context "with a group" do
+        it_behaves_like "linked resource" do
+          let(:path) { api_v3_paths.group(id) }
+        end
+      end
+    end
+
+    describe "reviewer" do
+      let(:attribute_name) { "reviewer" }
+
+      before do
+        work_package.reviewer_id = 1
       end
 
       context "with a user" do

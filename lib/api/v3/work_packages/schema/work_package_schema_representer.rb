@@ -276,6 +276,11 @@ module API
                                    required: false,
                                    href_callback: ->(*) { assignee_user_autocompleter }
 
+          schema_with_allowed_link :reviewer,
+                                   type: "User",
+                                   required: false,
+                                   href_callback: ->(*) { assignee_user_autocompleter }
+
           schema_with_allowed_collection :type,
                                          value_representer: Types::TypeRepresenter,
                                          link_factory: ->(type) {

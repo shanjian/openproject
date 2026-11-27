@@ -74,6 +74,8 @@ properties:
     $ref: './schema_property_model.yml'
   responsible:
     $ref: './schema_property_model.yml'
+  reviewer:
+    $ref: './schema_property_model.yml'
   type:
     $ref: './schema_property_model.yml'
   status:

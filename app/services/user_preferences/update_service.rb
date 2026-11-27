@@ -94,6 +94,7 @@ module UserPreferences
             columns: %i[watched
                         assignee
                         responsible
+                        reviewer
                         shared
                         mentioned
                         start_date

@@ -562,6 +562,7 @@ class PermittedParams
           :priority_id,
           :remaining_hours,
           :responsible_id,
+          :reviewer_id,
           :start_date,
           :status_id,
           :type_id,
@@ -581,6 +582,7 @@ class PermittedParams
         move_work_package: %i[
           assigned_to_id
           responsible_id
+          reviewer_id
           start_date
           due_date
           status_id

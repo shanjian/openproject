@@ -157,6 +157,7 @@ RSpec.describe UserPreferences::UpdateService, "integration", type: :model do
           NotificationSetting::OVERDUE => nil,
           NotificationSetting::ASSIGNEE => true,
           NotificationSetting::RESPONSIBLE => true,
+          NotificationSetting::REVIEWER => true,
           NotificationSetting::WATCHED => true,
           NotificationSetting::SHARED => true,
           # Opt-out semantics: meeting update/response mails stay on unless disabled explicitly

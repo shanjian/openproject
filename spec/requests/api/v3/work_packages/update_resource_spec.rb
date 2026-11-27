@@ -470,7 +470,7 @@ RSpec.describe "API v3 Work package resource",
         end
       end
 
-      context "assignee and responsible" do
+      context "with assignee, responsible and reviewer" do
         let(:user) { create(:user, member_with_permissions: { project => %i[work_package_assigned] }) }
         let(:placeholder_user) do
           create(:placeholder_user,
@@ -481,7 +481,8 @@ RSpec.describe "API v3 Work package resource",
           create(:work_package,
                  project:,
                  assigned_to: current_user,
-                 responsible: current_user)
+                 responsible: current_user,
+                 reviewer: current_user)
         end
 
         before { login_as current_user }
@@ -610,6 +611,10 @@ RSpec.describe "API v3 Work package resource",
 
         context "responsible" do
           it_behaves_like "handling people", "responsible"
+        end
+
+        context "with reviewer" do
+          it_behaves_like "handling people", "reviewer"
         end
       end
 

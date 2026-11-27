@@ -35,7 +35,7 @@ module WorkPackages::Scopes
 
     class_methods do
       # Fetches all work packages for which a user is assigned to, responsible
-      # for, or watcher, via a group or themself
+      # for, reviewer, or watcher, via a group or themself
       #
       # @param user User the user involved in work packages.
       def involving_user(user) # rubocop:disable Metrics/AbcSize
@@ -49,6 +49,8 @@ module WorkPackages::Scopes
         #   .or(WorkPackage.where(assigned_to: group_having(user)))
         #   .or(WorkPackage.where(responsible: user))
         #   .or(WorkPackage.where(responsible: group_having(user)))
+        #   .or(WorkPackage.where(reviewer: user))
+        #   .or(WorkPackage.where(reviewer: group_having(user)))
         # ```
         # That however prevents indices from being used because of the or clauses on different columns.
         watched = WorkPackage
@@ -62,13 +64,17 @@ module WorkPackages::Scopes
                         .where("responsible_id IN (SELECT * FROM user_and_groups)")
                         .select(:id)
 
-        watched_and_assigned_and_responsible = Arel::Nodes::Union.new(watched.arel,
-                                                                      Arel::Nodes::Union.new(assigned.arel,
-                                                                                             responsible.arel))
+        reviewer = WorkPackage
+                     .where("reviewer_id IN (SELECT * FROM user_and_groups)")
+                     .select(:id)
+
+        involved = [watched, assigned, responsible, reviewer]
+                     .map(&:arel)
+                     .reduce { |union, arel| Arel::Nodes::Union.new(union, arel) }
 
         WorkPackage
           .with(user_and_groups: user_and_groups_union(user))
-          .where(arel_table[:id].in(watched_and_assigned_and_responsible))
+          .where(arel_table[:id].in(involved))
       end
 
       private

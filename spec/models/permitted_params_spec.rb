@@ -489,6 +489,12 @@ RSpec.describe PermittedParams do
       it_behaves_like "allows params"
     end
 
+    describe "reviewer_id" do
+      let(:hash) { { "reviewer_id" => "1" } }
+
+      it_behaves_like "allows params"
+    end
+
     describe "type_id" do
       let(:hash) { { "type_id" => "1" } }
 

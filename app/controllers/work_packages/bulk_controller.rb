@@ -94,7 +94,7 @@ class WorkPackages::BulkController < ApplicationController
 
   def setup_edit
     @available_statuses = @projects.map { |p| Workflow.available_statuses(p) }.inject(&:&)
-    @assignables = @responsibles = Principal.possible_assignee(@projects)
+    @assignables = @responsibles = @reviewers = Principal.possible_assignee(@projects)
     @types = @projects.map(&:types).inject(&:&)
 
     # Display only the custom fields that are enabled on the projects and on types too.
