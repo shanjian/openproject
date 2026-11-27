@@ -86,7 +86,7 @@ module Menus
     end
 
     def reason_filters
-      %w[mentioned assigned responsible watched date_alert shared].map do |reason|
+      %w[mentioned assigned responsible reviewer watched date_alert shared].map do |reason|
         count = unread_by_reason[reason]
         OpenProject::Menu::MenuItem.new(title: I18n.t("mail.work_packages.reason.#{reason}"),
                                         icon: icon_map.fetch(reason, reason),
@@ -109,6 +109,7 @@ module Menus
       {
         "mentioned" => :mention,
         "responsible" => :accountable,
+        "reviewer" => :"code-review",
         "watched" => :watching,
         "shared" => :share,
         "date_alert" => :"date-alert"

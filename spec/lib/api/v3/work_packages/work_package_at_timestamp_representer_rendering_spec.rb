@@ -45,6 +45,7 @@ RSpec.describe API::V3::WorkPackages::WorkPackageAtTimestampRepresenter, "render
   let(:start_date) { Date.current - 5.days }
   let(:assigned_to) { build_stubbed(:user) }
   let(:responsible) { build_stubbed(:user) }
+  let(:reviewer) { build_stubbed(:user) }
   let(:status) { build_stubbed(:status) }
   let(:type) { build_stubbed(:type) }
   let(:priority) { build_stubbed(:priority) }
@@ -88,7 +89,8 @@ RSpec.describe API::V3::WorkPackages::WorkPackageAtTimestampRepresenter, "render
                   priority:,
                   version:,
                   parent:,
-                  responsible:).tap do |wp|
+                  responsible:,
+                  reviewer:).tap do |wp|
       allow(wp)
         .to receive(:respond_to?)
               .and_call_original
@@ -148,6 +150,10 @@ RSpec.describe API::V3::WorkPackages::WorkPackageAtTimestampRepresenter, "render
           "responsible" => {
             "href" => api_v3_paths.user(responsible.id),
             "title" => responsible.name
+          },
+          "reviewer" => {
+            "href" => api_v3_paths.user(reviewer.id),
+            "title" => reviewer.name
           },
           "project" => {
             "href" => api_v3_paths.project(project.id),
@@ -409,6 +415,10 @@ RSpec.describe API::V3::WorkPackages::WorkPackageAtTimestampRepresenter, "render
           "responsible" => {
             "href" => api_v3_paths.user(responsible.id),
             "title" => responsible.name
+          },
+          "reviewer" => {
+            "href" => api_v3_paths.user(reviewer.id),
+            "title" => reviewer.name
           },
           "project" => {
             "href" => api_v3_paths.project(project.id),

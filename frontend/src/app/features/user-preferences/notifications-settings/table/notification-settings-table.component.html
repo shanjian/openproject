@@ -74,6 +74,21 @@
         </tr>
         <tr>
           <th class="op-table--cell op-table--cell_soft-heading">
+            {{ text.reviewer }}
+          </th>
+          @for (item of settings.controls; track item) {
+            <td class="op-table--cell" [formGroup]="item">
+              <input
+                type="checkbox"
+                formControlName="reviewer"
+                data-qa-project-notification-type="reviewer"
+                [attr.data-qa-project]="item.controls.project.value.title"
+                />
+            </td>
+          }
+        </tr>
+        <tr>
+          <th class="op-table--cell op-table--cell_soft-heading">
             {{ text.shared }}
           </th>
           @for (item of settings.controls; track item) {

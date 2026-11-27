@@ -68,7 +68,7 @@ module Notifications
     end
 
     def reason_filters
-      %w[mentioned assigned responsible watched dateAlert reminder shared].map do |reason|
+      %w[mentioned assigned responsible reviewer watched dateAlert reminder shared].map do |reason|
         count = unread_by_reason[reason]
         menu_item(title: I18n.t("notifications.reasons.#{reason}"),
                   icon_key: reason,
@@ -160,6 +160,7 @@ module Notifications
         "mentioned" => :mention,
         "assigned" => :"op-person-assigned",
         "responsible" => :"op-person-accountable",
+        "reviewer" => :"code-review",
         "watched" => :eye,
         "shared" => :"share-android",
         "dateAlert" => :"op-calendar-alert",

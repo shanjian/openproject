@@ -563,6 +563,14 @@ module API
                             link: ::API::V3::Principals::PrincipalRepresenterFactory
                               .create_link_lambda(:responsible)
 
+        associated_resource :reviewer,
+                            getter: ::API::V3::Principals::PrincipalRepresenterFactory
+                              .create_getter_lambda(:reviewer),
+                            setter: ::API::V3::Principals::PrincipalRepresenterFactory
+                              .create_setter_lambda(:reviewer),
+                            link: ::API::V3::Principals::PrincipalRepresenterFactory
+                              .create_link_lambda(:reviewer)
+
         associated_resource :assignee,
                             getter: ::API::V3::Principals::PrincipalRepresenterFactory
                               .create_getter_lambda(:assigned_to),

@@ -602,6 +602,7 @@ en:
         # The enum value is named 'responsible' in the database and that is what is transported through the API
         # up to the frontend.
         responsible: "Accountable"
+        reviewer: "Reviewer"
         created: "Created"
         scheduled: "Scheduled"
         commented: "Commented"
@@ -666,6 +667,7 @@ en:
             description: "Receive a notification every time someone mentions me anywhere"
           assignee: "Assignee"
           responsible: "Accountable"
+          reviewer: "Reviewer"
           shared: "Shared"
           watched: "Watcher"
           work_package_commented: "All new comments"
@@ -993,6 +995,7 @@ en:
         remainingWork: "Remaining work"
         remainingWorkAlternative: "Remaining hours"
         responsible: "Responsible"
+        reviewer: "Reviewer"
         startDate: "Start date"
         status: "Status"
         subject: "Subject"

@@ -178,6 +178,12 @@ class Notifications::CreateFromModelService
                                 NotificationSetting::RESPONSIBLE)
   end
 
+  def settings_of_reviewer
+    project_applicable_settings(User.where(id: group_or_user_ids(journal.data.reviewer)),
+                                project,
+                                NotificationSetting::REVIEWER)
+  end
+
   def settings_of_shared
     project_applicable_settings(strategy.shared_users(model),
                                 project,

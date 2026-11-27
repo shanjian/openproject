@@ -51,7 +51,8 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
            type:,
            assigned_to: assignee,
            author:,
-           responsible:)
+           responsible:,
+           reviewer:)
   end
   let(:project) { create(:project, types: [type]) }
   let(:type) { create(:type, is_milestone:) }
@@ -59,6 +60,7 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
   let(:assignee) { nil }
   let(:author) { create(:user) }
   let(:responsible) { nil }
+  let(:reviewer) { nil }
 
   let(:select) { { "*" => {} } }
 
@@ -91,6 +93,9 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
               href: nil
             },
             responsible: {
+              href: nil
+            },
+            reviewer: {
               href: nil
             },
             author: {
@@ -152,6 +157,9 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
               href: nil
             },
             responsible: {
+              href: nil
+            },
+            reviewer: {
               href: nil
             },
             author: {
@@ -264,6 +272,12 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
   describe "responsible link" do
     it_behaves_like "principal link", "responsible" do
       let(:responsible) { principal_object }
+    end
+  end
+
+  describe "reviewer link" do
+    it_behaves_like "principal link", "reviewer" do
+      let(:reviewer) { principal_object }
     end
   end
 
@@ -382,9 +396,10 @@ RSpec.describe API::V3::WorkPackages::WorkPackageSqlRepresenter, "rendering" do
     # responsible_id references in the sibling user links ambiguous
     # (PG::AmbiguousColumn), which 500-ed every board list.
     context "when selected together with the user links (board card select)" do
-      let(:select) { { "epic" => {}, "assignee" => {}, "author" => {}, "responsible" => {} } }
+      let(:select) { { "epic" => {}, "assignee" => {}, "author" => {}, "responsible" => {}, "reviewer" => {} } }
       let(:assignee) { create(:user) }
       let(:responsible) { create(:user) }
+      let(:reviewer) { create(:user) }
 
       it "renders without raising an ambiguous-column error" do
         expect { json }.not_to raise_error

@@ -90,6 +90,11 @@ class Queries::WorkPackages::Selects::PropertySelect < Queries::WorkPackages::Se
       sortable: %w(lastname firstname id),
       groupable: "#{WorkPackage.table_name}.responsible_id"
     },
+    reviewer: {
+      association: "reviewer",
+      sortable: %w(lastname firstname id),
+      groupable: "#{WorkPackage.table_name}.reviewer_id"
+    },
     updated_at: {
       sortable: "#{WorkPackage.table_name}.updated_at",
       default_order: "desc"

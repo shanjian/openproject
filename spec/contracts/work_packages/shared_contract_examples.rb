@@ -210,6 +210,37 @@ RSpec.shared_examples "work package contract" do
       end
     end
 
+    describe "reviewer_id" do
+      context "if the reviewer user is a possible reviewer" do
+        before do
+          work_package.reviewer = persisted_possible_assignee
+        end
+
+        it_behaves_like "contract is valid"
+      end
+
+      context "if the assigned user is not a possible reviewer" do
+        before do
+          work_package.reviewer = persisted_non_member
+        end
+
+        it_behaves_like "contract is invalid",
+                        reviewer: I18n.t("api_v3.errors.validation.invalid_user_assigned_to_work_package",
+                                         property: I18n.t("attributes.reviewer"))
+      end
+
+      context "if the project is not set" do
+        before do
+          work_package.reviewer = persisted_possible_assignee
+          work_package.project = nil
+        end
+
+        it_behaves_like "contract is invalid",
+                        # But not on reviewer
+                        project: :blank
+      end
+    end
+
     describe "remaining_hours" do
       context "when is not a parent" do
         context "when has not changed" do

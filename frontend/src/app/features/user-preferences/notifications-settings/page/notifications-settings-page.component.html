@@ -55,6 +55,18 @@
   </spot-selector-field>
 
   <spot-selector-field
+    [label]="text.reviewer"
+    [control]="form.get('reviewer')"
+    >
+    <input
+      slot="input"
+      type="checkbox"
+      formControlName="reviewer"
+      data-qa-global-notification-type="reviewer"
+      />
+  </spot-selector-field>
+
+  <spot-selector-field
     [label]="text.shared"
     [control]="form.get('shared')"
     >

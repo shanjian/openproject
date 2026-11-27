@@ -32,6 +32,7 @@ class NotificationSetting < ApplicationRecord
   WATCHED = :watched
   ASSIGNEE = :assignee
   RESPONSIBLE = :responsible
+  REVIEWER = :reviewer
   MENTIONED = :mentioned
   SHARED = :shared
   START_DATE = :start_date
@@ -58,6 +59,7 @@ class NotificationSetting < ApplicationRecord
       WATCHED,
       ASSIGNEE,
       RESPONSIBLE,
+      REVIEWER,
       MENTIONED,
       SHARED,
       WORK_PACKAGE_CREATED,

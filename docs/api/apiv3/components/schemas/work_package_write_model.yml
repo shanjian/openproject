@@ -98,6 +98,13 @@ properties:
               The person that is responsible for the overall outcome
 
               **Resource**: User
+      reviewer:
+        allOf:
+          - $ref: './link.yml'
+          - description: |-
+              The person that is asked to review the work package
+
+              **Resource**: User
       assignee:
         allOf:
           - $ref: './link.yml'

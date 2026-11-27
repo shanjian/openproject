@@ -549,6 +549,8 @@ RSpec.describe "API v3 Work package form resource" do
               it_behaves_like "handling people", "assignee"
 
               it_behaves_like "handling people", "responsible"
+
+              it_behaves_like "handling people", "reviewer"
             end
 
             describe "version" do

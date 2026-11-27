@@ -467,6 +467,13 @@ allOf:
                   The person that is responsible for the overall outcome
 
                   **Resource**: User
+          reviewer:
+            allOf:
+              - $ref: "./link.yml"
+              - description: |-
+                  The person that is asked to review the work package
+
+                  **Resource**: User
           relations:
             allOf:
               - $ref: "./link.yml"
@@ -579,6 +586,9 @@ example:
     responsible:
       href: "/api/v3/users/23"
       title: Laron Leuschke - Alaina5788
+    reviewer:
+      href: "/api/v3/users/17"
+      title: Dominick Hettinger - Merle1197
     relations:
       href: "/api/v3/work_packages/1528/relations"
       title: Show relations

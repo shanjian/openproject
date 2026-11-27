@@ -126,7 +126,7 @@ module WorkPackage::Journalized
                                       :status_id, :type_id,
                                       :assigned_to_id, :priority_id,
                                       :category_id, :version_id,
-                                      :author_id, :responsible_id,
+                                      :author_id, :responsible_id, :reviewer_id,
                                       formatter_key: :named_association
     register_journal_formatted_fields :start_date, :due_date, formatter_key: :datetime
     register_journal_formatted_fields :subject, formatter_key: :plaintext

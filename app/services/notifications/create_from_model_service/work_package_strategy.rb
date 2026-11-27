@@ -30,7 +30,7 @@
 
 module Notifications::CreateFromModelService::WorkPackageStrategy
   def self.reasons
-    %i(mentioned assigned responsible watched commented created processed prioritized scheduled shared)
+    %i(mentioned assigned responsible reviewer watched commented created processed prioritized scheduled shared)
   end
 
   def self.permission(journal, _reason)

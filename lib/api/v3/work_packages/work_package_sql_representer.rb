@@ -97,6 +97,8 @@ module API
 
         associated_user_link :responsible
 
+        associated_user_link :reviewer
+
         # Epic link for board cards. epic_id is nullable -> null href when unset.
         #
         # Joined from the `visible_work_packages` CTE (see .ctes) rather than

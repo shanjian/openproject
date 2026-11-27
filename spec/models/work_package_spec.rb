@@ -71,6 +71,7 @@ RSpec.describe WorkPackage do
     it { is_expected.to belong_to(:author) }
     it { is_expected.to belong_to(:assigned_to).class_name("Principal").optional }
     it { is_expected.to belong_to(:responsible).class_name("Principal").optional }
+    it { is_expected.to belong_to(:reviewer).class_name("Principal").optional }
     it { is_expected.to belong_to(:version).optional }
     it { is_expected.to belong_to(:project_phase_definition).class_name("Project::PhaseDefinition").optional }
     it { is_expected.to belong_to(:priority).class_name("IssuePriority") }
@@ -225,6 +226,24 @@ RSpec.describe WorkPackage do
 
     context "with group assigned" do
       before { work_package.responsible = group }
+
+      it "is valid" do
+        expect(work_package).to be_valid
+      end
+    end
+  end
+
+  describe "reviewer" do
+    let(:group) { create(:group) }
+    let!(:member) do
+      create(:member,
+             principal: group,
+             project: work_package.project,
+             roles: [create(:project_role)])
+    end
+
+    context "with group assigned" do
+      before { work_package.reviewer = group }
 
       it "is valid" do
         expect(work_package).to be_valid

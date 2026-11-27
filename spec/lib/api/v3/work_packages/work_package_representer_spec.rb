@@ -46,6 +46,7 @@ RSpec.describe API::V3::WorkPackages::WorkPackageRepresenter do
   let(:priority) { build_stubbed(:priority, updated_at: Time.zone.now) }
   let(:assignee) { nil }
   let(:responsible) { nil }
+  let(:reviewer) { nil }
   let(:schedule_manually) { nil }
   let(:start_date) { Time.zone.today.to_datetime }
   let(:due_date) { Time.zone.today.to_datetime }
@@ -73,6 +74,7 @@ RSpec.describe API::V3::WorkPackages::WorkPackageRepresenter do
                   priority:,
                   assigned_to: assignee,
                   responsible:,
+                  reviewer:,
                   estimated_hours:,
                   derived_estimated_hours:,
                   budget:,
@@ -623,6 +625,54 @@ RSpec.describe API::V3::WorkPackages::WorkPackageRepresenter do
       context "as not set" do
         it_behaves_like "has an empty link" do
           let(:link) { "responsible" }
+        end
+      end
+    end
+
+    describe "reviewer" do
+      context "as a user" do
+        let(:reviewer) { build_stubbed(:user) }
+
+        it_behaves_like "has a titled link" do
+          let(:link) { "reviewer" }
+          let(:href) { "/api/v3/users/#{work_package.reviewer.id}" }
+          let(:title) { work_package.reviewer.name }
+        end
+      end
+
+      context "as a group" do
+        let(:reviewer) { build_stubbed(:group) }
+
+        it_behaves_like "has a titled link" do
+          let(:link) { "reviewer" }
+          let(:href) { "/api/v3/groups/#{work_package.reviewer.id}" }
+          let(:title) { work_package.reviewer.name }
+        end
+      end
+
+      context "as a placeholder user" do
+        let(:reviewer) { build_stubbed(:placeholder_user) }
+
+        it_behaves_like "has a titled link" do
+          let(:link) { "reviewer" }
+          let(:href) { "/api/v3/placeholder_users/#{work_package.reviewer.id}" }
+          let(:title) { work_package.reviewer.name }
+        end
+      end
+
+      context "as a deleted user" do
+        let(:reviewer) { build_stubbed(:deleted_user) }
+
+        it_behaves_like "has a titled link" do
+          let(:link) { "reviewer" }
+          let(:href) { "/api/v3/users/#{work_package.reviewer.id}" }
+          let(:title) { work_package.reviewer.name }
+        end
+      end
+
+      context "as not set" do
+        it_behaves_like "has an empty link" do
+          let(:link) { "reviewer" }
         end
       end
     end

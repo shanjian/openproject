@@ -67,13 +67,15 @@ module API
             end
 
             def checksum_associations
-              %i[status author responsible assigned_to version priority category type budget]
+              %i[status author responsible reviewer assigned_to version priority category type budget]
             end
 
             def md5_checksum_table_name(association_name)
               case association_name
               when :responsible
                 "responsibles_work_packages"
+              when :reviewer
+                "reviewers_work_packages"
               when :assigned_to
                 "assigned_tos_work_packages"
               else

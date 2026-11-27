@@ -34,6 +34,7 @@ require_relative "eager_loading_mock_wrapper"
 RSpec.describe API::V3::WorkPackages::EagerLoading::Checksum do
   let(:project) { create(:project) }
   let(:responsible) { create(:user) }
+  let(:reviewer) { create(:user) }
   let(:assignee) { create(:user) }
   let(:category) { create(:category) }
   let(:version) { create(:version) }
@@ -42,6 +43,7 @@ RSpec.describe API::V3::WorkPackages::EagerLoading::Checksum do
     create(:work_package,
            project:,
            responsible:,
+           reviewer:,
            assigned_to: assignee,
            budget:,
            version:,
@@ -117,6 +119,20 @@ RSpec.describe API::V3::WorkPackages::EagerLoading::Checksum do
 
     it "produces a different checksum on changes to the responsible" do
       work_package.responsible.update_attribute(:updated_at, 10.seconds.from_now)
+
+      expect(new_checksum)
+        .not_to eql orig_checksum
+    end
+
+    it "produces a different checksum on changes to the reviewer id" do
+      WorkPackage.where(id: work_package.id).update_all(reviewer_id: 0)
+
+      expect(new_checksum)
+        .not_to eql orig_checksum
+    end
+
+    it "produces a different checksum on changes to the reviewer" do
+      work_package.reviewer.update_attribute(:updated_at, 10.seconds.from_now)
 
       expect(new_checksum)
         .not_to eql orig_checksum

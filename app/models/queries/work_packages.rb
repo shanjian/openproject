@@ -47,6 +47,7 @@ module Queries::WorkPackages
     filter Filter::PriorityFilter
     filter Filter::ProjectFilter
     filter Filter::ResponsibleFilter
+    filter Filter::ReviewerFilter
     filter Filter::RoleFilter
     filter Filter::SharedWithUserFilter
     filter Filter::SharedWithMeFilter

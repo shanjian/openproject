@@ -66,6 +66,7 @@ export interface WorkPackageResourceEmbedded {
   project:HalResource|any;
   relations:CollectionResource;
   responsible:HalResource|any;
+  reviewer:HalResource|null;
   revisions:CollectionResource|any;
   status:StatusResource|any;
   timeEntries:HalResource[]|any[];

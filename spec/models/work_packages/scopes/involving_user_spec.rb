@@ -59,6 +59,23 @@ RSpec.describe WorkPackages::Scopes::InvolvingUser do
       .to contain_exactly(work_package_responsible1, work_package_responsible2)
   end
 
+  it "returns work packages for which a user is the reviewer" do
+    _work_package_blank = create(:work_package)
+    work_package_reviewer1 = create(:work_package, reviewer: user)
+    work_package_reviewer2 = create(:work_package, reviewer: user)
+
+    expect(WorkPackage.involving_user(user))
+      .to contain_exactly(work_package_reviewer1, work_package_reviewer2)
+  end
+
+  it "returns a work package only once if the user holds several roles on it" do
+    work_package = create(:work_package, assigned_to: user, responsible: user, reviewer: user)
+    create(:watcher, watchable: work_package, user:)
+
+    expect(WorkPackage.involving_user(user))
+      .to contain_exactly(work_package)
+  end
+
   it "returns work packages for which a user is a watcher" do
     _work_package_blank = create(:work_package)
     work_package_watched1 = create(:work_package)
@@ -87,6 +104,14 @@ RSpec.describe WorkPackages::Scopes::InvolvingUser do
 
       expect(WorkPackage.involving_user(user))
         .to contain_exactly(work_package_responsible)
+    end
+
+    it "returns work packages for which the group is the reviewer" do
+      _work_package_blank = create(:work_package)
+      work_package_reviewer = create(:work_package, reviewer: group)
+
+      expect(WorkPackage.involving_user(user))
+        .to contain_exactly(work_package_reviewer)
     end
   end
 end

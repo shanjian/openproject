@@ -122,6 +122,17 @@ See COPYRIGHT and LICENSE files for more details.
                   ) %>
             </div>
           </div>
+          <div class="form--field">
+            <%= styled_label_tag :work_package_reviewer_id, WorkPackage.human_attribute_name(:reviewer) %>
+            <div class="form--field-container">
+              <%= styled_select_tag(
+                    "work_package[reviewer_id]",
+                    content_tag("option", t(:label_nobody), value: "none") +
+                    options_from_collection_for_select(@reviewers, :id, :name),
+                    include_blank: t(:label_no_change_option)
+                  ) %>
+            </div>
+          </div>
           <% if @project %>
             <div class="form--field">
               <%= styled_label_tag :work_package_category_id, WorkPackage.human_attribute_name(:category) %>

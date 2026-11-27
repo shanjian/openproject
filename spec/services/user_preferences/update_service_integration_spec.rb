@@ -152,11 +152,11 @@ RSpec.describe UserPreferences::UpdateService, "integration", type: :model do
         expect(subject.first.project_id).to eq project.id
 
         expected_default_settings = {
-          NotificationSetting::START_DATE => 1,
-          NotificationSetting::DUE_DATE => 1,
+          NotificationSetting::START_DATE => 1, NotificationSetting::DUE_DATE => 1,
           NotificationSetting::OVERDUE => nil,
           NotificationSetting::ASSIGNEE => true,
           NotificationSetting::RESPONSIBLE => true,
+          NotificationSetting::REVIEWER => true,
           NotificationSetting::WATCHED => true,
           NotificationSetting::SHARED => true,
           # Opt-out semantics: meeting update/response mails stay on unless disabled explicitly

@@ -48,11 +48,12 @@ RSpec.describe Notifications::CreateFromModelService,
       project:,
       author: other_user,
       responsible: other_user,
+      reviewer: other_user,
       assigned_to: other_user,
       type: project.types.first
     }
 
-    if %i[responsible assigned_to].include?(user_property)
+    if %i[responsible reviewer assigned_to].include?(user_property)
       create(:work_package,
              **wp_attributes, user_property => recipient)
     elsif user_property == :watcher
@@ -300,6 +301,83 @@ RSpec.describe Notifications::CreateFromModelService,
           {
             read_ian: false,
             reason: :responsible,
+            mail_alert_sent: nil,
+            mail_reminder_sent: false
+          }
+        end
+      end
+    end
+  end
+
+  context "when user is reviewer" do
+    let(:user_property) { :reviewer }
+    let(:recipient_notification_settings) do
+      [
+        build(:notification_setting, **notification_settings_all_false, reviewer: true)
+      ]
+    end
+
+    it_behaves_like "creates notification" do
+      let(:notification_channel_reasons) do
+        {
+          read_ian: false,
+          reason: :reviewer,
+          mail_alert_sent: nil,
+          mail_reminder_sent: false
+        }
+      end
+    end
+
+    context "when reviewer has all notifications disabled" do
+      let(:recipient_notification_settings) do
+        [
+          build(:notification_setting, **notification_settings_all_false)
+        ]
+      end
+
+      it_behaves_like "creates no notification"
+    end
+
+    context "when reviewer is not allowed to view work packages" do
+      let(:permissions) { [] }
+
+      it_behaves_like "creates no notification"
+    end
+
+    context "when reviewer is placeholder user" do
+      let(:recipient) { create(:placeholder_user) }
+
+      it_behaves_like "creates no notification"
+    end
+
+    context "when reviewer has all notifications enabled but made the change himself" do
+      let(:recipient_notification_settings) do
+        [
+          build(:notification_setting, **notification_settings_all_true)
+        ]
+      end
+      let(:author) { recipient }
+
+      it_behaves_like "creates no notification"
+    end
+
+    context "when reviewer does not have access to internal journal" do
+      let(:author) { admin }
+      let(:journal) { journal_2_with_internal_comment }
+
+      it_behaves_like "creates no notification"
+    end
+
+    context "when reviewer has access to internal journal" do
+      let(:author) { admin }
+      let(:permissions) { %i[view_work_packages view_internal_comments] }
+      let(:journal) { journal_2_with_internal_comment }
+
+      it_behaves_like "creates notification" do
+        let(:notification_channel_reasons) do
+          {
+            read_ian: false,
+            reason: :reviewer,
             mail_alert_sent: nil,
             mail_reminder_sent: false
           }

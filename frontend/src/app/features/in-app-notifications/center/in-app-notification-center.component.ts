@@ -90,6 +90,10 @@ export class InAppNotificationCenterComponent implements OnInit {
       title: this.I18n.t('js.notifications.reasons.accountable'),
     },
     {
+      key: 'reviewer',
+      title: this.I18n.t('js.notifications.reasons.reviewer'),
+    },
+    {
       key: 'watched',
       title: this.I18n.t('js.notifications.reasons.watched'),
     },

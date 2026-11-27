@@ -1031,6 +1031,43 @@ RSpec.describe(
           end
         end
 
+        context "when work_package has a reviewer" do
+          let(:reviewer_user) do
+            create(:user,
+                   member_with_roles: { source => role })
+          end
+
+          before do
+            work_package.update_column(:reviewer_id, reviewer_user.id)
+          end
+
+          context "with the members being copied" do
+            let(:only_args) { %w[members work_packages] }
+
+            it "copies the reviewer" do
+              expect(subject).to be_success
+              expect(copy_of(work_package).reviewer).to eq(reviewer_user)
+              # The reviewer of the new work package receives a notification
+              expect { perform_enqueued_jobs }
+                .to change(Notification.where(recipient: reviewer_user), :count)
+                      .from(0)
+                      .to(1)
+            end
+          end
+
+          context "with the member being not copied" do
+            let(:only_args) { %w[work_packages] }
+
+            it "nils the reviewer" do
+              expect(subject).to be_success
+              expect(copy_of(work_package).reviewer).to be_nil
+              # No notification is sent out
+              expect { perform_enqueued_jobs }
+                .not_to change(Notification.where(recipient: reviewer_user), :count)
+            end
+          end
+        end
+
         describe "work package user custom field" do
           let(:custom_field) do
             create(:user_wp_custom_field).tap do |cf|

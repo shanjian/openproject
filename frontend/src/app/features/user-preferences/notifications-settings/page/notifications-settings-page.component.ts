@@ -17,6 +17,7 @@ export const myNotificationsPageComponentSelector = 'op-notifications-page';
 interface IToastSettingsValue {
   assignee:boolean;
   responsible:boolean;
+  reviewer:boolean;
   shared:boolean;
   workPackageCreated:boolean;
   workPackageProcessed:boolean;
@@ -65,6 +66,7 @@ export class NotificationsSettingsPageComponent extends UntilDestroyedMixin impl
   public form = new UntypedFormGroup({
     assignee: new UntypedFormControl(false),
     responsible: new UntypedFormControl(false),
+    reviewer: new UntypedFormControl(false),
     shared: new UntypedFormControl(false),
     workPackageCreated: new UntypedFormControl(false),
     workPackageProcessed: new UntypedFormControl(false),
@@ -120,6 +122,7 @@ export class NotificationsSettingsPageComponent extends UntilDestroyedMixin impl
     },
     assignee: this.I18n.t('js.notifications.settings.reasons.assignee'),
     responsible: this.I18n.t('js.notifications.settings.reasons.responsible'),
+    reviewer: this.I18n.t('js.notifications.settings.reasons.reviewer'),
     shared: this.I18n.t('js.notifications.settings.reasons.shared'),
     startDate: this.I18n.t('js.work_packages.properties.startDate'),
     dueDate: this.I18n.t('js.work_packages.properties.dueDate'),
@@ -179,6 +182,7 @@ export class NotificationsSettingsPageComponent extends UntilDestroyedMixin impl
 
         this.form.get('assignee')?.setValue(settings.assignee);
         this.form.get('responsible')?.setValue(settings.responsible);
+        this.form.get('reviewer')?.setValue(settings.reviewer);
         this.form.get('shared')?.setValue(settings.shared);
         this.form.get('workPackageCreated')?.setValue(settings.workPackageCreated);
         this.form.get('workPackageProcessed')?.setValue(settings.workPackageProcessed);
@@ -215,6 +219,7 @@ export class NotificationsSettingsPageComponent extends UntilDestroyedMixin impl
             project: new UntypedFormControl(setting._links.project),
             assignee: new UntypedFormControl(setting.assignee),
             responsible: new UntypedFormControl(setting.responsible),
+            reviewer: new UntypedFormControl(setting.reviewer),
             shared: new UntypedFormControl(setting.shared),
             workPackageCreated: new UntypedFormControl(setting.workPackageCreated),
             workPackageProcessed: new UntypedFormControl(setting.workPackageProcessed),
@@ -244,6 +249,7 @@ export class NotificationsSettingsPageComponent extends UntilDestroyedMixin impl
       mentioned: true,
       assignee: notificationSettings.assignee,
       responsible: notificationSettings.responsible,
+      reviewer: notificationSettings.reviewer,
       shared: notificationSettings.shared,
       workPackageCreated: notificationSettings.workPackageCreated,
       workPackageProcessed: notificationSettings.workPackageProcessed,
@@ -263,6 +269,7 @@ export class NotificationsSettingsPageComponent extends UntilDestroyedMixin impl
       mentioned: true,
       assignee: settings.assignee,
       responsible: settings.responsible,
+      reviewer: settings.reviewer,
       shared: settings.shared,
       workPackageCreated: settings.workPackageCreated,
       workPackageProcessed: settings.workPackageProcessed,
