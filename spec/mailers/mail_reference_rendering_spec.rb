@@ -29,11 +29,13 @@
 
 require "spec_helper"
 
-RSpec.describe "Mail rendering of work package references", # rubocop:disable RSpec/DescribeClass
-               with_settings: { work_packages_identifier: "classic" } do
+# Work package references are rendered the same way for everybody in this tree, so the references
+# used here point to a project, which is only expanded for people who may see it.
+RSpec.describe "Mail rendering of references", # rubocop:disable RSpec/DescribeClass
+               :aggregate_failures do
   shared_let(:view_role) { create(:project_role, permissions: %i[view_work_packages]) }
   shared_let(:shared_project) { create(:project, public: false, enabled_module_names: %w[news forums documents]) }
-  shared_let(:private_project) { create(:project, public: false) }
+  shared_let(:private_project) { create(:project, public: false, name: "Orchid private project") }
   shared_let(:author) do
     create(:user, member_with_roles: { shared_project => view_role, private_project => view_role })
   end
@@ -41,36 +43,23 @@ RSpec.describe "Mail rendering of work package references", # rubocop:disable RS
   shared_let(:visible_recipient) do
     create(:user, member_with_roles: { shared_project => view_role, private_project => view_role })
   end
-  shared_let(:referenced_type) { create(:type, name: "OrchidType") }
-  shared_let(:referenced_status) { create(:status, name: "OrchidStatus") }
-  shared_let(:referenced_work_package) do
-    create(:work_package,
-           project: private_project,
-           type: referenced_type,
-           status: referenced_status,
-           subject: "Orchid bridge subject")
-  end
 
-  let(:text) { "please review #{'###'}#{referenced_work_package.id}" }
+  let(:text) { "please look at project##{private_project.id}" }
 
   before { User.current = author }
 
   shared_examples "renders references as the recipient" do
-    it "keeps a bare reference and omits subject, type, and status the recipient cannot view" do
+    it "keeps a bare reference and omits the name of what the recipient cannot view" do
       body = mail_for(recipient).html_part.body.to_s
 
-      expect(body).to include("##{referenced_work_package.id}")
-      expect(body).not_to include(referenced_work_package.subject)
-      expect(body).not_to include(referenced_type.name)
-      expect(body).not_to include(referenced_status.name)
+      expect(body).to include("project##{private_project.id}")
+      expect(body).not_to include(private_project.name)
     end
 
-    it "expands subject, type, and status when the recipient can view the referenced work package" do
+    it "expands the reference when the recipient can view the referenced project" do
       body = mail_for(visible_recipient).html_part.body.to_s
 
-      expect(body).to include(referenced_work_package.subject)
-      expect(body).to include(referenced_type.name)
-      expect(body).to include(referenced_status.name)
+      expect(body).to include(private_project.name)
     end
   end
 
