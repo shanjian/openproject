@@ -119,7 +119,7 @@ RSpec.describe Queries::WorkPackages::Filter::ReviewerFilter do
         # The first value is guaranteed to be 'me'.
         # There is no order on the other values.
         expect(objects.map(&:id)[0]).to eql "me"
-        expect(objects.map(&:id)[1..-1]).to contain_exactly(reviewer.id, reviewer2.id)
+        expect(objects.map(&:id)[1..]).to contain_exactly(reviewer.id, reviewer2.id)
       end
     end
 
@@ -189,15 +189,10 @@ RSpec.describe Queries::WorkPackages::Filter::ReviewerFilter do
     let(:type) { :list_optional }
     let(:class_key) { :reviewer_id }
 
-    let(:user_1) { build_stubbed(:user) }
+    let(:user1) { build_stubbed(:user) }
 
     let(:principal_loader) do
-      loader = double("principal_loader")
-      allow(loader)
-        .to receive(:principal_values)
-        .and_return([])
-
-      loader
+      instance_double(Queries::WorkPackages::Filter::PrincipalLoader, principal_values: [])
     end
 
     before do
@@ -212,8 +207,8 @@ RSpec.describe Queries::WorkPackages::Filter::ReviewerFilter do
 
       before do
         allow(User)
-          .to receive_message_chain(:current, :logged?)
-          .and_return(logged_in)
+          .to receive(:current)
+          .and_return(instance_double(User, logged?: logged_in))
       end
 
       context "when being logged in" do
@@ -224,7 +219,7 @@ RSpec.describe Queries::WorkPackages::Filter::ReviewerFilter do
         it "is true if there is another user selectable" do
           allow(principal_loader)
             .to receive(:principal_values)
-            .and_return([nil, user_1.id.to_s])
+            .and_return([nil, user1.id.to_s])
 
           expect(instance).to be_available
         end
@@ -240,7 +235,7 @@ RSpec.describe Queries::WorkPackages::Filter::ReviewerFilter do
         it "is true if there is another user selectable" do
           allow(principal_loader)
             .to receive(:principal_values)
-            .and_return([[nil, user_1.id.to_s]])
+            .and_return([[nil, user1.id.to_s]])
 
           expect(instance).to be_available
         end
@@ -253,19 +248,19 @@ RSpec.describe Queries::WorkPackages::Filter::ReviewerFilter do
 
       before do
         allow(User)
-          .to receive_message_chain(:current, :logged?)
-          .and_return(logged_in)
+          .to receive(:current)
+          .and_return(instance_double(User, logged?: logged_in))
 
         allow(principal_loader)
           .to receive(:principal_values)
-          .and_return([[nil, user_1.id.to_s],
+          .and_return([[nil, user1.id.to_s],
                        [nil, group.id.to_s]])
       end
 
       context "when being logged in" do
         it "returns the me value, the available users, and groups" do
           expect(instance.allowed_values)
-            .to contain_exactly([I18n.t(:label_me), "me"], [nil, user_1.id.to_s], [nil, group.id.to_s])
+            .to contain_exactly([I18n.t(:label_me), "me"], [nil, user1.id.to_s], [nil, group.id.to_s])
         end
       end
 
@@ -274,7 +269,7 @@ RSpec.describe Queries::WorkPackages::Filter::ReviewerFilter do
 
         it "returns the available users" do
           expect(instance.allowed_values)
-            .to contain_exactly([nil, user_1.id.to_s], [nil, group.id.to_s])
+            .to contain_exactly([nil, user1.id.to_s], [nil, group.id.to_s])
         end
       end
     end

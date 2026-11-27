@@ -34,23 +34,17 @@ RSpec.describe CustomActions::Actions::Reviewer do
   let(:key) { :reviewer }
   let(:type) { :user }
   let(:allowed_values) do
-    principals = [build_stubbed(:user),
-                  build_stubbed(:group)]
-
-    allow(User)
-      .to receive_message_chain(:not_locked, :select, :select_for_name, :ordered_by_name)
-            .and_return(principals)
+    user = create(:user)
 
     [{ value: nil, label: "-" },
      { value: "current_user", label: "(Assign to executing user)" },
-     { value: principals.first.id, label: principals.first.name },
-     { value: principals.last.id, label: principals.last.name }]
+     { value: user.id, label: user.name }]
   end
 
   it_behaves_like "base custom action"
   it_behaves_like "associated custom action" do
     describe "#allowed_values" do
-      it "is the list of all users and groups" do
+      it "is the list of all users" do
         allowed_values
 
         expect(instance.allowed_values)
