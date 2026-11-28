@@ -43,7 +43,7 @@ export interface DateEnvelope {
  * an epic reads as the head of its work instead of as a sibling of it.
  *
  * The rule is deliberately narrow (see
- * docs/development/epic-hierarchy-display-design.md):
+ * new_docs/development/epic-hierarchy-display-design.md):
  *
  * - A real parent always wins, so no displayed edge ever contradicts the stored
  *   hierarchy. "Has a real parent" is read from the `hasParent` property, not

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Ruby 3.4.7 / Rails 8.0.3, RSpec, the `icalendar` gem (`Icalendar::Calendar`/`Icalendar::Values::DateTime`), PostgreSQL.
 
-**Spec:** `docs/superpowers/specs/2026-08-14-meeting-batch2-calendar-timezone-scope-design.md` (Part 1, §1a–§1d). This plan implements only Part 1 — R8/R9 need no work (already shipped), Parts 2 (R11 timezone) and 3 (R12 scope) get their own plans after this one merges, per the spec's own "one PR per part" sequencing.
+**Spec:** `new_docs/superpowers/specs/2026-08-14-meeting-batch2-calendar-timezone-scope-design.md` (Part 1, §1a–§1d). This plan implements only Part 1 — R8/R9 need no work (already shipped), Parts 2 (R11 timezone) and 3 (R12 scope) get their own plans after this one merges, per the spec's own "one PR per part" sequencing.
 
 ## Global Constraints
 
@@ -863,7 +863,7 @@ Expected: no offenses.
 git push -u origin <branch-name>
 gh pr create --base epic --title "Fix meeting calendar subscription feed defects (R10)" --body "$(cat <<'EOF'
 ## Summary
-- Fixes three reported calendar-subscription-feed defects (docs/superpowers/specs/2026-08-14-meeting-batch2-calendar-timezone-scope-design.md, Part 1): stale SEQUENCE on schedule-only series edits, ended series still projecting future occurrences, and a 6-hour refresh interval.
+- Fixes three reported calendar-subscription-feed defects (new_docs/superpowers/specs/2026-08-14-meeting-batch2-calendar-timezone-scope-design.md, Part 1): stale SEQUENCE on schedule-only series edits, ended series still projecting future occurrences, and a 6-hour refresh interval.
 - Adds recurring_meetings.lock_version so the series master's SEQUENCE can reflect schedule-only changes, not just template edits.
 - Adds IcalendarBuilder#add_ended_series_history: renders an ended series' past occurrences as standalone VEVENTs plus a CANCELLED tombstone for the old series UID, self-guarded inside add_series_event so both the subscription feed and the email-attachment path get the fix.
 - Fixes a related occurrence-level bug: bulk title-sync used update_column, which never bumped lock_version/updated_at, making the change invisible to subscribed calendar clients.

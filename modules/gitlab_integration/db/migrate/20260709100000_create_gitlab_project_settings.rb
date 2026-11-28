@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Per-project mapping to a GitLab project, used when creating branches from a
-# work package. See GITLAB_CREATE_BRANCH_DESIGN.md §2.2.
+# work package. See new_docs/GITLAB_CREATE_BRANCH_DESIGN.md §2.2.
 class CreateGitlabProjectSettings < ActiveRecord::Migration[8.0]
   def change
     create_table :gitlab_project_settings do |t|

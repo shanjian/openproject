@@ -31,7 +31,7 @@
 module GitlabIntegration
   # Thin wrapper around the GitLab REST API (v4) for the outbound calls this
   # integration needs. The base URL is the single instance-wide host configured
-  # in the plugin settings (see GITLAB_CREATE_BRANCH_DESIGN.md §2.1), never a
+  # in the plugin settings (see new_docs/GITLAB_CREATE_BRANCH_DESIGN.md §2.1), never a
   # caller-supplied value, which bounds the SSRF surface.
   class APIClient
     # Normalized response so callers don't depend on HTTPX internals.

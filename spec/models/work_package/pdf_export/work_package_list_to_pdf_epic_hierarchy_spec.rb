@@ -32,7 +32,7 @@ require "spec_helper"
 
 # The exported tree must nest the same way the screen does, so a PDF of an
 # epic-filtered view does not silently flatten what the Gantt showed nested.
-# See docs/development/epic-hierarchy-display-design.md.
+# See new_docs/development/epic-hierarchy-display-design.md.
 RSpec.describe WorkPackage::PDFExport::WorkPackageListToPdf do
   shared_let(:epic_type) { create(:type, name: "Epic") }
   shared_let(:task_type) { create(:type, name: "Task") }

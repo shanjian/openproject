@@ -44,15 +44,15 @@ tracked separately and only consume the API described here.
 
 | Concern | Where | Notes |
 |---|---|---|
-| Attachment storage (local) | [local_file_uploader.rb:48](app/uploaders/local_file_uploader.rb#L48) | `store_dir = attachments_storage_path/<model>/file/<id>` |
-| Local disk path of original | [attachment.rb](app/models/attachment.rb) `#diskfile` | returns the on-disk `File` |
-| Inline serving + disposition | [attachment.rb:112](app/models/attachment.rb#L112), [attachment.rb:144](app/models/attachment.rb#L144) | images/video/pdf/text → `Content-Disposition: inline` |
-| Content endpoint | [attachments_api.rb:63](lib/api/v3/attachments/attachments_api.rb#L63), [attachment_renderer.rb](lib/api/helpers/attachment_renderer.rb) | `namespace :content`, `sendfile diskfile.path` |
-| HAL links | [attachment_representer.rb:75](lib/api/v3/attachments/attachment_representer.rb#L75) | `staticDownloadLocation`, `downloadLocation`, `delete` |
-| Type predicates | [attachment.rb:153](app/models/attachment.rb#L153) | `is_image?`, `is_movie?`, `is_pdf?`, `is_text?` |
-| Post-upload async hook | [attachment.rb:75](app/models/attachment.rb#L75), [attachment.rb:270](app/models/attachment.rb#L270) | `after_commit :enqueue_jobs, on: :create` → `ExtractFulltextJob`, `VirusScanJob` |
-| Backfill precedent | [attachments.rake:110](lib/tasks/attachments.rake#L110) | `extract_fulltext_where_missing` |
-| Image tooling | [Gemfile:216](Gemfile#L216) | `mini_magick ~> 5.3` already present |
+| Attachment storage (local) | [local_file_uploader.rb:48](../app/uploaders/local_file_uploader.rb#L48) | `store_dir = attachments_storage_path/<model>/file/<id>` |
+| Local disk path of original | [attachment.rb](../app/models/attachment.rb) `#diskfile` | returns the on-disk `File` |
+| Inline serving + disposition | [attachment.rb:112](../app/models/attachment.rb#L112), [attachment.rb:144](../app/models/attachment.rb#L144) | images/video/pdf/text → `Content-Disposition: inline` |
+| Content endpoint | [attachments_api.rb:63](../lib/api/v3/attachments/attachments_api.rb#L63), [attachment_renderer.rb](../lib/api/helpers/attachment_renderer.rb) | `namespace :content`, `sendfile diskfile.path` |
+| HAL links | [attachment_representer.rb:75](../lib/api/v3/attachments/attachment_representer.rb#L75) | `staticDownloadLocation`, `downloadLocation`, `delete` |
+| Type predicates | [attachment.rb:153](../app/models/attachment.rb#L153) | `is_image?`, `is_movie?`, `is_pdf?`, `is_text?` |
+| Post-upload async hook | [attachment.rb:75](../app/models/attachment.rb#L75), [attachment.rb:270](../app/models/attachment.rb#L270) | `after_commit :enqueue_jobs, on: :create` → `ExtractFulltextJob`, `VirusScanJob` |
+| Backfill precedent | [attachments.rake:110](../lib/tasks/attachments.rake#L110) | `extract_fulltext_where_missing` |
+| Image tooling | [Gemfile:216](../Gemfile#L216) | `mini_magick ~> 5.3` already present |
 
 **Key facts that shape the design**
 - Attachments are CarrierWave-mounted (`mount_uploader :file`), **not**
@@ -175,7 +175,7 @@ runtime-detected** capability — never a hard build/runtime dependency:
 
 Mirror the existing fulltext pipeline:
 
-- Extend `Attachment#enqueue_jobs` ([attachment.rb:270](app/models/attachment.rb#L270))
+- Extend `Attachment#enqueue_jobs` ([attachment.rb:270](../app/models/attachment.rb#L270))
   to also enqueue `Attachments::GenerateThumbnailJob.perform_later(id)` when the
   attachment `thumbnailable?` (new predicate: `is_image?` or
   (`is_movie?` and ffmpeg available)).
@@ -188,12 +188,12 @@ Mirror the existing fulltext pipeline:
   `thumbnail_path(variant:)`, `generate_thumbnail!(variant:)`.
 - New rake task `attachments:generate_thumbnails_where_missing` for bulk
   backfill, modeled on `extract_fulltext_where_missing`
-  ([attachments.rake:110](lib/tasks/attachments.rake#L110)).
+  ([attachments.rake:110](../lib/tasks/attachments.rake#L110)).
 
 **Virus-scan / quarantine gating:** generation must not run on, and the endpoint
 must never serve, a thumbnail for an attachment that is `status_quarantined?` or
 `pending_virus_scan?`. Reuse the same checks as `validate_attachment_access!`
-([attachment_renderer.rb:71](lib/api/helpers/attachment_renderer.rb#L71)).
+([attachment_renderer.rb:71](../lib/api/helpers/attachment_renderer.rb#L71)).
 
 ---
 
@@ -202,7 +202,7 @@ must never serve, a thumbnail for an attachment that is `status_quarantined?` or
 ### 8.1 New endpoint
 
 Add a `:thumbnail` namespace alongside `:content` in
-[attachments_api.rb:63](lib/api/v3/attachments/attachments_api.rb#L63), inside
+[attachments_api.rb:63](../lib/api/v3/attachments/attachments_api.rb#L63), inside
 the existing `route_param :id` block (so it inherits the visibility
 `after_validation`):
 
@@ -230,7 +230,7 @@ parallel helper (e.g. `respond_with_thumbnail`) or a parameterization of
 
 ### 8.2 New HAL link
 
-Add to [attachment_representer.rb](lib/api/v3/attachments/attachment_representer.rb),
+Add to [attachment_representer.rb](../lib/api/v3/attachments/attachment_representer.rb),
 rendered **only when a thumbnail is applicable** so the client can branch
 cleanly:
 

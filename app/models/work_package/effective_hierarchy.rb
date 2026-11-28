@@ -35,7 +35,7 @@
 # of it.
 #
 # The rule is deliberately narrow (see
-# docs/development/epic-hierarchy-display-design.md):
+# new_docs/development/epic-hierarchy-display-design.md):
 #
 # * a real parent always wins, so no display edge ever contradicts the stored
 #   hierarchy, and an invisible-but-existing parent still suppresses adoption;

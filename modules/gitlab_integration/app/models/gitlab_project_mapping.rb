@@ -30,7 +30,7 @@
 
 # Maps an OpenProject project to a GitLab project so branches can be created
 # from work packages. A project may have several mappings (one per GitLab
-# repository). See GITLAB_CREATE_BRANCH_DESIGN.md §10.
+# repository). See new_docs/GITLAB_CREATE_BRANCH_DESIGN.md §10.
 class GitlabProjectMapping < ApplicationRecord
   belongs_to :project
 

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Ruby 3.4.7 / Rails 8.0.3, RSpec (`type: :model`, `type: :rails_request`), `ActiveSupport::TimeZone`, Primer::Forms DSL (`select_list`), Stimulus (TypeScript).
 
-**Spec:** `docs/superpowers/specs/2026-08-14-meeting-batch2-calendar-timezone-scope-design.md` (Part 2 — R11, lines 282–391). Kickoff/orientation note: `docs/superpowers/2026-08-15-r11-timezone-session-kickoff.md`.
+**Spec:** `new_docs/superpowers/specs/2026-08-14-meeting-batch2-calendar-timezone-scope-design.md` (Part 2 — R11, lines 282–391). Kickoff/orientation note: `new_docs/superpowers/2026-08-15-r11-timezone-session-kickoff.md`.
 
 ## Scope note — two additions beyond the kickoff's literal file list
 

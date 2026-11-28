@@ -45,7 +45,7 @@ module Attachments
   #   :unsupported — the source can't/shouldn't be thumbnailed (e.g. oversized)
   #   :error       — generation was attempted and failed (logged)
   #
-  # See attachment_thumbnail_design.md §5.
+  # See new_docs/attachment_thumbnail_design.md §5.
   class ThumbnailGenerator
     # Bounding box (px) for the single "card" variant shipped in v1.
     BOUNDING_BOX = 240

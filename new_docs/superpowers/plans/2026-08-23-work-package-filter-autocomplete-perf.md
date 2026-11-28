@@ -10,7 +10,7 @@
 
 **Tech Stack:** Angular/TypeScript (frontend), Ruby/Rails + RSpec (backend), PostgreSQL migration.
 
-**Spec:** `docs/superpowers/specs/2026-08-23-work-package-filter-autocomplete-perf-design.md`
+**Spec:** `new_docs/superpowers/specs/2026-08-23-work-package-filter-autocomplete-perf-design.md`
 
 ## Global Constraints
 

@@ -519,7 +519,7 @@ specced as such.
 | The "AI assistant" label in the comment header | `app/components/work_packages/activities_tab/journals/item_component.{rb,html.erb}` |
 | OAuth consent wording | `config/locales/en.yml` (`oauth.scopes.mcp_text`) |
 | The "Modifies data" badge on the admin tool table | `app/components/mcp_configurations/edit_row_component.rb`, `config/locales/en.yml` |
-| Docs | `docs/features/MCP_FEATURE_GUIDE.md`, `docs/system-admin-guide/integrations/mcp-server/README.md`, `docs/development/mcp-upstream-backlog.md` |
+| Docs | `new_docs/features/MCP_FEATURE_GUIDE.md`, `docs/system-admin-guide/integrations/mcp-server/README.md`, `new_docs/development/mcp-upstream-backlog.md` |
 
 **Specs: about 400 new examples**, written before the code they cover, in these files:
 

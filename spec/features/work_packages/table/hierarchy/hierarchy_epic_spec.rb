@@ -33,7 +33,7 @@ require "spec_helper"
 # An epic is not the parent of the work packages that link it, so the table used
 # to show an epic's work but never the epic above it. The table displays a work
 # package with no parent under the epic it links, which is scoped to the rows on
-# the page. See docs/development/epic-hierarchy-display-design.md.
+# the page. See new_docs/development/epic-hierarchy-display-design.md.
 RSpec.describe "Work package table hierarchy with epic links", :js do
   shared_let(:epic_type) { create(:type, name: "Epic") }
   shared_let(:task_type) { create(:type, name: "Task") }

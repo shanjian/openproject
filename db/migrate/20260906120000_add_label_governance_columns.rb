@@ -28,7 +28,7 @@
 # See COPYRIGHT and LICENSE files for more details.
 #++
 
-# Phase 1 of two-tier label governance (docs/development/label-governance-design.md).
+# Phase 1 of two-tier label governance (new_docs/development/label-governance-design.md).
 #
 # Adds ownership to custom options and a label prefix to projects, plus the two custom field
 # settings that gate the feature. Everything ships dark: allow_project_values defaults to

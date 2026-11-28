@@ -16,7 +16,7 @@
 - **`only: %w(WorkPackage)`.** Do not add `Project` or other entities — out of scope for this iteration.
 - **No EE dependency.** Do not set `enterprise_feature:` on the format registration, and do not gate anything behind `EnterpriseToken`.
 - **Optional field.** Do not make any Objective/KR-specific requiredness assumption in this plan — that's an admin-configuration decision made when the field is activated on a type, not something this plan hard-codes.
-- Source of truth for every design decision below: `docs/superpowers/specs/2026-08-10-department-custom-field-design.md`.
+- Source of truth for every design decision below: `new_docs/superpowers/specs/2026-08-10-department-custom-field-design.md`.
 
 ---
 

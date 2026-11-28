@@ -30,7 +30,7 @@
 # are unsupported or have already failed.
 #
 # Values: nil (not yet considered / non-thumbnailable), "pending", "ready",
-# "unsupported", "error". See attachment_thumbnail_design.md §10.
+# "unsupported", "error". See new_docs/attachment_thumbnail_design.md §10.
 class AddThumbnailStatusToAttachments < ActiveRecord::Migration[8.1]
   def change
     add_column :attachments, :thumbnail_status, :string, null: true, default: nil

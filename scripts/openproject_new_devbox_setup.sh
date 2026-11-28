@@ -2,7 +2,7 @@
 #
 # Bootstrap a fresh Ubuntu VM for OpenProject local (non-Docker) development,
 # mirroring the toolchain documented in
-# docs/development/development-environment/linux/SETUP_RUNBOOK_FROM_AGENT.md
+# new_docs/development/development-environment/linux/SETUP_RUNBOOK_FROM_AGENT.md
 #
 # Usage:
 #   1. Copy this file to the new VM (scp, curl, or paste).
@@ -130,11 +130,11 @@ Default seeded login: admin / admin
 
 Rails app:    http://localhost:5000
 Frontend dev: http://localhost:4200 (must also be reachable — see
-              docs/development/development-environment/linux/SETUP_RUNBOOK_FROM_AGENT.md
+              new_docs/development/development-environment/linux/SETUP_RUNBOOK_FROM_AGENT.md
               section 11 for SSH port forwarding)
 
 If you hit issues, check
-docs/development/development-environment/linux/SETUP_RUNBOOK_FROM_AGENT.md —
+new_docs/development/development-environment/linux/SETUP_RUNBOOK_FROM_AGENT.md —
 it documents the traps we hit (missing database.yml, rbenv not loaded in
 non-interactive shells, missing foreman, hocuspocus secret, 2FA popping up
 locally, etc).

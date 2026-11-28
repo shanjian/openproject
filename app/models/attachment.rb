@@ -181,7 +181,7 @@ class Attachment < ApplicationRecord
   # rubocop:enable Naming/PredicateName
 
   # The single thumbnail variant shipped in v1: a ~240px WebP for list/grid views.
-  # See attachment_thumbnail_design.md §4.
+  # See new_docs/attachment_thumbnail_design.md §4.
   DEFAULT_THUMBNAIL_VARIANT = :card
 
   ##

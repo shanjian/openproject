@@ -11,8 +11,8 @@ with a preview of exactly what will be created before anything is
 written.
 
 The driving use case is quarterly OKR planning (see
-`docs/customization/Company OKR Framework.md` and
-`docs/customization/Department and Team OKR Process.md`), where each
+`new_docs/customization/Company OKR Framework.md` and
+`new_docs/customization/Department and Team OKR Process.md`), where each
 quarter departments hand in Objectives and Key Results and someone has
 to key them into the `Company OKRs` project one work package at a time.
 A quarter's worth of OKRs is 3–5 Objectives per department, 2–5 Key

@@ -708,9 +708,9 @@ Follow `extra/backup/RESTORE.md` against a disposable VM using the artifacts fro
 
 - [ ] **Step 6: Record the verification outcome**
 
-Update the spec's "Testing / verification" section (`docs/superpowers/specs/2026-08-09-prod-backup-design.md`) with the date this was verified and on what host/version, then commit:
+Update the spec's "Testing / verification" section (`new_docs/superpowers/specs/2026-08-09-prod-backup-design.md`) with the date this was verified and on what host/version, then commit:
 
 ```bash
-git add docs/superpowers/specs/2026-08-09-prod-backup-design.md
+git add new_docs/superpowers/specs/2026-08-09-prod-backup-design.md
 git commit -m "docs(backup): record end-to-end verification"
 ```

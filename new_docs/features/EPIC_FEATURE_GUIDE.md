@@ -69,7 +69,7 @@ The Epic link is exposed in the API v3 as a linked resource, `epic` (similar to 
 
 - **Unlink** by sending `"epic": { "href": null }`.
 
-See `docs/development/epic-link-api-import.md` for the full import notes.
+See `new_docs/development/epic-link-api-import.md` for the full import notes.
 
 ---
 

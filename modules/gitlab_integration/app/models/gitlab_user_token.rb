@@ -36,7 +36,7 @@
 # application's `secret_key_base` (which is always present). This deliberately
 # does NOT use Redmine::Ciphering, because that falls back to plaintext when no
 # database cipher key is configured. The token is never exposed to the frontend.
-# See GITLAB_CREATE_BRANCH_DESIGN.md §2.3.
+# See new_docs/GITLAB_CREATE_BRANCH_DESIGN.md §2.3.
 class GitlabUserToken < ApplicationRecord
   ENCRYPTOR_PURPOSE = "gitlab_integration/user_token"
 

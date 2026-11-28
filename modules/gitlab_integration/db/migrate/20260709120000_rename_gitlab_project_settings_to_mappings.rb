@@ -4,7 +4,7 @@
 # rename the table, add an optional friendly `name`, and replace the unique
 # index on project_id with a composite unique index so a project can map to
 # several GitLab projects (but not the same one twice).
-# See GITLAB_CREATE_BRANCH_DESIGN.md §10.
+# See new_docs/GITLAB_CREATE_BRANCH_DESIGN.md §10.
 class RenameGitlabProjectSettingsToMappings < ActiveRecord::Migration[8.0]
   def up
     rename_table :gitlab_project_settings, :gitlab_project_mappings
