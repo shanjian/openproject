@@ -44,7 +44,7 @@ module OpenProject::GitlabIntegration
     # `gitlab_base_url` is the single GitLab instance every outbound request is
     # allowed to target. Keeping the host here (and NOT in per-project or
     # per-user config) bounds the SSRF surface: requests can only ever hit this
-    # host. See GITLAB_CREATE_BRANCH_DESIGN.md §2.1.
+    # host. See new_docs/GITLAB_CREATE_BRANCH_DESIGN.md §2.1.
     def self.settings
       {
         default: {
@@ -103,7 +103,7 @@ module OpenProject::GitlabIntegration
 
       # Per-user GitLab Personal Access Token, kept in a self-contained "My
       # account" page (mirrors the avatars module) to minimise coupling to the
-      # upstream access-tokens page. See GITLAB_CREATE_BRANCH_DESIGN.md §2.3.
+      # upstream access-tokens page. See new_docs/GITLAB_CREATE_BRANCH_DESIGN.md §2.3.
       add_menu_item :my_menu,
                     :gitlab_token,
                     { controller: "/gitlab_integration/my_gitlab_token", action: :show },

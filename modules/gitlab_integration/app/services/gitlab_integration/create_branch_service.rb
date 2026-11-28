@@ -31,7 +31,7 @@
 module GitlabIntegration
   # Creates a branch in the GitLab project mapped to a work package's project,
   # named after the work package, using the acting user's Personal Access Token.
-  # See GITLAB_CREATE_BRANCH_DESIGN.md §3.
+  # See new_docs/GITLAB_CREATE_BRANCH_DESIGN.md §3.
   class CreateBranchService
     # Mirrored by GitActionsService.MAX_BRANCH_NAME_LENGTH, which trims the title
     # slug so a long work package subject stays within it.

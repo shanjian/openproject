@@ -16,17 +16,17 @@ OpenProject's `Version` is functionally Jira's "Fix Version":
 
 | Concern | Where it lives today | State |
 | :--- | :--- | :--- |
-| Version model (`name`, `description`, `status`, `start_date`, `effective_date`, `sharing`, `wiki_page_title`, custom fields) | [app/models/version.rb](app/models/version.rb) | Complete |
-| Status enum `open` / `locked` / `closed` | [version.rb:39](app/models/version.rb#L39) (`VERSION_STATUSES`) | Complete |
-| Cross-project sharing `none/descendants/hierarchy/tree/system` | [app/models/versions/project_sharing.rb](app/models/versions/project_sharing.rb) | Complete |
-| Work-package link (single `version_id`) | [work_package.rb:61](app/models/work_package.rb#L61) | Complete |
-| Roadmap / overview UI (progress %, open/closed counts) | [app/controllers/versions_controller.rb](app/controllers/versions_controller.rb), [app/views/versions/](app/views/versions/) | Complete |
-| Project settings CRUD | [app/views/projects/settings/versions/show.html.erb](app/views/projects/settings/versions/show.html.erb) | Complete |
-| REST API v3 (CRUD + forms + available_in_projects) | [lib/api/v3/versions/](lib/api/v3/versions/) | Complete |
-| Services / contracts (`BaseServices` pattern) | [app/services/versions/](app/services/versions/), [app/contracts/versions/](app/contracts/versions/) | Complete |
-| Query filters (versions + WP-by-version) | [app/models/queries/versions/filters/](app/models/queries/versions/filters/), [app/models/queries/work_packages/filter/version_filter.rb](app/models/queries/work_packages/filter/version_filter.rb) | Complete |
-| Permission `:manage_versions` | [config/initializers/permissions.rb:228](config/initializers/permissions.rb#L228) | Complete |
-| Custom field of **format `version`** on work packages (single or multi-value) | [config/initializers/custom_field_format.rb:72](config/initializers/custom_field_format.rb#L72), [app/models/custom_value/version_strategy.rb](app/models/custom_value/version_strategy.rb) | Complete |
+| Version model (`name`, `description`, `status`, `start_date`, `effective_date`, `sharing`, `wiki_page_title`, custom fields) | [app/models/version.rb](../app/models/version.rb) | Complete |
+| Status enum `open` / `locked` / `closed` | [version.rb:39](../app/models/version.rb#L39) (`VERSION_STATUSES`) | Complete |
+| Cross-project sharing `none/descendants/hierarchy/tree/system` | [app/models/versions/project_sharing.rb](../app/models/versions/project_sharing.rb) | Complete |
+| Work-package link (single `version_id`) | [work_package.rb:61](../app/models/work_package.rb#L61) | Complete |
+| Roadmap / overview UI (progress %, open/closed counts) | [app/controllers/versions_controller.rb](../app/controllers/versions_controller.rb), [app/views/versions/](../app/views/versions/) | Complete |
+| Project settings CRUD | [app/views/projects/settings/versions/show.html.erb](../app/views/projects/settings/versions/show.html.erb) | Complete |
+| REST API v3 (CRUD + forms + available_in_projects) | [lib/api/v3/versions/](../lib/api/v3/versions/) | Complete |
+| Services / contracts (`BaseServices` pattern) | [app/services/versions/](../app/services/versions/), [app/contracts/versions/](../app/contracts/versions/) | Complete |
+| Query filters (versions + WP-by-version) | [app/models/queries/versions/filters/](../app/models/queries/versions/filters/), [app/models/queries/work_packages/filter/version_filter.rb](../app/models/queries/work_packages/filter/version_filter.rb) | Complete |
+| Permission `:manage_versions` | [config/initializers/permissions.rb:228](../config/initializers/permissions.rb#L228) | Complete |
+| Custom field of **format `version`** on work packages (single or multi-value) | [config/initializers/custom_field_format.rb:72](../config/initializers/custom_field_format.rb#L72), [app/models/custom_value/version_strategy.rb](../app/models/custom_value/version_strategy.rb) | Complete |
 
 ### 0.2 The local constraint: `version_id` is already "Sprint"
 This deployment uses the native `version_id` (and the Backlogs module's `Sprint < Version`)
@@ -37,7 +37,7 @@ as **Sprint**. Therefore:
 
 ### 0.3 Relationship to the in-flight `Agile::Sprint` refactor
 The repo contains an early refactor moving Sprint to a first-class model
-([agile/sprint.rb](modules/backlogs/app/models/agile/sprint.rb), `sprints` table,
+([agile/sprint.rb](../modules/backlogs/app/models/agile/sprint.rb), `sprints` table,
 `sprint_id` on work packages, migrations dated 2026-02-02). It has model + services +
 contracts + journaling + taskboard drag-drop, **but** sharing/visibility is stubbed
 (`scope :visible, -> { all }`, TODO #71374/#71253), and it has **no API and no management UI**.
@@ -102,7 +102,7 @@ add_index  :versions, :kind
 - *(Optional, for upstream/vanilla compatibility: a third `generic` value could be added
   later. Not used in this deployment.)*
 
-Model changes in [app/models/version.rb](app/models/version.rb):
+Model changes in [app/models/version.rb](../app/models/version.rb):
 ```ruby
 VERSION_KINDS = %w(sprint release).freeze
 validates :kind, inclusion: { in: VERSION_KINDS }
@@ -115,7 +115,7 @@ def sprint?  = kind == "sprint"
 
 > **Name uniqueness is unchanged.** Names stay globally unique within a project across all
 > kinds — the existing model validation (`uniqueness: { scope: [:project_id] }`,
-> [version.rb:42](app/models/version.rb#L42)) and DB index
+> [version.rb:42](../app/models/version.rb#L42)) and DB index
 > `index_versions_on_project_id_and_LOWER_name` on `(project_id, LOWER(name))` are kept as-is.
 > Separation between Releases and Sprints is enforced at selection time (§1.4), not via names.
 
@@ -129,14 +129,14 @@ badges. **No** Jira-style relabeling (`Unreleased`/`Released`/`Archived`) and **
 A **`WorkPackageCustomField` of `field_format: "version"`**, seeded/admin-created as
 "Release":
 
-- Selectable values resolve through [custom_field.rb:460 `deduce_versions`](app/models/custom_field.rb#L460),
+- Selectable values resolve through [custom_field.rb:460 `deduce_versions`](../app/models/custom_field.rb#L460),
   which today returns `project.shared_versions`. **Add scoping by `kind`** so the Release
   field offers only `kind = release` versions (see §1.4).
 - **`multi_value = true`** (D1) — a work package may reference many releases.
-- `allow_non_open_versions` ([custom_field.rb:366](app/models/custom_field.rb#L366)) controls
+- `allow_non_open_versions` ([custom_field.rb:366](../app/models/custom_field.rb#L366)) controls
   whether closed/released versions remain selectable.
 - Automatically integrates with WP detail panel, API custom-field values, and query filters
-  ([custom_field_filter.rb:97](app/models/queries/filters/shared/custom_field_filter.rb#L97)
+  ([custom_field_filter.rb:97](../app/models/queries/filters/shared/custom_field_filter.rb#L97)
   maps `version` → `ListOptional`).
 
 ### 1.4 Scoping the Release CF to `kind = release`
@@ -168,9 +168,9 @@ Sprint/Version side must be scoped to `kind = sprint` (i.e. exclude `kind = rele
 - **Native version selectors:** the WP `version_id` field options come from
   `project.shared_versions`. Scope these to `.sprints` where the field is presented as
   Sprint/Version (WP detail, bulk edit, version filter
-  [version_filter.rb](app/models/queries/work_packages/filter/version_filter.rb)).
-- **Project version settings + roadmap** ([versions_controller.rb](app/controllers/versions_controller.rb),
-  [projects/settings/versions](app/views/projects/settings/versions/show.html.erb)): list
+  [version_filter.rb](../app/models/queries/work_packages/filter/version_filter.rb)).
+- **Project version settings + roadmap** ([versions_controller.rb](../app/controllers/versions_controller.rb),
+  [projects/settings/versions](../app/views/projects/settings/versions/show.html.erb)): list
   `Version.sprints` so releases don't show up on the existing Versions screen (they live on
   the new Releases screen, §2.1).
 - **Backlogs:** `Sprint < Version` / `VersionSetting` queries should likewise be `.sprints`-scoped.
@@ -186,19 +186,19 @@ Sprint/Version side must be scoped to `kind = sprint` (i.e. exclude `kind = rele
 Reuse the existing Version settings + roadmap, filtered to `kind = release`:
 
 - **Entry point:** new "Releases" item in the project sidebar/settings, rendering the
-  existing versions table component ([app/components/versions/table_component.rb](app/components/versions/table_component.rb))
+  existing versions table component ([app/components/versions/table_component.rb](../app/components/versions/table_component.rb))
   scoped to `Version.releases`. Sprint/generic versions stay in their current screens.
-- **Create/Edit form:** reuse [app/forms/versions/form.rb](app/forms/versions/form.rb); set
+- **Create/Edit form:** reuse [app/forms/versions/form.rb](../app/forms/versions/form.rb); set
   `kind = release` on create from this screen; expose `name`, `start_date`,
   `effective_date` (Release date), `description`, `sharing`, `wiki_page_title`.
 - **Table:** reuse existing columns (name, status badge, progress, dates, actions). Map
   status labels per §1.2. Actions: Edit, **Release** (when `open`), Delete (§3).
 
 ### 2.2 Release hub page (readiness dashboard — in scope)
-Extend the existing version `show` ([versions_controller#show](app/controllers/versions_controller.rb),
-[app/views/versions/show.html.erb](app/views/versions/show.html.erb)), which already computes
+Extend the existing version `show` ([versions_controller#show](../app/controllers/versions_controller.rb),
+[app/views/versions/show.html.erb](../app/views/versions/show.html.erb)), which already computes
 `completed_percent`, `closed_percent`, `open_issues_count`, `closed_issues_count`
-([version.rb:115-162](app/models/version.rb#L115)). Add:
+([version.rb:115-162](../app/models/version.rb#L115)). Add:
 
 - **Progress bar** by issue count (exists) and optionally by story points
   (Backlogs already tracks `story_points`; reuse if Backlogs enabled).
@@ -221,8 +221,8 @@ Extend the existing version `show` ([versions_controller#show](app/controllers/v
 
 ### 3.1 "Release" action with roll-forward (net-new)
 Implement as a dedicated service, mirroring the existing `Versions::UpdateService`
-([app/services/versions/update_service.rb](app/services/versions/update_service.rb)) and the
-existing bulk `close_completed` action in [versions_controller.rb](app/controllers/versions_controller.rb).
+([app/services/versions/update_service.rb](../app/services/versions/update_service.rb)) and the
+existing bulk `close_completed` action in [versions_controller.rb](../app/controllers/versions_controller.rb).
 
 `Versions::ReleaseService` (new):
 1. **Incomplete check:** find work packages whose Release CF references the target version
@@ -242,7 +242,7 @@ Contract: `Versions::ReleaseContract` enforcing `:manage_versions` and a valid r
 target. UI: a Primer dialog offering the three strategies + target-version selector.
 
 ### 3.2 Archive / Delete
-- **Delete:** reuse [app/services/versions/delete_service.rb](app/services/versions/delete_service.rb).
+- **Delete:** reuse [app/services/versions/delete_service.rb](../app/services/versions/delete_service.rb).
   `has_many :work_packages, dependent: :nullify` covers `version_id`; for the Release CF,
   add cleanup of `custom_values` referencing the deleted version (or offer "reassign to
   another release" like the draft's fallback route). Surface a destructive-action dialog
@@ -254,7 +254,7 @@ target. UI: a Primer dialog offering the three strategies + target-version selec
 ## 4. Release Notes Generator (in scope)
 
 Net-new, but builds on the existing `wiki_page_title` link
-([version.rb:164](app/models/version.rb#L164)).
+([version.rb:164](../app/models/version.rb#L164)).
 
 - **Source set:** work packages whose Release CF references the version **and** whose status
   category = done/closed.
@@ -270,15 +270,15 @@ Net-new, but builds on the existing `wiki_page_title` link
 
 ## 5. API (REST v3)
 
-Reuse the existing versions API ([lib/api/v3/versions/](lib/api/v3/versions/)):
+Reuse the existing versions API ([lib/api/v3/versions/](../lib/api/v3/versions/)):
 
 - `kind` is exposed as a new property on
-  [version_representer.rb](lib/api/v3/versions/version_representer.rb) and writable via the
+  [version_representer.rb](../lib/api/v3/versions/version_representer.rb) and writable via the
   existing create/update endpoints + schema
-  ([version_schema_representer.rb](lib/api/v3/versions/schemas/version_schema_representer.rb)).
+  ([version_schema_representer.rb](../lib/api/v3/versions/schemas/version_schema_representer.rb)).
 - `GET /api/v3/versions?filters=[{"kind":{"operator":"=","values":["release"]}}]` to list
   releases (add a `kind` version filter under
-  [app/models/queries/versions/filters/](app/models/queries/versions/filters/)).
+  [app/models/queries/versions/filters/](../app/models/queries/versions/filters/)).
 - The "Release" action maps to `PATCH /api/v3/versions/:id` with `status` + a
   `moveIncompleteWorkPackagesTo` semantic handled by `ReleaseService` (mirrors the draft's
   `moveIncompleteIssuesTo`).
@@ -290,7 +290,7 @@ Reuse the existing versions API ([lib/api/v3/versions/](lib/api/v3/versions/)):
 ---
 
 ## 6. Permissions
-Reuse `:manage_versions` ([config/initializers/permissions.rb:228](config/initializers/permissions.rb#L228))
+Reuse `:manage_versions` ([config/initializers/permissions.rb:228](../config/initializers/permissions.rb#L228))
 for create/edit/release/delete. Viewing releases on work packages follows existing version
 visibility (`:view_work_packages` + sharing). No new permission required unless Release
 management must be separable from generic version management — if so, add
@@ -301,7 +301,7 @@ with `:manage_versions`; split later only if requested.
 
 ## 7. Filtering / Query integration
 - **Work packages by Release:** automatic via the version CF + `ListOptional` filter
-  ([custom_fields/list_optional.rb](app/models/queries/filters/shared/custom_fields/list_optional.rb)).
+  ([custom_fields/list_optional.rb](../app/models/queries/filters/shared/custom_fields/list_optional.rb)).
   Supports equals / not / all / none. (Status operators `o/c/l` exist for the *native*
   `version_id` filter; for the CF the equivalent is filtering by version status separately.)
 - **Versions list by kind:** new `kind` filter (see §5).

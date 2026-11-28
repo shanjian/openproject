@@ -31,7 +31,7 @@
 require "spec_helper"
 
 # An "origin cause" records where a journal came from (an MCP assistant) rather than what changed.
-# Two rules keep it trustworthy, see docs/development/mcp-write-tools-proposal.md:
+# Two rules keep it trustworthy, see new_docs/development/mcp-write-tools-proposal.md:
 #
 # * it only aggregates with an identical cause, so it can neither be erased by, nor relabel, a
 #   person's journal, and

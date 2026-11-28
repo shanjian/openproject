@@ -34,7 +34,7 @@ module API
       module Schemas
         class EpicFilterDependencyRepresenter < ByWorkPackageFilterDependencyRepresenter
           # Epic links may live in a different project than the work package
-          # linking to them (see docs/development/epic-link-implementation-tasks.md),
+          # linking to them (see new_docs/development/epic-link-implementation-tasks.md),
           # so the value picker has to offer epics from every visible project —
           # not only the current one. Override the project-scoped href callback
           # from the parent class to always use the cross-project endpoint.

@@ -393,7 +393,7 @@ request`, so grep the OpenProject log for that string.
 
 ## Related
 
-- [MCP Server (administration)](../system-admin-guide/integrations/mcp-server/README.md)
+- [MCP Server (administration)](../../docs/system-admin-guide/integrations/mcp-server/README.md)
   — the administrator-facing reference.
 - [mcp-upstream-backlog.md](../development/mcp-upstream-backlog.md) — what upstream
   has built that this build has not taken yet, and why.

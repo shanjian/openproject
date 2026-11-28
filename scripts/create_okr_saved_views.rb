@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Creates the public saved views recommended by
-# docs/customization/Department and Team OKR Process.md ("Executive Review" section)
+# new_docs/customization/Department and Team OKR Process.md ("Executive Review" section)
 # in the Company OKRs project.
 #
 # Usage (RPM/packaged install, no Docker):

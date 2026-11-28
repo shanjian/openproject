@@ -2011,9 +2011,9 @@ Start the app (`bin/dev` or `bin/compose run`), sign in as an admin, and verify:
 
 - [ ] **Step 6: Update the design spec status**
 
-In `docs/superpowers/specs/2026-08-09-department-field-design.md`, change `**Status:** Draft (pending approval)` to `**Status:** Implemented`.
+In `new_docs/superpowers/specs/2026-08-09-department-field-design.md`, change `**Status:** Draft (pending approval)` to `**Status:** Implemented`.
 
 ```bash
-git add docs/superpowers/specs/2026-08-09-department-field-design.md
+git add new_docs/superpowers/specs/2026-08-09-department-field-design.md
 git commit -m "docs(departments): mark design spec as implemented"
 ```

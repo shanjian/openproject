@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Spec: `docs/superpowers/specs/2026-08-10-admin-shareable-account-links-design.md` — every task below implements a section of it; re-read it if a task's rationale is unclear.
+- Spec: `new_docs/superpowers/specs/2026-08-10-admin-shareable-account-links-design.md` — every task below implements a section of it; re-read it if a task's rationale is unclear.
 - No new UI for admin-typed passwords; `UsersController#update`'s existing "set password directly" flow is untouched.
 - No new token-consumption code: invitation links are consumed by the existing `AccountController#activate`, reset links by the existing `AccountController#lost_password`.
 - Follow existing code style: `frozen_string_literal: true` + copyright header on every new Ruby file (copy verbatim from any file touched in this plan).

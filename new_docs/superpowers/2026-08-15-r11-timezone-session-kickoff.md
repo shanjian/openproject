@@ -19,7 +19,7 @@ brainstorm this from scratch. Skip straight to `superpowers:writing-plans`.
 
 ## Authoritative source
 
-Read the spec: `docs/superpowers/specs/2026-08-14-meeting-batch2-calendar-timezone-scope-design.md`
+Read the spec: `new_docs/superpowers/specs/2026-08-14-meeting-batch2-calendar-timezone-scope-design.md`
 
 Your scope is **Part 2 only** (lines 282-391 in that file: `## Part 2 — R11:
 timezone selection at creation` through `### Tests (Part 2)`). Do not
@@ -97,7 +97,7 @@ already spec'd, just be aware going in)
   yourself when the stakes are high.
 - **Workflow that worked well for Part 1**, reuse it: `superpowers:writing-plans`
   to turn the spec section into a task-by-task implementation plan, saved to
-  `docs/superpowers/plans/`, then `superpowers:subagent-driven-development` to
+  `new_docs/superpowers/plans/`, then `superpowers:subagent-driven-development` to
   execute it (fresh implementer subagent per task, a task-scoped reviewer
   after each, a fix-and-re-review loop for findings, and one broad
   whole-branch review at the end before opening the PR). The SDD skill's own
@@ -139,7 +139,7 @@ Another session is implementing Part 3 (R12) at the same time, off the same
 1. Read the spec's Part 2 section in full (lines 282-391 of the design doc
    above) — it's the actual design; this note is only orientation.
 2. Invoke `superpowers:writing-plans` on Part 2, producing an implementation
-   plan under `docs/superpowers/plans/`.
+   plan under `new_docs/superpowers/plans/`.
 3. Present the plan's execution-choice question (subagent-driven vs. inline)
    as that skill directs, and proceed.
 4. Branch name suggestion: `feature/meeting-batch2-part2-timezone-selection`.

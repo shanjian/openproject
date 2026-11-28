@@ -15,15 +15,15 @@ we can just reuse the existing client." **That is not true in this codebase.**
 `modules/gitlab_integration` is a **webhook receiver only**:
 
 - GitLab pushes events to OpenProject
-  ([hook_handler.rb](modules/gitlab_integration/lib/open_project/gitlab_integration/hook_handler.rb#L31-L48)),
+  ([hook_handler.rb](../modules/gitlab_integration/lib/open_project/gitlab_integration/hook_handler.rb#L31-L48)),
   which merely receives them and `upsert_*`s local records
-  ([services/](modules/gitlab_integration/lib/open_project/gitlab_integration/services/)).
+  ([services/](../modules/gitlab_integration/lib/open_project/gitlab_integration/services/)).
 - The module has **no outbound HTTP client**, no GitLab base URL, and no access
   token (grep for `Net::HTTP` / `Faraday` / `api/v4` / `private_token` returns
   nothing).
 - The "copy branch name" front-end is a **pure client-side clipboard** action
-  ([git-actions.service.ts:64](modules/gitlab_integration/frontend/module/git-actions/git-actions.service.ts#L64-L67),
-  [git-actions-menu.component.ts:100](modules/gitlab_integration/frontend/module/git-actions-menu/git-actions-menu.component.ts#L100));
+  ([git-actions.service.ts:64](../modules/gitlab_integration/frontend/module/git-actions/git-actions.service.ts#L64-L67),
+  [git-actions-menu.component.ts:100](../modules/gitlab_integration/frontend/module/git-actions-menu/git-actions-menu.component.ts#L100));
   it never touches the backend.
 
 So this feature is really about **building the entire outbound half from
@@ -32,7 +32,7 @@ outbound client — the button itself is the easy part.
 
 Good news: there is an established pattern for outbound calls — `OpenProject.httpx`
 (with bearer/basic auth), as used by the GitHub integration in
-[check_deploy_status_job.rb:160](modules/github_integration/app/workers/cron/check_deploy_status_job.rb#L160).
+[check_deploy_status_job.rb:160](../modules/github_integration/app/workers/cron/check_deploy_status_job.rb#L160).
 
 ---
 
@@ -59,9 +59,9 @@ Good news: there is an established pattern for outbound calls — `OpenProject.h
   containment** — user/project config never supplies a host at call time).
 - Storage: plugin settings, following the GitHub integration's use of
   `Setting.plugin_openproject_github_integration`
-  ([check_deploy_status_job.rb:133](modules/github_integration/app/workers/cron/check_deploy_status_job.rb#L133)).
+  ([check_deploy_status_job.rb:133](../modules/github_integration/app/workers/cron/check_deploy_status_job.rb#L133)).
 - **Implemented:** `Engine.settings` default + admin partial
-  [`settings/_gitlab_integration.html.erb`](modules/gitlab_integration/app/views/settings/_gitlab_integration.html.erb).
+  [`settings/_gitlab_integration.html.erb`](../modules/gitlab_integration/app/views/settings/_gitlab_integration.html.erb).
 
 > If multiple GitLab instances become necessary later: move the host to the
 > project level, but a **global host allowlist** then becomes mandatory. Not in
@@ -77,7 +77,7 @@ Good news: there is an established pattern for outbound calls — `OpenProject.h
 - UI: a project-settings page guarded by the existing `edit_project` permission
   — the same gate as every other Project settings page, so project admins reach
   it with no extra role configuration
-  ([controller](modules/gitlab_integration/app/controllers/projects/settings/gitlab_controller.rb)).
+  ([controller](../modules/gitlab_integration/app/controllers/projects/settings/gitlab_controller.rb)).
   (A bespoke permission was intentionally avoided: a new permission is granted to
   no role by default, which would hide the page until an admin assigned it.)
 
@@ -88,7 +88,7 @@ Good news: there is an established pattern for outbound calls — `OpenProject.h
   > creation uses the REST Branches API (`POST /projects/:id/repository/branches`),
   > which requires the `api` scope.
 - Storage: table `gitlab_user_tokens`
-  ([model](modules/gitlab_integration/app/models/gitlab_user_token.rb)). A raw
+  ([model](../modules/gitlab_integration/app/models/gitlab_user_token.rb)). A raw
   PAT (not an OAuth flow) fits a small dedicated table best.
 - **Always encrypted at rest.** The token is a write-capable credential, so it
   is encrypted with `ActiveSupport::MessageEncryptor` (AES-256-GCM) using a key
@@ -100,7 +100,7 @@ Good news: there is an established pattern for outbound calls — `OpenProject.h
 - The **PAT is never sent to the front-end**; it is only used server-side when
   making the outbound call.
 - UI: a self-contained "My account" page
-  ([controller](modules/gitlab_integration/app/controllers/gitlab_integration/my_gitlab_token_controller.rb)),
+  ([controller](../modules/gitlab_integration/app/controllers/gitlab_integration/my_gitlab_token_controller.rb)),
   mirroring the avatars module, to minimise coupling to the upstream
   access-tokens page.
 
@@ -121,7 +121,7 @@ Good news: there is an established pattern for outbound calls — `OpenProject.h
    2. Load the current user's PAT (§2.3). Missing → 422 with a clear message.
    3. **Compute the branch name server-side** (do not trust the client). The
       sanitisation rules currently live only in TS
-      ([git-actions.service.ts:38](modules/gitlab_integration/frontend/module/git-actions/git-actions.service.ts#L38-L46));
+      ([git-actions.service.ts:38](../modules/gitlab_integration/frontend/module/git-actions/git-actions.service.ts#L38-L46));
       they are reimplemented in Ruby and must stay in sync (format
       `type/id-title`).
    4. Resolve the ref: the project's `default_ref`, else `GET /projects/:id` →
@@ -149,13 +149,13 @@ module's existing `GitlabMergeRequestsByWorkPackageAPI` style):
 POST /api/v3/work_packages/:id/gitlab/branches
 ```
 
-- Endpoint: [gitlab_branches_by_work_package_api.rb](modules/gitlab_integration/lib/api/v3/gitlab_branches/gitlab_branches_by_work_package_api.rb),
-  wired in [engine.rb](modules/gitlab_integration/lib/open_project/gitlab_integration/engine.rb) via `add_api_endpoint`.
+- Endpoint: [gitlab_branches_by_work_package_api.rb](../modules/gitlab_integration/lib/api/v3/gitlab_branches/gitlab_branches_by_work_package_api.rb),
+  wired in [engine.rb](../modules/gitlab_integration/lib/open_project/gitlab_integration/engine.rb) via `add_api_endpoint`.
 - Authorised with `show_gitlab_content` (decision §1).
 - Service in `app/services/gitlab_integration/` returning `ServiceResult`
-  ([create_branch_service.rb](modules/gitlab_integration/app/services/gitlab_integration/create_branch_service.rb)).
+  ([create_branch_service.rb](../modules/gitlab_integration/app/services/gitlab_integration/create_branch_service.rb)).
 - Outbound calls wrapped in `GitlabIntegration::APIClient`
-  ([api_client.rb](modules/gitlab_integration/app/services/gitlab_integration/api_client.rb))
+  ([api_client.rb](../modules/gitlab_integration/app/services/gitlab_integration/api_client.rb))
   around `OpenProject.httpx`, easy to stub in tests.
 
 ---
@@ -185,7 +185,7 @@ POST /api/v3/work_packages/:id/gitlab/branches
 
 - **OpenProject-side permissions**:
   - Create action: reuses `show_gitlab_content`
-    ([engine.rb](modules/gitlab_integration/lib/open_project/gitlab_integration/engine.rb)).
+    ([engine.rb](../modules/gitlab_integration/lib/open_project/gitlab_integration/engine.rb)).
   - Settings page: existing `edit_project` (project admins), same as other
     project settings pages — no bespoke permission that would need manual
     assignment.
@@ -207,7 +207,7 @@ POST /api/v3/work_packages/:id/gitlab/branches
 
 This is an intrusive change on a fork. Each upstream upgrade may require
 re-applying the patch, especially
-[engine.rb](modules/gitlab_integration/lib/open_project/gitlab_integration/engine.rb)
+[engine.rb](../modules/gitlab_integration/lib/open_project/gitlab_integration/engine.rb)
 and the front-end component. Mitigations:
 - Keep new logic in new files to minimise edits to upstream files (engine.rb
   edits are unavoidable but kept small).

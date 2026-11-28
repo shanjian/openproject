@@ -14,7 +14,7 @@ not hardcoded to a single "Company OKRs" project.
 
 ## Motivating use case
 
-Per `docs/customization/Company OKR Framework.md` and `Department and
+Per `new_docs/customization/Company OKR Framework.md` and `Department and
 Team OKR Process.md`: Objectives and Key Results are work packages,
 each tagged with an Organization Unit (a `department`-format custom
 field, see `2026-08-10-department-custom-field-design.md`) and a
